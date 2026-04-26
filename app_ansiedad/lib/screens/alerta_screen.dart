@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class AlertaScreen extends StatefulWidget {
   const AlertaScreen({super.key});
@@ -10,7 +12,7 @@ class AlertaScreen extends StatefulWidget {
 
 class _AlertaScreenState extends State<AlertaScreen> {
   // --- VARIABLES DE DATOS ---
-  String _nombreUsuario = "Omar Ángeles"; // Lo personalicé para tu Trabajo Terminal
+  String _nombreUsuario = "Omar Ángeles"; 
   int _bpmActual = 0;
   int _spo2Actual = 0;
   int _hrvActual = 0;
@@ -180,7 +182,7 @@ class _AlertaScreenState extends State<AlertaScreen> {
                 _buildScoreGradientCard(),
                 const SizedBox(height: 30),
 
-                // BOTONES DE ACCIÓN
+                // --- BOTONES DE ACCIÓN ---
                 ElevatedButton.icon(
                   onPressed: () {},
                   icon: const Icon(Icons.history),
@@ -216,15 +218,74 @@ class _AlertaScreenState extends State<AlertaScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                   ),
                 ),
+                const SizedBox(height: 15),
+
+                // --- NUEVO BOTÓN: ENVIAR A LA NUBE ---
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    // 1. URL usando tu IP local apuntando al puerto de Node.js
+                    final url = Uri.parse('http://192.168.1.73:3000/api/lecturas');
+                    
+                    // 2. Preparamos el paquete JSON con tu UUID
+                    final payload = {
+                      "paciente_id": "890e9e28-59f8-43a2-9d67-08a387311d68", 
+                      "bpm": _bpmActual,
+                      "spo2": _spo2Actual,
+                      "hrv": _hrvActual,
+                      "score_ansiedad": _ansiedadScore,
+                      "estado_ansiedad": _estadoAnsiedadText
+                    };
+
+                    try {
+                      // 3. Disparamos la petición
+                      final response = await http.post(
+                        url,
+                        headers: {"Content-Type": "application/json"},
+                        body: jsonEncode(payload),
+                      );
+
+                      // Regla de Flutter: Validar que la pantalla siga activa antes de mostrar el mensaje
+                      if (!mounted) return;
+
+                      if (response.statusCode == 201) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("✅ Datos biométricos enviados a la Nube"),
+                            backgroundColor: Colors.green,
+                          )
+                        );
+                      } else {
+                        throw Exception("Error del servidor: ${response.statusCode}");
+                      }
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("❌ Error de red: $e"),
+                          backgroundColor: Colors.red,
+                        )
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.cloud_upload),
+                  label: const Text("Subir lectura de prueba"),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    backgroundColor: Colors.teal,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  ),
+                ),
               ],
             ),
           ),
         ],
       ),
+      // Botón flotante para cambiar los valores
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _simularDatos,
         icon: const Icon(Icons.sync),
-        label: const Text("Simular Latido"),
+        label: const Text("Generar nuevos datos"),
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
       ),
