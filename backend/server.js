@@ -66,12 +66,36 @@ app.post('/api/lecturas', async (req, res) => {
   }
 });
 
-// Escuchando conexiones en tiempo real
+// Escuchando conexiones en tiempo real (WebSockets)
 io.on('connection', (socket) => {
-  console.log('Un cliente se ha conectado:', socket.id);
+  console.log('🟢 Un cliente se ha conectado:', socket.id);
+
+  // Escuchar cuando el paciente o especialista envía un mensaje
+  socket.on('enviar_mensaje', async (data) => {
+    console.log('📩 Nuevo mensaje recibido:', data.texto);
+
+    try {
+      // 1. Guardar el mensaje en la base de datos (Supabase)
+      const query = `
+        INSERT INTO mensajes_chat (paciente_id, texto, tipo_mensaje) 
+        VALUES ($1, $2, $3) 
+        RETURNING *;
+      `;
+      // Usamos tu UUID y el texto que venga del celular
+      const values = [data.paciente_id, data.texto, data.tipo_mensaje || 'texto'];
+      const result = await pool.query(query, values);
+
+      // 2. Rebotar el mensaje a todos los dispositivos conectados
+      // Emitimos el mensaje ya guardado (con su ID y fecha de la base de datos)
+      io.emit('recibir_mensaje', result.rows[0]);
+
+    } catch (error) {
+      console.error('❌ Error al guardar el mensaje:', error);
+    }
+  });
 
   socket.on('disconnect', () => {
-    console.log('Cliente desconectado:', socket.id);
+    console.log('🔴 Cliente desconectado:', socket.id);
   });
 });
 
