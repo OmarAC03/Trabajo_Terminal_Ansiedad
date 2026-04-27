@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:firebase_auth/firebase_auth.dart';
 
 class MensajesScreen extends StatefulWidget {
   const MensajesScreen({super.key});
@@ -14,7 +15,7 @@ class _MensajesScreenState extends State<MensajesScreen> {
   final TextEditingController _controladorTexto = TextEditingController();
   late IO.Socket socket;
 
-  final String _miPacienteId = "890e9e28-59f8-43a2-9d67-08a387311d68";
+  final String _miPacienteId = FirebaseAuth.instance.currentUser?.uid ?? "";
 
   @override
   void initState() {

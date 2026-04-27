@@ -34,38 +34,29 @@ pool.connect((err, client, release) => {
 });
 // ----------------------------------------------
 
-// Ruta de prueba
-// --- ENDPOINT PARA RECIBIR DATOS DEL ESP32 ---
+// Ruta para recibir lecturas biométricas de la App / ESP32
 app.post('/api/lecturas', async (req, res) => {
-  // 1. Extraemos los datos que nos mandará el ESP32 (o la app móvil por ahora)
-  const { paciente_id, bpm, spo2, hrv, score_ansiedad, estado_ansiedad } = req.body;
-
   try {
-    // 2. Preparamos la instrucción SQL para insertar la lectura
+    const { paciente_id, bpm, spo2, hrv, score_ansiedad, estado_ansiedad } = req.body;
+
+    // Insertar en la tabla lecturas_biometricas de Supabase
     const query = `
-      INSERT INTO lecturas_biometricas (paciente_id, bpm, spo2, hrv, score_ansiedad, estado_ansiedad)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO lecturas_biometricas (paciente_id, bpm, spo2, hrv, score_ansiedad, estado_ansiedad) 
+      VALUES ($1, $2, $3, $4, $5, $6) 
       RETURNING *;
     `;
-    
-    // 3. Pasamos los valores de forma segura (evita inyecciones SQL)
     const values = [paciente_id, bpm, spo2, hrv, score_ansiedad, estado_ansiedad];
-
-    // 4. Ejecutamos la consulta en Supabase
+    
     const result = await pool.query(query, values);
 
-    // 5. Respondemos con éxito
-    res.status(201).json({
-      mensaje: '✅ Lectura biométrica guardada exitosamente',
-      datos_guardados: result.rows[0]
-    });
+    console.log('✅ Nueva lectura guardada para el paciente:', paciente_id);
+    res.status(201).json({ mensaje: 'Lectura guardada con éxito', data: result.rows[0] });
 
   } catch (error) {
     console.error('❌ Error al guardar la lectura:', error);
-    res.status(500).json({ error: 'Error interno del servidor al guardar datos' });
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
-
 // Escuchando conexiones en tiempo real (WebSockets)
 io.on('connection', (socket) => {
   console.log('🟢 Un cliente se ha conectado:', socket.id);

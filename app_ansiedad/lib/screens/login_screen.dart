@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 // TODO: Cambia esto por la ruta real de tu pantalla principal
 import 'alerta_screen.dart'; 
+import '../main_layout.dart'; // O la ruta correcta donde tengas tu MainLayout
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -42,8 +43,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Si es exitoso, navegar a la pantalla principal y destruir el historial de navegación
       Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const AlertaScreen()), 
+      context,
+      MaterialPageRoute(builder: (context) => const MainLayout()), 
       );
 
     } on FirebaseAuthException catch (e) {

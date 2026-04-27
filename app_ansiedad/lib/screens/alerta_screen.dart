@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AlertaScreen extends StatefulWidget {
   const AlertaScreen({super.key});
@@ -12,7 +13,8 @@ class AlertaScreen extends StatefulWidget {
 
 class _AlertaScreenState extends State<AlertaScreen> {
   // --- VARIABLES DE DATOS ---
-  String _nombreUsuario = "Omar Ángeles"; 
+  String _nombreUsuario = FirebaseAuth.instance.currentUser?.email?.split('@')[0] ?? "Paciente";
+  final String _miPacienteId = FirebaseAuth.instance.currentUser?.uid ?? "";
   int _bpmActual = 0;
   int _spo2Actual = 0;
   int _hrvActual = 0;
@@ -228,7 +230,7 @@ class _AlertaScreenState extends State<AlertaScreen> {
                     
                     // 2. Preparamos el paquete JSON con tu UUID
                     final payload = {
-                      "paciente_id": "890e9e28-59f8-43a2-9d67-08a387311d68", 
+                      "paciente_id": _miPacienteId, 
                       "bpm": _bpmActual,
                       "spo2": _spo2Actual,
                       "hrv": _hrvActual,
