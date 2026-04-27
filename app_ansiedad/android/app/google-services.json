@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "26109806229",
+    "project_id": "tt-ansiedad-sistema",
+    "storage_bucket": "tt-ansiedad-sistema.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:26109806229:android:90c8819ae12fb171a73d9c",
+        "android_client_info": {
+          "package_name": "com.example.app_ansiedad"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAk73os6cJnnotcmEOukDvhuCJxwmQZwaU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

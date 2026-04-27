@@ -224,7 +224,7 @@ class _AlertaScreenState extends State<AlertaScreen> {
                 ElevatedButton.icon(
                   onPressed: () async {
                     // 1. URL usando tu IP local apuntando al puerto de Node.js
-                    final url = Uri.parse('http://192.168.1.73:3000/api/lecturas');
+                    final url = Uri.parse('https://tt-ansiedad-backend.onrender.com');
                     
                     // 2. Preparamos el paquete JSON con tu UUID
                     final payload = {

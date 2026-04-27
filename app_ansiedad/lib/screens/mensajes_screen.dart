@@ -24,7 +24,7 @@ class _MensajesScreenState extends State<MensajesScreen> {
 
   void _conectarSocket() {
     // 1. Configurar la conexión hacia tu Node.js
-    socket = IO.io('http://192.168.1.73:3000', IO.OptionBuilder()
+    socket = IO.io('https://tt-ansiedad-backend.onrender.com', IO.OptionBuilder()
         .setTransports(['websocket']) // Forzar WebSockets
         .disableAutoConnect() 
         .build());

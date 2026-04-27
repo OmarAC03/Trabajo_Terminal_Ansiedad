@@ -1,7 +1,19 @@
 import 'package:flutter/material.dart';
-import 'main_layout.dart';
+import 'package:firebase_core/firebase_core.dart'; 
+import 'firebase_options.dart'; 
+import 'screens/login_screen.dart';
+import 'main_layout.dart'; 
 
-void main() {
+void main() async {
+  // 1. Asegura que los widgets estén listos antes de llamar a código nativo
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // 2. Inicializa Firebase con las opciones de tu proyecto
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // 3. ¡AQUÍ ESTÁ LA CORRECCIÓN! Llamamos a AppAnsiedad
   runApp(const AppAnsiedad());
 }
 
@@ -17,7 +29,7 @@ class AppAnsiedad extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
         useMaterial3: true,
       ),
-      home: const MainLayout(),
+      home: const LoginScreen(), // Esta es tu pantalla principal actual
     );
   }
 }
