@@ -57,6 +57,31 @@ app.post('/api/lecturas', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
+
+// Ruta para registrar un nuevo usuario en Supabase (después de Firebase)
+app.post('/api/usuarios', async (req, res) => {
+  try {
+    const { id, nombre, email, rol } = req.body;
+
+    const query = `
+      INSERT INTO usuarios (id, nombre, email, rol) 
+      VALUES ($1, $2, $3, $4) 
+      RETURNING *;
+    `;
+    const values = [id, nombre, email, rol || 'paciente'];
+    
+    const result = await pool.query(query, values);
+
+    console.log('✅ Nuevo usuario registrado en BD:', nombre);
+    res.status(201).json({ mensaje: 'Usuario guardado con éxito', data: result.rows[0] });
+
+  } catch (error) {
+    console.error('❌ Error al registrar usuario:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // Escuchando conexiones en tiempo real (WebSockets)
 io.on('connection', (socket) => {
   console.log('🟢 Un cliente se ha conectado:', socket.id);
