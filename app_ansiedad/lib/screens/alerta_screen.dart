@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
-import 'dart:math';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
+import 'dart:typed_data';
+
+// 🚨 LIBRERÍAS CRÍTICAS
+import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class AlertaScreen extends StatefulWidget {
   const AlertaScreen({super.key});
@@ -12,455 +18,343 @@ class AlertaScreen extends StatefulWidget {
 }
 
 class _AlertaScreenState extends State<AlertaScreen> {
-  // --- VARIABLES DE DATOS ---
-  String _nombreUsuario = FirebaseAuth.instance.currentUser?.email?.split('@')[0] ?? "Paciente";
+  // --- 1. VARIABLES DE ESTADO Y UI ---
+  final String _nombreUsuario = FirebaseAuth.instance.currentUser?.email?.split('@')[0] ?? "Paciente";
   final String _miPacienteId = FirebaseAuth.instance.currentUser?.uid ?? "";
+  String _lastSyncTime = "Sin conexión";
+  bool _sensorConectado = false;
+  bool _isScanning = false;
+
+  // --- 2. VALORES BIOMÉTRICOS ACTUALES ---
   int _bpmActual = 0;
   int _spo2Actual = 0;
   int _hrvActual = 0;
   double _ansiedadScore = 0.0;
-  String _estadoAnsiedadText = "Normal";
-  Color _estadoAnsiedadColor = Colors.green;
-  String _lastSyncTime = "Hace 2 min";
-  bool _sensorConectado = false;
+  String _estadoAnsiedadText = "Esperando sensor...";
+  Color _estadoAnsiedadColor = Colors.grey;
 
-  // --- FUNCIÓN DE SIMULACIÓN ---
-  void _simularDatos() {
-    setState(() {
-      _bpmActual = 65 + Random().nextInt(40); 
-      _spo2Actual = 95 + Random().nextInt(5);  
-      _hrvActual = 15 + Random().nextInt(20);  
+  // --- 3. MEMORIA INTERNA (GRÁFICA Y BUFFERS) ---
+  final List<FlSpot> _puntosGrafica = []; 
+  int _ejeX = 0;
+  final List<int> _bufferBpm = [];
+  final List<int> _bufferSpo2 = [];
+  final List<int> _bufferHrv = [];
 
-      if (_bpmActual > 98) {
-        _ansiedadScore = 7.1;
-        _estadoAnsiedadText = "Alta";
-        _estadoAnsiedadColor = Colors.redAccent;
-      } else if (_bpmActual > 85) {
-        _ansiedadScore = 6.2;
-        _estadoAnsiedadText = "Moderada";
-        _estadoAnsiedadColor = Colors.orange;
-      } else {
-        _ansiedadScore = 4.8;
-        _estadoAnsiedadText = "Baja";
-        _estadoAnsiedadColor = Colors.teal;
+  // --- 4. HARDWARE (BLUETOOTH SERIAL) ---
+  BluetoothConnection? connection;
+  String _bufferDatos = ""; 
+
+  @override
+  void dispose() {
+    connection?.dispose();
+    super.dispose();
+  }
+
+  // --- LÓGICA DE CONEXIÓN Y PERMISOS ---
+  Future<bool> _solicitarPermisosModernos() async {
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.bluetooth,
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+      Permission.location,
+    ].request();
+    return statuses[Permission.bluetoothConnect]!.isGranted;
+  }
+
+  Future<void> _escanearYConectar() async {
+    if (_isScanning) return;
+
+    bool permisosOk = await _solicitarPermisosModernos();
+    if (!permisosOk) {
+      _mostrarSnack("⚠️ Se requieren permisos de Bluetooth para el A56", Colors.red);
+      return;
+    }
+
+    setState(() { _isScanning = true; _lastSyncTime = "Buscando vinculado..."; });
+
+    try {
+      List<BluetoothDevice> bondedDevices = await FlutterBluetoothSerial.instance.getBondedDevices();
+      BluetoothDevice? esp32;
+      
+      for (var d in bondedDevices) {
+        if (d.name != null && d.name!.contains("TT_SENSOR_CLASICO")) {
+          esp32 = d;
+          break;
+        }
       }
-      _lastSyncTime = "Ahora";
-      _sensorConectado = true;
-    });
+
+      if (esp32 == null) {
+        setState(() { _isScanning = false; _lastSyncTime = "No vinculado"; });
+        _mostrarSnack('⚠️ Vincula "TT_SENSOR_CLASICO" en los ajustes del celular', Colors.orange);
+        return;
+      }
+
+      connection = await BluetoothConnection.toAddress(esp32.address);
+      setState(() { _sensorConectado = true; _isScanning = false; _lastSyncTime = "En vivo (Serial)"; });
+
+      connection!.input!.listen((Uint8List data) {
+        _bufferDatos += ascii.decode(data);
+        if (_bufferDatos.contains('\n')) {
+          List<String> lineas = _bufferDatos.split('\n');
+          String jsonValido = lineas[0].trim();
+          _bufferDatos = lineas.length > 1 ? lineas[1] : ""; 
+          if (jsonValido.isNotEmpty) _procesarJSON(jsonValido);
+        }
+      }).onDone(() {
+        setState(() { _sensorConectado = false; _lastSyncTime = "Desconectado"; });
+      });
+
+    } catch (e) {
+      setState(() { _isScanning = false; _lastSyncTime = "Error de enlace"; });
+    }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _simularDatos();
+  // --- PROCESAMIENTO DE DATOS ---
+  void _procesarJSON(String jsonString) {
+    try {
+      var datos = jsonDecode(jsonString);
+      if (mounted) {
+        setState(() {
+          _bpmActual = datos['bpm'] ?? _bpmActual;
+          _spo2Actual = datos['spo2'] ?? _spo2Actual;
+          _hrvActual = datos['hrv'] ?? _hrvActual;
+
+          // Alimentar Gráfica
+          _puntosGrafica.add(FlSpot(_ejeX.toDouble(), _bpmActual.toDouble()));
+          _ejeX++;
+          if (_puntosGrafica.length > 20) _puntosGrafica.removeAt(0);
+
+          // Alimentar Buffers para Promedios
+          _bufferBpm.add(_bpmActual);
+          _bufferSpo2.add(_spo2Actual);
+          _bufferHrv.add(_hrvActual);
+
+          // Semáforo de Ansiedad
+          if (_bpmActual > 95 || _hrvActual < 25) {
+            _ansiedadScore = 8.5; _estadoAnsiedadText = "Alta"; _estadoAnsiedadColor = Colors.red;
+          } else if (_bpmActual > 85) {
+            _ansiedadScore = 6.0; _estadoAnsiedadText = "Moderada"; _estadoAnsiedadColor = Colors.orange;
+          } else {
+            _ansiedadScore = 4.0; _estadoAnsiedadText = "Baja"; _estadoAnsiedadColor = Colors.teal;
+          }
+        });
+      }
+    } catch (e) { print("Error JSON: $e"); }
   }
 
-  @override
+  // --- SINCRONIZACIÓN CON BACKEND (REMITIR PROMEDIOS) ---
+  Future<void> _enviarResumen() async {
+    if (_bufferBpm.isEmpty) return;
+
+    int promBpm = (_bufferBpm.reduce((a, b) => a + b) / _bufferBpm.length).round();
+    int promSpo2 = (_bufferSpo2.reduce((a, b) => a + b) / _bufferSpo2.length).round();
+    int promHrv = (_bufferHrv.reduce((a, b) => a + b) / _bufferHrv.length).round();
+
+    final payload = {
+      "paciente_id": _miPacienteId,
+      "bpm": promBpm,
+      "spo2": promSpo2,
+      "hrv": promHrv,
+      "score_ansiedad": _ansiedadScore,
+      "estado_ansiedad": _estadoAnsiedadText
+    };
+
+    try {
+      final res = await http.post(
+        Uri.parse('https://tt-ansiedad-backend.onrender.com/api/lecturas'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(payload),
+      );
+      if (res.statusCode == 201) {
+        _bufferBpm.clear(); _bufferSpo2.clear(); _bufferHrv.clear();
+        _mostrarSnack("✅ Resumen guardado en historial", Colors.green);
+      }
+    } catch (e) { _mostrarSnack("❌ Error de red", Colors.red); }
+  }
+
+  void _mostrarSnack(String m, Color c) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), backgroundColor: c));
+  }
+
+@override
   Widget build(BuildContext context) {
-    const Color headerColor = Color(0xFF1E6AFB); 
+    const Color primaryBlue = Color(0xFF1E6AFB);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FB), 
+      backgroundColor: const Color(0xFFF6F8FB),
       body: Stack(
         children: [
-          // 1. Capa de Fondo (Header Azul con degradado)
-          Container(
-            height: MediaQuery.of(context).size.height * 0.35, 
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [headerColor, Color(0xFF0C52CE)],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(30),
-                bottomRight: Radius.circular(30),
-              ),
-            ),
-          ),
-
-          // 2. Capa de Contenido (Scroll)
+          _buildDisenoFondo(primaryBlue), // El fondo azul
           SingleChildScrollView(
             padding: const EdgeInsets.only(top: 50, left: 20, right: 20, bottom: 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Buenos días,",
-                          style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 16),
-                        ),
-                        Text(
-                          _nombreUsuario,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 26,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          "Último sync: $_lastSyncTime",
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const CircleAvatar(
-                      radius: 30,
-                      backgroundColor: Colors.white24,
-                      child: Icon(Icons.person, size: 30, color: Colors.white70),
-                    ),
-                  ],
-                ),
+                _buildHeader(), // Nombre y estado
                 const SizedBox(height: 25),
-
-                _buildSensorStatusChip(_sensorConectado),
-                const SizedBox(height: 30),
-
-                // GRID DE MÉTRICAS
+                _buildAnxietyIndicator(), // El semáforo visual
+                const SizedBox(height: 20),
+                
+                // 🚨 CUADRÍCULA DE MÉTRICAS RESTAURADA
                 Row(
                   children: [
-                    Expanded(
-                      child: _buildMetricCard(
-                        title: "FREC. CARDÍACA",
-                        value: "$_bpmActual",
-                        unit: "BPM",
-                        subtext: "+8 vs. base",
-                        color: Colors.blueAccent,
-                        icon: Icons.favorite,
-                      ),
-                    ),
+                    Expanded(child: _buildMetricCard("CORAZÓN", "$_bpmActual", "BPM", Colors.blueAccent, Icons.favorite)),
                     const SizedBox(width: 15),
-                    Expanded(
-                      child: _buildMetricCard(
-                        title: "SPO2",
-                        value: "$_spo2Actual",
-                        unit: "%",
-                        subtext: "✓ Normal",
-                        color: Colors.green,
-                        icon: Icons.opacity,
-                      ),
-                    ),
+                    Expanded(child: _buildMetricCard("OXÍGENO", "$_spo2Actual", "%", Colors.green, Icons.opacity)),
                   ],
                 ),
                 const SizedBox(height: 15),
                 Row(
                   children: [
-                    Expanded(
-                      child: _buildMetricCard(
-                        title: "HRV - RMSSD",
-                        value: "$_hrvActual",
-                        unit: "ms",
-                        subtext: "▼ Baja",
-                        color: Colors.orange,
-                        icon: Icons.timer,
-                      ),
-                    ),
+                    Expanded(child: _buildMetricCard("VARIABILIDAD", "$_hrvActual", "ms", Colors.orange, Icons.timer)),
                     const SizedBox(width: 15),
-                    Expanded(
-                      child: _buildMetricCard(
-                        title: "ANSIEDAD",
-                        value: _ansiedadScore.toStringAsFixed(1),
-                        unit: "/ 10",
-                        subtext: "▲ $_estadoAnsiedadText",
-                        color: _estadoAnsiedadColor,
-                        icon: Icons.warning_amber_rounded,
-                      ),
-                    ),
+                    Expanded(child: _buildMetricCard("ESTRÉS", _ansiedadScore.toStringAsFixed(1), "/10", _estadoAnsiedadColor, Icons.psychology)),
                   ],
                 ),
+                
                 const SizedBox(height: 20),
-
-                _buildGraphPlaceholderCard(),
-                const SizedBox(height: 20),
-
-                _buildScoreGradientCard(),
+                const Text("Tendencia en tiempo real", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
+                const SizedBox(height: 10),
+                _buildTrendChart(), // La gráfica de fl_chart
+                
                 const SizedBox(height: 30),
-
-                // --- BOTONES DE ACCIÓN ---
-                ElevatedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.history),
-                  label: const Text("Ver historial completo"),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    backgroundColor: Colors.blueAccent,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  ),
-                ),
-                const SizedBox(height: 15),
-                OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.self_improvement),
-                  label: const Text("Técnicas de relajación"),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    foregroundColor: Colors.orange,
-                    side: const BorderSide(color: Colors.orange),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  ),
-                ),
-                const SizedBox(height: 15),
-                OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.notification_important),
-                  label: const Text("Alerta al especialista"),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    foregroundColor: Colors.redAccent,
-                    side: const BorderSide(color: Colors.redAccent),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  ),
-                ),
-                const SizedBox(height: 15),
-
-                // --- NUEVO BOTÓN: ENVIAR A LA NUBE ---
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    // 1. URL usando tu IP local apuntando al puerto de Node.js
-                    final url = Uri.parse('https://tt-ansiedad-backend.onrender.com/api/lecturas');
-                    
-                    // 2. Preparamos el paquete JSON con tu UUID
-                    final payload = {
-                      "paciente_id": _miPacienteId, 
-                      "bpm": _bpmActual,
-                      "spo2": _spo2Actual,
-                      "hrv": _hrvActual,
-                      "score_ansiedad": _ansiedadScore,
-                      "estado_ansiedad": _estadoAnsiedadText
-                    };
-
-                    try {
-                      // 3. Disparamos la petición
-                      final response = await http.post(
-                        url,
-                        headers: {"Content-Type": "application/json"},
-                        body: jsonEncode(payload),
-                      );
-
-                      // Regla de Flutter: Validar que la pantalla siga activa antes de mostrar el mensaje
-                      if (!mounted) return;
-
-                      if (response.statusCode == 201) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("✅ Datos biométricos enviados a la Nube"),
-                            backgroundColor: Colors.green,
-                          )
-                        );
-                      } else {
-                        throw Exception("Error del servidor: ${response.statusCode}");
-                      }
-                    } catch (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text("❌ Error de red: $e"),
-                          backgroundColor: Colors.red,
-                        )
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.cloud_upload),
-                  label: const Text("Subir lectura de prueba"),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    backgroundColor: Colors.teal,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  ),
-                ),
+                _buildBotonSincronizar(),
               ],
             ),
           ),
         ],
       ),
-      // Botón flotante para cambiar los valores
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _simularDatos,
-        icon: const Icon(Icons.sync),
-        label: const Text("Generar nuevos datos"),
-        backgroundColor: Colors.blueAccent,
+      floatingActionButton: _buildFabConectar(primaryBlue),
+    );
+  }
+
+  // --- Botón de Sincronización ---
+  Widget _buildBotonSincronizar() {
+    return ElevatedButton.icon(
+      onPressed: _sensorConectado ? _enviarResumen : null,
+      icon: const Icon(Icons.cloud_upload),
+      label: const Text("Sincronizar Resumen Clínico"),
+      style: ElevatedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        backgroundColor: Colors.teal,
         foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       ),
     );
   }
-
-  // --- HELPER WIDGETS ---
-
-  Widget _buildMetricCard({
-    required String title,
-    required String value,
-    required String unit,
-    required String subtext,
-    required Color color,
-    required IconData icon,
-  }) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: TextStyle(color: Colors.grey[600], fontSize: 11, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    color: (title == "SPO2" && value == "97") ? color : Colors.black87,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  unit,
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                ),
-              ],
-            ),
-            const SizedBox(height: 5),
-            Text(
-              subtext,
-              style: TextStyle(
-                color: (subtext.contains("▲") || subtext.contains("▼")) ? color : Colors.teal,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSensorStatusChip(bool conectado) {
+  // --- WIDGETS DE DISEÑO ---
+  Widget _buildDisenoFondo(Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+      height: MediaQuery.of(context).size.height * 0.35,
       decoration: BoxDecoration(
-        color: Colors.white12,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            conectado ? Icons.check_circle : Icons.error,
-            color: conectado ? Colors.greenAccent : Colors.redAccent,
-            size: 16,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            conectado ? "Sensor conectado · ESP32" : "Sensor desconectado",
-            style: const TextStyle(color: Colors.white, fontSize: 13),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGraphPlaceholderCard() {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Expanded(
-                  child: Text(
-                    "Frecuencia cardíaca · últimos 10 min",
-                    style: TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(color: Colors.blueAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                  child: const Text("En vivo", style: TextStyle(color: Colors.blueAccent, fontSize: 12, fontWeight: FontWeight.bold)),
-                )
-              ],
-            ),
-            const SizedBox(height: 20),
-            Container(
-              height: 100,
-              color: Colors.blue.withOpacity(0.05),
-              child: const Center(
-                child: Icon(Icons.show_chart, size: 60, color: Colors.blueAccent),
-              ),
-            ),
-          ],
+        gradient: LinearGradient(
+          colors: [color, const Color(0xFF0C52CE)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
         ),
       ),
     );
   }
+  Widget _buildFabConectar(Color color) {
+    return FloatingActionButton.extended(
+      // Si está escaneando, desactivamos el botón para evitar múltiples clics
+      onPressed: _isScanning ? null : _escanearYConectar,
+      
+      icon: _isScanning 
+        ? const SizedBox(
+            width: 18, 
+            height: 18, 
+            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+          ) 
+        : Icon(_sensorConectado ? Icons.bluetooth_connected : Icons.bluetooth),
+      
+      label: Text(
+        _isScanning 
+          ? "Conectando..." 
+          : (_sensorConectado ? "Conectado" : "Conectar Sensor")
+      ),
+      
+      backgroundColor: _sensorConectado ? Colors.green : color,
+      foregroundColor: Colors.white,
+    );
+  }
 
-  Widget _buildScoreGradientCard() {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  "Score de ansiedad · ahora",
-                  style: TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  "${_ansiedadScore.toStringAsFixed(1)} / 10",
-                  style: const TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 15),
-            Container(
-              height: 10,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(5),
-                gradient: const LinearGradient(
-                  colors: [Colors.teal, Colors.yellow, Colors.orange, Colors.redAccent],
-                  stops: [0.0, 0.4, 0.7, 1.0],
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text("Sin ansiedad", style: TextStyle(color: Colors.grey[600], fontSize: 11)),
-                Text("Moderada", style: TextStyle(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold)),
-                Text("Alta", style: TextStyle(color: Colors.redAccent, fontSize: 11)),
-              ],
-            ),
-          ],
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text("Monitor Biométrico", style: TextStyle(color: Colors.white70, fontSize: 16)),
+          Text(_nombreUsuario, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+          Text("📡 $_lastSyncTime", style: const TextStyle(color: Colors.white60, fontSize: 12)),
+        ]),
+        const CircleAvatar(backgroundColor: Colors.white24, child: Icon(Icons.person, color: Colors.white)),
+      ],
+    );
+  }
+
+  Widget _buildSensorStatusChip() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(30)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: _sensorConectado ? Colors.greenAccent : Colors.redAccent, shape: BoxShape.circle)),
+        const SizedBox(width: 10),
+        Text(_sensorConectado ? "Hardware en línea" : "Esperando conexión serial...", style: const TextStyle(color: Colors.white, fontSize: 13)),
+      ]),
+    );
+  }
+
+  Widget _buildAnxietyIndicator() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade200)),
+      child: Column(children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          const Text("Nivel de Ansiedad", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+          Text(_estadoAnsiedadText.toUpperCase(), style: TextStyle(color: _estadoAnsiedadColor, fontWeight: FontWeight.bold)),
+        ]),
+        const SizedBox(height: 12),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: LinearProgressIndicator(value: _ansiedadScore / 10, minHeight: 10, backgroundColor: Colors.grey[200], valueColor: AlwaysStoppedAnimation<Color>(_estadoAnsiedadColor)),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildMetricCard(String t, String v, String u, Color c, IconData i) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade200)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(i, color: c, size: 20),
+        const SizedBox(height: 8),
+        Text(t, style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
+        Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+          Text(v, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(width: 4),
+          Text(u, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _buildTrendChart() {
+    return Container(
+      height: 180, padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade200)),
+      child: _puntosGrafica.isEmpty ? const Center(child: Text("Esperando datos...", style: TextStyle(color: Colors.grey))) : LineChart(
+        LineChartData(
+          minY: 40, maxY: 140,
+          gridData: FlGridData(show: true, drawVerticalLine: false),
+          titlesData: FlTitlesData(rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)), topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)), bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false))),
+          borderData: FlBorderData(show: false),
+          lineBarsData: [LineChartBarData(spots: _puntosGrafica, isCurved: true, color: Colors.blueAccent, barWidth: 3, dotData: FlDotData(show: false), belowBarData: BarAreaData(show: true, color: Colors.blueAccent.withOpacity(0.1)))],
         ),
       ),
     );

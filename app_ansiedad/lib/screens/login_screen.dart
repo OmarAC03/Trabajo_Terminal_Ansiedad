@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 // TODO: Cambia esto por la ruta real de tu pantalla principal
 import 'alerta_screen.dart'; 
 import '../main_layout.dart'; // O la ruta correcta donde tengas tu MainLayout
+import 'registro_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -183,6 +184,29 @@ class _LoginScreenState extends State<LoginScreen> {
                             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                   ),
+                  
+
+
+                ),
+                const SizedBox(height: 20),
+                // Botón para ir al Registro
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("¿No tienes cuenta? "),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const RegistroScreen()),
+                        );
+                      },
+                      child: const Text(
+                        "Regístrate aquí",
+                        style: TextStyle(color: primaryBlue, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

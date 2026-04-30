@@ -25,7 +25,11 @@ class _MainLayoutState extends State<MainLayout> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pantallas[_indiceActual],
+      // 🚨 LA CORRECCIÓN DE ORO ESTÁ AQUÍ
+      body: IndexedStack(
+        index: _indiceActual,
+        children: _pantallas,
+      ),
       // Usamos BottomNavigationBar clásico para tener control total del diseño
       bottomNavigationBar: Container(
         decoration: BoxDecoration(

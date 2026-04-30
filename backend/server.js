@@ -58,6 +58,22 @@ app.post('/api/lecturas', async (req, res) => {
   }
 });
 
+// --- NUEVA RUTA PARA CONSULTAR EL HISTORIAL ---
+app.get('/api/lecturas', async (req, res) => {
+  try {
+    // Consultamos todas las lecturas de la tabla lecturas_biometricas
+    // Las ordenamos por fecha para que la app las reciba en orden
+    const query = 'SELECT * FROM lecturas_biometricas ORDER BY fecha_registro DESC';
+    const result = await pool.query(query);
+
+    console.log(`✅ Enviando ${result.rows.length} registros al historial`);
+    res.status(200).json(result.rows);
+
+  } catch (error) {
+    console.error('❌ Error al obtener el historial:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 
 // Ruta para registrar un nuevo usuario en Supabase (después de Firebase)
 app.post('/api/usuarios', async (req, res) => {
