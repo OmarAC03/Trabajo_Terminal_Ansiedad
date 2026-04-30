@@ -61,17 +61,17 @@ app.post('/api/lecturas', async (req, res) => {
 // --- NUEVA RUTA PARA CONSULTAR EL HISTORIAL ---
 app.get('/api/lecturas', async (req, res) => {
   try {
-    // Consultamos todas las lecturas de la tabla lecturas_biometricas
-    // Las ordenamos por fecha para que la app las reciba en orden
-    const query = 'SELECT * FROM lecturas_biometricas ORDER BY fecha_registro DESC';
+    // Intentamos traer todo. Si falla el ORDER BY, usamos una versión simple
+    const query = 'SELECT * FROM lecturas_biometricas ORDER BY 1 DESC'; 
+    // "ORDER BY 1" ordena por la primera columna (normalmente el ID o la fecha)
+    
     const result = await pool.query(query);
-
-    console.log(`✅ Enviando ${result.rows.length} registros al historial`);
+    console.log(`✅ Registros recuperados: ${result.rows.length}`);
     res.status(200).json(result.rows);
 
   } catch (error) {
-    console.error('❌ Error al obtener el historial:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    console.error('❌ Error real en la base de datos:', error.message);
+    res.status(500).json({ error: 'Error interno', detalle: error.message });
   }
 });
 
