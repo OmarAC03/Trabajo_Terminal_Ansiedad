@@ -75,6 +75,71 @@ app.get('/api/lecturas', async (req, res) => {
   }
 });
 
+// --- HISTORIAL DE UN PACIENTE ESPECÍFICO (registros recientes, sin exponer a otros pacientes) ---
+// Usado por la app móvil. GET /api/lecturas/:pacienteId?limite=50
+app.get('/api/lecturas/:pacienteId', async (req, res) => {
+  try {
+    const { pacienteId } = req.params;
+    const limite = parseInt(req.query.limite) || 50;
+
+    const query = `
+      SELECT * FROM lecturas_biometricas
+      WHERE paciente_id = $1
+      ORDER BY fecha_medicion DESC
+      LIMIT $2;
+    `;
+    const result = await pool.query(query, [pacienteId, limite]);
+    res.status(200).json(result.rows);
+
+  } catch (error) {
+    console.error('❌ Error al obtener historial del paciente:', error.message);
+    res.status(500).json({ error: 'Error interno', detalle: error.message });
+  }
+});
+
+// --- RESUMEN AGREGADO POR DÍA (para gráficas de semana/mes y KPIs) ---
+// GET /api/lecturas/:pacienteId/resumen?periodo=semana|mes
+// Devuelve el DOBLE del rango pedido (ej. 14 días si pides "semana") para que
+// el cliente pueda comparar el periodo actual contra el inmediato anterior
+// (tendencias, rachas, etc.) sin tener que hacer una segunda llamada.
+app.get('/api/lecturas/:pacienteId/resumen', async (req, res) => {
+  try {
+    const { pacienteId } = req.params;
+    const periodo = req.query.periodo === 'mes' ? 'mes' : 'semana';
+    const diasPorPeriodo = periodo === 'mes' ? 30 : 7;
+    const rangoConsulta = diasPorPeriodo * 2; // periodo actual + periodo anterior
+
+    const query = `
+      SELECT
+        DATE_TRUNC('day', fecha_medicion) AS dia,
+        ROUND(AVG(bpm))::int AS bpm_promedio,
+        ROUND(AVG(spo2))::int AS spo2_promedio,
+        ROUND(AVG(hrv))::int AS hrv_promedio,
+        ROUND(AVG(score_ansiedad), 1) AS score_promedio,
+        COUNT(*) FILTER (WHERE estado_ansiedad = 'Alta') AS episodios_altos,
+        COUNT(*) FILTER (WHERE estado_ansiedad = 'Moderada') AS episodios_moderados,
+        COUNT(*) FILTER (WHERE estado_ansiedad = 'Baja') AS episodios_bajos,
+        COUNT(*) AS total_registros
+      FROM lecturas_biometricas
+      WHERE paciente_id = $1
+        AND fecha_medicion >= NOW() - ($2 || ' days')::interval
+      GROUP BY DATE_TRUNC('day', fecha_medicion)
+      ORDER BY dia ASC;
+    `;
+    const result = await pool.query(query, [pacienteId, rangoConsulta.toString()]);
+
+    res.status(200).json({
+      periodo,
+      dias_por_periodo: diasPorPeriodo,
+      serie_completa: result.rows, // el cliente separa "actual" vs "anterior" por fecha
+    });
+
+  } catch (error) {
+    console.error('❌ Error al generar resumen:', error.message);
+    res.status(500).json({ error: 'Error interno', detalle: error.message });
+  }
+});
+
 // Ruta para registrar un nuevo usuario en Supabase (después de Firebase)
 app.post('/api/usuarios', async (req, res) => {
   try {

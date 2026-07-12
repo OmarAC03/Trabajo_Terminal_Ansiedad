@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:math';
 
 // 🚨 LIBRERÍAS CRÍTICAS
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
@@ -42,11 +43,17 @@ class _AlertaScreenState extends State<AlertaScreen> {
 
   // --- 4. HARDWARE (BLUETOOTH SERIAL) ---
   BluetoothConnection? connection;
-  String _bufferDatos = ""; 
+  String _bufferDatos = "";
+
+  // --- 5. MODO SIMULACIÓN (sin hardware) ---
+  Timer? _simTimer;
+  bool _modoSimulacion = false;
+  final Random _rng = Random(); 
 
   @override
   void dispose() {
     connection?.dispose();
+    _simTimer?.cancel();
     super.dispose();
   }
 
@@ -63,6 +70,7 @@ class _AlertaScreenState extends State<AlertaScreen> {
 
   Future<void> _escanearYConectar() async {
     if (_isScanning) return;
+    if (_modoSimulacion) _detenerSimulacion();
 
     bool permisosOk = await _solicitarPermisosModernos();
     if (!permisosOk) {
@@ -142,6 +150,59 @@ class _AlertaScreenState extends State<AlertaScreen> {
     } catch (e) { print("Error JSON: $e"); }
   }
 
+  // --- MODO SIMULACIÓN (genera lecturas falsas realistas) ---
+  void _toggleSimulacion() {
+    if (_modoSimulacion) {
+      _detenerSimulacion();
+    } else {
+      _iniciarSimulacion();
+    }
+  }
+
+  void _iniciarSimulacion() {
+    // No mezclar simulación con una conexión Bluetooth real activa
+    connection?.dispose();
+    connection = null;
+
+    setState(() {
+      _modoSimulacion = true;
+      _sensorConectado = true;
+      _lastSyncTime = "En vivo (Simulado)";
+    });
+
+    _simTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      final jsonFalso = jsonEncode(_generarLecturaFalsa());
+      _procesarJSON(jsonFalso);
+    });
+  }
+
+  void _detenerSimulacion() {
+    _simTimer?.cancel();
+    _simTimer = null;
+    setState(() {
+      _modoSimulacion = false;
+      _sensorConectado = false;
+      _lastSyncTime = "Simulación detenida";
+    });
+  }
+
+  // Genera valores biométricos plausibles, con variación gradual (no saltos
+  // random puros) y una probabilidad ocasional de "pico de ansiedad" para
+  // poder ver el semáforo cambiar a Moderada/Alta sin hardware real.
+  Map<String, dynamic> _generarLecturaFalsa() {
+    final bool picoAnsiedad = _rng.nextDouble() < 0.15; // 15% de probabilidad
+
+    int bpmBase = picoAnsiedad ? 100 + _rng.nextInt(20) : 65 + _rng.nextInt(20);
+    int spo2 = 95 + _rng.nextInt(5); // 95-99, siempre saludable
+    int hrv = picoAnsiedad ? 10 + _rng.nextInt(15) : 30 + _rng.nextInt(30);
+
+    return {
+      "bpm": bpmBase,
+      "spo2": spo2,
+      "hrv": hrv,
+    };
+  }
+
   // --- SINCRONIZACIÓN CON BACKEND (REMITIR PROMEDIOS) ---
   Future<void> _enviarResumen() async {
     if (_bufferBpm.isEmpty) return;
@@ -191,6 +252,8 @@ class _AlertaScreenState extends State<AlertaScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildHeader(), // Nombre y estado
+                const SizedBox(height: 12),
+                _buildBotonSimulacion(),
                 const SizedBox(height: 25),
                 _buildAnxietyIndicator(), // El semáforo visual
                 const SizedBox(height: 20),
@@ -280,6 +343,29 @@ class _AlertaScreenState extends State<AlertaScreen> {
       
       backgroundColor: _sensorConectado ? Colors.green : color,
       foregroundColor: Colors.white,
+    );
+  }
+
+  Widget _buildBotonSimulacion() {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: TextButton.icon(
+        onPressed: _isScanning ? null : _toggleSimulacion,
+        icon: Icon(
+          _modoSimulacion ? Icons.stop_circle : Icons.science_outlined,
+          color: Colors.white,
+          size: 18,
+        ),
+        label: Text(
+          _modoSimulacion ? "Detener simulación" : "Simular datos (sin sensor)",
+          style: const TextStyle(color: Colors.white, fontSize: 12),
+        ),
+        style: TextButton.styleFrom(
+          backgroundColor: Colors.white.withOpacity(0.15),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        ),
+      ),
     );
   }
 
