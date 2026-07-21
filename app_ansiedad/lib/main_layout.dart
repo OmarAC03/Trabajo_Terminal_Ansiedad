@@ -3,6 +3,7 @@ import 'screens/alerta_screen.dart';
 import 'screens/historial_screen.dart';
 import 'screens/mensajes_screen.dart'; // ¡Nueva pantalla!
 import 'screens/perfil_screen.dart';
+import 'screens/tecnicas_screen.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -14,11 +15,12 @@ class MainLayout extends StatefulWidget {
 class _MainLayoutState extends State<MainLayout> {
   int _indiceActual = 0;
 
-  // Lista de las 4 pantallas conectadas a la barra
+  // Lista de las 5 pantallas conectadas a la barra
   final List<Widget> _pantallas = [
     const AlertaScreen(),
     const HistorialScreen(),
     const MensajesScreen(), // La conectamos aquí
+    const TecnicasScreen(),
     const PerfilScreen(),
   ];
 
@@ -84,6 +86,17 @@ class _MainLayoutState extends State<MainLayout> {
                 child: Icon(Icons.chat_bubble),
               ),
               label: 'Mensajes',
+            ),
+            BottomNavigationBarItem(
+              icon: Padding(
+                padding: EdgeInsets.only(bottom: 4),
+                child: Icon(Icons.spa_outlined),
+              ),
+              activeIcon: Padding(
+                padding: EdgeInsets.only(bottom: 4),
+                child: Icon(Icons.spa),
+              ),
+              label: 'Técnicas',
             ),
             BottomNavigationBarItem(
               icon: Padding(
