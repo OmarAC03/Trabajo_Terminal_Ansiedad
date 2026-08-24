@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import '../app_config.dart';
+import '../api_client.dart';
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
@@ -14,7 +15,6 @@ class PerfilScreen extends StatefulWidget {
 
 class _PerfilScreenState extends State<PerfilScreen> {
   static const Color headerColor = Color(0xFF1E6AFB);
-  final String _baseUrl = 'https://tt-ansiedad-backend.onrender.com';
 
   bool _isLoading = true;
   String? _errorMsg;
@@ -47,27 +47,23 @@ class _PerfilScreenState extends State<PerfilScreen> {
     // El avatar vive en Firebase (photoURL), no en Supabase.
     _avatar = avatarDesdePhotoUrl(FirebaseAuth.instance.currentUser?.photoURL);
 
-    try {
-      final response = await http.get(Uri.parse('$_baseUrl/api/usuarios/$uid'));
+    final res = await ApiClient.get(Uri.parse(AppConfig.urlUsuario(uid)));
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          _nombre = data['nombre'] ?? "";
-          _email = data['email'] ?? (FirebaseAuth.instance.currentUser?.email ?? "");
-          _rol = data['rol'] ?? "paciente";
-          _isLoading = false;
-        });
-      } else {
-        throw Exception('Error del servidor: ${response.statusCode}');
-      }
-    } catch (e) {
+    if (res.exito) {
+      final data = jsonDecode(res.body ?? '{}');
+      setState(() {
+        _nombre = data['nombre'] ?? "";
+        _email = data['email'] ?? (FirebaseAuth.instance.currentUser?.email ?? "");
+        _rol = data['rol'] ?? "paciente";
+        _isLoading = false;
+      });
+    } else {
       setState(() {
         _isLoading = false;
         // Aun si falla la carga del perfil en Supabase, mostramos al menos
         // el correo de Firebase para que la pantalla no quede vacía del todo.
         _email = FirebaseAuth.instance.currentUser?.email ?? "";
-        _errorMsg = "No se pudo cargar tu perfil completo. Desliza para reintentar.";
+        _errorMsg = res.mensajeUsuario;
       });
     }
   }
@@ -135,27 +131,23 @@ class _PerfilScreenState extends State<PerfilScreen> {
     final nombreAnterior = _nombre;
     setState(() => _nombre = nuevoNombre);
 
-    try {
-      final response = await http.put(
-        Uri.parse('$_baseUrl/api/usuarios/$uid'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"nombre": nuevoNombre}),
+    final res = await ApiClient.put(
+      Uri.parse(AppConfig.urlUsuario(uid)),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({"nombre": nuevoNombre}),
+    );
+
+    if (!mounted) return;
+
+    if (res.exito) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Nombre actualizado"), backgroundColor: Colors.green),
       );
-
-      if (response.statusCode != 200) throw Exception('statusCode ${response.statusCode}');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ Nombre actualizado"), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      // ...y si falla, la revertimos y avisamos (a diferencia del bug que
-      // encontramos en Sincronizar, aquí sí queremos feedback de error).
-      if (!mounted) return;
+    } else {
+      // Si falla, revertimos el cambio optimista y avisamos con el motivo real.
       setState(() => _nombre = nombreAnterior);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ No se pudo guardar el cambio. Intenta de nuevo."), backgroundColor: Colors.red),
+        SnackBar(content: Text("❌ ${res.mensajeUsuario}"), backgroundColor: Colors.red),
       );
     }
   }

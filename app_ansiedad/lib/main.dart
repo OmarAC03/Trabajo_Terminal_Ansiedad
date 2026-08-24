@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart'; 
 import 'firebase_options.dart'; 
-import 'screens/login_screen.dart';
-import 'main_layout.dart'; 
+import 'auth gate.dart';
 
 void main() async {
   // 1. Asegura que los widgets estén listos antes de llamar a código nativo
@@ -29,7 +28,7 @@ class AppAnsiedad extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
         useMaterial3: true,
       ),
-      home: const LoginScreen(), // Esta es tu pantalla principal actual
+      home: const AuthGate(), // Decide solo entre Login y la app según la sesión
     );
   }
 }

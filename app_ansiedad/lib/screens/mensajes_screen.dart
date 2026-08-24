@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app_ansiedad/app_config.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -25,7 +26,7 @@ class _MensajesScreenState extends State<MensajesScreen> {
 
   void _conectarSocket() {
     // 1. Configurar la conexión hacia tu Node.js
-    socket = IO.io('https://tt-ansiedad-backend.onrender.com', IO.OptionBuilder()
+    socket = IO.io(AppConfig.backendUrl, IO.OptionBuilder()
         .setTransports(['websocket']) // Forzar WebSockets
         .disableAutoConnect() 
         .build());

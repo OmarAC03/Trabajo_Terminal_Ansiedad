@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:app_ansiedad/app_config.dart';
+import 'package:app_ansiedad/api_client.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
 import 'dart:typed_data';
@@ -137,14 +138,19 @@ class _AlertaScreenState extends State<AlertaScreen> {
           _bufferSpo2.add(_spo2Actual);
           _bufferHrv.add(_hrvActual);
 
-          // Semáforo de Ansiedad
+          // Semáforo de Ansiedad (un solo lugar decide el nivel; texto,
+          // color y score se derivan del enum central en app_config.dart)
+          final EstadoAnsiedad estado;
           if (_bpmActual > 95 || _hrvActual < 25) {
-            _ansiedadScore = 8.5; _estadoAnsiedadText = "Alta"; _estadoAnsiedadColor = Colors.red;
+            estado = EstadoAnsiedad.alta;
           } else if (_bpmActual > 85) {
-            _ansiedadScore = 6.0; _estadoAnsiedadText = "Moderada"; _estadoAnsiedadColor = Colors.orange;
+            estado = EstadoAnsiedad.moderada;
           } else {
-            _ansiedadScore = 4.0; _estadoAnsiedadText = "Baja"; _estadoAnsiedadColor = Colors.teal;
+            estado = EstadoAnsiedad.baja;
           }
+          _ansiedadScore = estado.scoreRepresentativo;
+          _estadoAnsiedadText = estado.textoDB;
+          _estadoAnsiedadColor = estado.color;
         });
       }
     } catch (e) { print("Error JSON: $e"); }
@@ -220,17 +226,25 @@ class _AlertaScreenState extends State<AlertaScreen> {
       "estado_ansiedad": _estadoAnsiedadText
     };
 
-    try {
-      final res = await http.post(
-        Uri.parse('https://tt-ansiedad-backend.onrender.com/api/lecturas'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(payload),
-      );
-      if (res.statusCode == 201) {
-        _bufferBpm.clear(); _bufferSpo2.clear(); _bufferHrv.clear();
-        _mostrarSnack("✅ Resumen guardado en historial", Colors.green);
-      }
-    } catch (e) { _mostrarSnack("❌ Error de red", Colors.red); }
+    _mostrarSnack("Enviando resumen...", Colors.blueGrey);
+
+    final res = await ApiClient.post(
+      Uri.parse(AppConfig.urlLecturas),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode(payload),
+    );
+
+    if (res.exito) {
+      _bufferBpm.clear();
+      _bufferSpo2.clear();
+      _bufferHrv.clear();
+      _mostrarSnack("✅ Resumen guardado en historial", Colors.green);
+    } else {
+      // Antes este caso se tragaba en silencio: el usuario veía "OK" pero los
+      // datos NO se guardaban. Ahora cada tipo de fallo se comunica y, muy
+      // importante, NO limpiamos el buffer para no perder las lecturas.
+      _mostrarSnack("❌ ${res.mensajeUsuario}", Colors.red);
+    }
   }
 
   void _mostrarSnack(String m, Color c) {

@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import '../app_config.dart';
+import '../api_client.dart';
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
+
+/// Error de red con mensaje ya listo para mostrar al usuario. Se usa para
+/// propagar el mensaje del ApiClient a través de las funciones de carga.
+class _ErrorRed implements Exception {
+  final String mensaje;
+  _ErrorRed(this.mensaje);
+}
 
 // Modelo simple para un resumen diario ya agregado desde el backend.
 class _ResumenDia {
@@ -55,7 +63,6 @@ class HistorialScreen extends StatefulWidget {
 
 class _HistorialScreenState extends State<HistorialScreen> {
   static const Color headerColor = Color(0xFF1E6AFB);
-  final String _baseUrl = 'https://tt-ansiedad-backend.onrender.com';
   final String _miPacienteId = FirebaseAuth.instance.currentUser?.uid ?? "";
 
   // 'dia' | 'semana' | 'mes'
@@ -100,20 +107,22 @@ class _HistorialScreenState extends State<HistorialScreen> {
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMsg = "No se pudo conectar con el servidor. Desliza hacia abajo para reintentar.";
+        // El mensaje viene del ApiClient (distingue cold start, sin conexión,
+        // error de servidor) en vez de un texto genérico para todo.
+        _errorMsg = e is _ErrorRed
+            ? e.mensaje
+            : "Ocurrió un error inesperado. Desliza hacia abajo para reintentar.";
       });
     }
   }
 
   Future<void> _cargarLecturasDeHoy() async {
-    final url = Uri.parse('$_baseUrl/api/lecturas/$_miPacienteId?limite=200');
-    final response = await http.get(url);
+    final url = Uri.parse('${AppConfig.urlLecturasPaciente(_miPacienteId)}?limite=200');
+    final res = await ApiClient.get(url);
 
-    if (response.statusCode != 200) {
-      throw Exception('Error del servidor: ${response.statusCode}');
-    }
+    if (!res.exito) throw _ErrorRed(res.mensajeUsuario);
 
-    final List<dynamic> data = jsonDecode(response.body);
+    final List<dynamic> data = jsonDecode(res.body ?? '[]');
     final hoy = DateTime.now();
 
     final soloHoy = data.where((item) {
@@ -129,14 +138,12 @@ class _HistorialScreenState extends State<HistorialScreen> {
   }
 
   Future<void> _cargarResumen(String periodo) async {
-    final url = Uri.parse('$_baseUrl/api/lecturas/$_miPacienteId/resumen?periodo=$periodo');
-    final response = await http.get(url);
+    final url = Uri.parse('${AppConfig.urlResumenPaciente(_miPacienteId)}?periodo=$periodo');
+    final res = await ApiClient.get(url);
 
-    if (response.statusCode != 200) {
-      throw Exception('Error del servidor: ${response.statusCode}');
-    }
+    if (!res.exito) throw _ErrorRed(res.mensajeUsuario);
 
-    final Map<String, dynamic> body = jsonDecode(response.body);
+    final Map<String, dynamic> body = jsonDecode(res.body ?? '{}');
     final int diasPorPeriodo = body['dias_por_periodo'] ?? (periodo == 'mes' ? 30 : 7);
     final List<dynamic> serieCompleta = body['serie_completa'] ?? [];
 
@@ -648,9 +655,8 @@ class _HistorialScreenState extends State<HistorialScreen> {
   }
 
   Color _colorEstado(String estado) {
-    if (estado == 'Alta') return Colors.red;
-    if (estado == 'Moderada') return Colors.orange;
-    return Colors.teal; // 'Baja' u otro
+    // La lógica de color por estado vive ahora en app_config.dart (enum central)
+    return EstadoAnsiedadInfo.colorDesdeTexto(estado);
   }
 
   static const _diasSemana = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];

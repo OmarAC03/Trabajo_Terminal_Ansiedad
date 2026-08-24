@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-// TODO: Cambia esto por la ruta real de tu pantalla principal
-import 'alerta_screen.dart'; 
 import '../main_layout.dart'; // O la ruta correcta donde tengas tu MainLayout
 import 'registro_screen.dart';
 
@@ -35,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       // Intentar login en Firebase
-      final UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+      await _auth.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
