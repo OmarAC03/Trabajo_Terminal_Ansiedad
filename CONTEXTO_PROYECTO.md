@@ -46,7 +46,8 @@ app_ansiedad/lib/
     ├── historial_screen.dart    # REFACTORIZADA con Provider (Incremento 3)
     ├── mensajes_screen.dart     # chat Socket.io (sin revisar a fondo aún)
     ├── perfil_screen.dart       # perfil + avatares
-    └── tecnicas_screen.dart     # técnicas de relajación + respiración animada
+    └── tecnicas_screen.dart     # técnicas de relajación: respiración animada +
+                                  #  voz/música/animación por técnica (ver sección 6)
 ```
 
 Las 5 pestañas del `main_layout`: **Inicio (Alerta)**, **Historial**, **Mensajes**, **Técnicas**, **Perfil**.
@@ -77,7 +78,7 @@ Plan de 4 fases / 7 incrementos hacia una app de producción.
 ### ✅ Fase 2 — Arquitectura (en progreso)
 - **Incremento 2 (hecho):** registro **transaccional** (si falla el guardado en Supabase, se borra la cuenta de Firebase recién creada — evita "cuentas fantasma"); `AuthGate` para persistencia de sesión (la app ya no pide login cada vez); validaciones previas en registro; limpieza de código en `login_screen`.
 - **Incremento 3 (hecho):** refactor por capas usando **Provider**, con Historial como piloto. Creadas capas `models/`, `repositories/`, `providers/`. La UI de Historial ya no toca red ni parseo. Dependencia nueva: `provider: ^6.1.2`.
-- **Incremento 4 (PENDIENTE):** completar y revisar `MensajesScreen` (chat Socket.io) ya con la arquitectura por capas. Migrar Perfil y Alerta al mismo patrón de Historial.
+- **Incremento 4 (PENDIENTE — siguiente paso):** completar y revisar `MensajesScreen` (chat Socket.io) ya con la arquitectura por capas. Migrar Perfil y Alerta al mismo patrón de Historial.
 
 ### ⏳ Fase 3 — Robustez, seguridad y calidad (PENDIENTE)
 - **Incremento 5:** manejo global de excepciones en Flutter; validación estricta en el backend; logging estructurado.
@@ -99,26 +100,24 @@ Plan de 4 fases / 7 incrementos hacia una app de producción.
 
 ---
 
-## 6. Feature en curso: audio en ejercicios de respiración
+## 6. Feature completado: audio + animaciones en técnicas de relajación
 
-**Objetivo:** que el ejercicio de Respiración 4-7-8 (en `tecnicas_screen.dart`) diga las instrucciones en voz alta y tenga música de fondo relajante.
+**Estado: ✅ COMPLETO** (implementado, probado en dispositivo físico, commiteado y pusheado — commits `c89e5f3` y `0fc1629`).
 
-**Decisiones tomadas:**
-- **Voz:** TTS (text-to-speech) con el paquete `flutter_tts`, en **español** (`es-MX` o `es-ES`), velocidad reducida (~0.4) para tono pausado/calmado.
-- **Música:** archivo royalty-free / Creative Commons (el usuario lo consigue de Pixabay Music u similar). Instrumental, loopeable, `.mp3`. Se coloca en **`assets/audio/musica_relajante.mp3`** y se declara en `pubspec.yaml`. Reproducir con `audioplayers` (o `just_audio`), en bucle y a bajo volumen.
-- **Dos toggles independientes:** uno para voz, uno para música (permitir usar solo una).
-- **Sincronización:** el TTS dice "Inhala"/"Sostén"/"Exhala" en sync con la animación del círculo (`CustomPainter` con `AnimationController`); cuidar que la voz no se encime ni repita mal entre ciclos.
-- **Ciclo de vida:** detener voz y música al pausar el ejercicio o salir de la pantalla (que no siga sonando en otras pantallas).
+**Qué se construyó**, todo en `tecnicas_screen.dart`:
+- **Voz (TTS):** paquete `flutter_tts`, español `es-MX`, velocidad 0.4. Lee en voz alta las fases de Respiración 4-7-8 ("Inhala"/"Sostén"/"Exhala") y, en las otras 3 técnicas, la introducción y cada paso al navegar.
+- **Música:** `audioplayers`, reproduce `assets/audio/musica_relajante.mp3` en loop a volumen 0.3, en las 4 técnicas.
+- **Toggles independientes** (íconos en el AppBar de cada pantalla de ejercicio): voz, música, y un tercero de **avance automático/manual** (solo en `TecnicaPasosScreen`, no en Respiración): en automático avanza solo al terminar de leer cada paso (con pausa fija de 4s de respaldo si la voz está apagada); en manual se usan los botones Anterior/Siguiente como antes.
+- **Animaciones propias por técnica** (campo `tipoAnimacion` en el modelo `Tecnica`, cada una con su `CustomPainter`):
+  - Respiración 4-7-8: ya existía (círculo con partículas orbitando).
+  - Relajación muscular (`'tension'`): círculo que se contrae y vibra al tensar, se sostiene, se expande suave al soltar.
+  - Grounding 5-4-3-2-1 (`'grounding'`): ícono del sentido (ver/tocar/oír/oler/saborear) + número grande, con animación de aparición (`elasticOut`) por paso.
+  - Visualización guiada (`'visualizacion'`): escena ambiental continua (resplandor que "respira" + partículas orbitando), visible desde la introducción.
+- **Ciclo de vida:** voz y música se detienen al pausar/salir de cada pantalla (`dispose()`); no se quedan sonando en otras pantallas.
 
-**Pasos técnicos:**
-1. Agregar `flutter_tts` y `audioplayers` a `pubspec.yaml` → `flutter pub get`.
-2. Declarar `assets/audio/` en `pubspec.yaml` y colocar el mp3.
-3. Configurar TTS (idioma, velocidad, tono) e invocarlo en cada cambio de fase.
-4. Reproducir música en bucle al iniciar; detener al pausar/salir.
-5. Toggles de voz y música en la UI.
-6. Probar en dispositivo físico (el audio y TTS no se prueban bien en emulador).
-
-**Sugerencia de alcance:** aunque se harán voz + música juntas, si surge fricción con la música, priorizar que la voz funcione primero.
+**Pendiente relacionado, no bloqueante:**
+- Probar bien el modo automático en las 3 técnicas de `TecnicaPasosScreen` con distintos largos de texto (la voz varía en duración; el auto-avance depende del `completionHandler` de `flutter_tts`, no de un timer fijo, así que en teoría siempre queda sincronizado, pero vale la pena confirmarlo con más uso).
+- `assets/audio/musica_relajante.mp3` pesa ~4.6 MB — vigilar si el repo empieza a sentirse pesado por los binarios de audio.
 
 ---
 
@@ -135,4 +134,4 @@ Plan de 4 fases / 7 incrementos hacia una app de producción.
 
 ## 8. Siguiente paso sugerido
 
-Implementar el **feature de audio** (sección 6) en `tecnicas_screen.dart`. Después, continuar con el **Incremento 4** (revisar `MensajesScreen` y migrar Perfil/Alerta a la arquitectura por capas). El portal web (`web_portal`) se trabajará más adelante.
+El feature de audio + animaciones (sección 6) ya quedó completo y pusheado. Lo siguiente es el **Incremento 4**: revisar `MensajesScreen` (chat Socket.io) y migrar Perfil y Alerta a la arquitectura por capas (`models/` + `repositories/` + `providers/`), siguiendo el mismo patrón que ya se usó en Historial (Incremento 3). El portal web (`web_portal`) se trabajará más adelante.
