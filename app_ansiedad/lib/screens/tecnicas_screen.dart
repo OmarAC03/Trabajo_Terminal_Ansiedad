@@ -1,6 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 // --- MODELO DE DATOS ---
 class Tecnica {
@@ -177,10 +179,14 @@ class _RespiracionGuiadaScreenState extends State<RespiracionGuiadaScreen>
 
   late final AnimationController _controller; // ciclo de respiración (19s)
   late final AnimationController _rotController; // rotación continua de partículas
+  late final FlutterTts _tts;
+  late final AudioPlayer _audioPlayer;
 
   bool _activo = false;
   int _ciclos = 0;
   String _faseAnterior = "";
+  bool _vozActiva = true;
+  bool _musicaActiva = true;
 
   @override
   void initState() {
@@ -199,12 +205,22 @@ class _RespiracionGuiadaScreenState extends State<RespiracionGuiadaScreen>
       vsync: this,
       duration: const Duration(seconds: 22),
     );
+
+    _tts = FlutterTts();
+    _tts.setLanguage("es-MX");
+    _tts.setSpeechRate(0.4);
+
+    _audioPlayer = AudioPlayer();
+    _audioPlayer.setReleaseMode(ReleaseMode.loop);
   }
 
   @override
   void dispose() {
     _controller.dispose();
     _rotController.dispose();
+    _tts.stop();
+    _audioPlayer.stop();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -214,10 +230,30 @@ class _RespiracionGuiadaScreenState extends State<RespiracionGuiadaScreen>
       HapticFeedback.mediumImpact();
       _controller.forward(from: 0);
       _rotController.repeat();
+      if (_musicaActiva) {
+        _audioPlayer.play(AssetSource('audio/musica_relajante.mp3'), volume: 0.3);
+      }
     } else {
       _controller.stop();
       _rotController.stop();
       _faseAnterior = "";
+      _audioPlayer.pause();
+      _tts.stop();
+    }
+  }
+
+  void _toggleVoz() {
+    setState(() => _vozActiva = !_vozActiva);
+    if (!_vozActiva) _tts.stop();
+  }
+
+  void _toggleMusica() {
+    setState(() => _musicaActiva = !_musicaActiva);
+    if (!_activo) return;
+    if (_musicaActiva) {
+      _audioPlayer.resume();
+    } else {
+      _audioPlayer.pause();
     }
   }
 
@@ -267,6 +303,20 @@ class _RespiracionGuiadaScreenState extends State<RespiracionGuiadaScreen>
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: colorBase,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: Icon(_vozActiva ? Icons.record_voice_over : Icons.voice_over_off),
+            color: Colors.white,
+            tooltip: _vozActiva ? "Voz activada" : "Voz desactivada",
+            onPressed: _toggleVoz,
+          ),
+          IconButton(
+            icon: Icon(_musicaActiva ? Icons.music_note : Icons.music_off),
+            color: Colors.white,
+            tooltip: _musicaActiva ? "Música activada" : "Música desactivada",
+            onPressed: _toggleMusica,
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -284,6 +334,10 @@ class _RespiracionGuiadaScreenState extends State<RespiracionGuiadaScreen>
                     _faseAnterior = fase;
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       HapticFeedback.lightImpact();
+                      if (_vozActiva) {
+                        _tts.stop();
+                        _tts.speak(fase);
+                      }
                     });
                   }
 
@@ -412,6 +466,73 @@ class TecnicaPasosScreen extends StatefulWidget {
 
 class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> {
   int _pasoActual = -1; // -1 = pantalla de introducción
+  late final FlutterTts _tts;
+  late final AudioPlayer _audioPlayer;
+  bool _vozActiva = true;
+  bool _musicaActiva = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _tts = FlutterTts();
+    _tts.setLanguage("es-MX");
+    _tts.setSpeechRate(0.4);
+
+    _audioPlayer = AudioPlayer();
+    _audioPlayer.setReleaseMode(ReleaseMode.loop);
+    if (_musicaActiva) {
+      _audioPlayer.play(AssetSource('audio/musica_relajante.mp3'), volume: 0.3);
+    }
+
+    _hablarActual();
+  }
+
+  @override
+  void dispose() {
+    _tts.stop();
+    _audioPlayer.stop();
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  void _hablarActual() {
+    if (!_vozActiva) return;
+    final t = widget.tecnica;
+    final pasos = t.pasos ?? [];
+    final texto = _pasoActual < 0 ? (t.introduccion ?? "") : pasos[_pasoActual];
+    if (texto.isEmpty) return;
+    _tts.stop();
+    _tts.speak(texto);
+  }
+
+  void _irAPaso(int nuevoPaso) {
+    setState(() => _pasoActual = nuevoPaso);
+    _hablarActual();
+  }
+
+  void _finalizar() {
+    _tts.stop();
+    _audioPlayer.stop();
+    Navigator.pop(context);
+  }
+
+  void _toggleVoz() {
+    setState(() => _vozActiva = !_vozActiva);
+    if (_vozActiva) {
+      _hablarActual();
+    } else {
+      _tts.stop();
+    }
+  }
+
+  void _toggleMusica() {
+    setState(() => _musicaActiva = !_musicaActiva);
+    if (_musicaActiva) {
+      _audioPlayer.resume();
+    } else {
+      _audioPlayer.pause();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -426,6 +547,20 @@ class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> {
         title: Text(t.titulo, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: t.color,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: Icon(_vozActiva ? Icons.record_voice_over : Icons.voice_over_off),
+            color: Colors.white,
+            tooltip: _vozActiva ? "Voz activada" : "Voz desactivada",
+            onPressed: _toggleVoz,
+          ),
+          IconButton(
+            icon: Icon(_musicaActiva ? Icons.music_note : Icons.music_off),
+            color: Colors.white,
+            tooltip: _musicaActiva ? "Música activada" : "Música desactivada",
+            onPressed: _toggleMusica,
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
@@ -467,17 +602,17 @@ class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 TextButton(
-                  onPressed: enIntroduccion ? null : () => setState(() => _pasoActual--),
+                  onPressed: enIntroduccion ? null : () => _irAPaso(_pasoActual - 1),
                   child: const Text("Anterior"),
                 ),
                 ElevatedButton(
                   onPressed: () {
                     if (enIntroduccion) {
-                      setState(() => _pasoActual = 0);
+                      _irAPaso(0);
                     } else if (enUltimoPaso) {
-                      Navigator.pop(context);
+                      _finalizar();
                     } else {
-                      setState(() => _pasoActual++);
+                      _irAPaso(_pasoActual + 1);
                     }
                   },
                   style: ElevatedButton.styleFrom(
