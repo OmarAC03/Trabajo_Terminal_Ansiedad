@@ -13,6 +13,7 @@ class Tecnica {
   final String tipo; // 'respiracion' | 'pasos'
   final String? introduccion;
   final List<String>? pasos;
+  final String? tipoAnimacion; // 'tension' | 'grounding' | 'visualizacion'
 
   Tecnica({
     required this.titulo,
@@ -22,6 +23,7 @@ class Tecnica {
     required this.tipo,
     this.introduccion,
     this.pasos,
+    this.tipoAnimacion,
   });
 }
 
@@ -40,6 +42,7 @@ final List<Tecnica> _catalogoTecnicas = [
     icono: Icons.self_improvement,
     color: Colors.deepPurple,
     tipo: 'pasos',
+    tipoAnimacion: 'tension',
     introduccion: "Siéntate o recuéstate en un lugar cómodo. Ve tensando y "
         "soltando cada grupo muscular durante unos 5 segundos antes de pasar "
         "al siguiente paso.",
@@ -61,6 +64,7 @@ final List<Tecnica> _catalogoTecnicas = [
     icono: Icons.spa,
     color: Colors.teal,
     tipo: 'pasos',
+    tipoAnimacion: 'grounding',
     introduccion: "Esta técnica te ayuda a salir de un pico de ansiedad "
         "anclándote al momento presente. Ve a tu ritmo, un paso a la vez.",
     pasos: [
@@ -77,6 +81,7 @@ final List<Tecnica> _catalogoTecnicas = [
     icono: Icons.landscape,
     color: Colors.orange,
     tipo: 'pasos',
+    tipoAnimacion: 'visualizacion',
     introduccion: "Busca un lugar tranquilo, cierra los ojos si puedes, "
         "y deja que cada paso te guíe.",
     pasos: [
@@ -464,19 +469,46 @@ class TecnicaPasosScreen extends StatefulWidget {
   State<TecnicaPasosScreen> createState() => _TecnicaPasosScreenState();
 }
 
-class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> {
+class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> with TickerProviderStateMixin {
+  static const List<IconData> _iconosGrounding = [
+    Icons.visibility,
+    Icons.back_hand,
+    Icons.hearing,
+    Icons.local_florist,
+    Icons.restaurant,
+  ];
+  static const List<String> _numerosGrounding = ['5', '4', '3', '2', '1'];
+
   int _pasoActual = -1; // -1 = pantalla de introducción
   late final FlutterTts _tts;
   late final AudioPlayer _audioPlayer;
   bool _vozActiva = true;
   bool _musicaActiva = true;
+  bool _modoAutomatico = false;
+
+  AnimationController? _tensionController;
+  AnimationController? _groundingController;
+  AnimationController? _ambientController;
 
   @override
   void initState() {
     super.initState();
+    switch (widget.tecnica.tipoAnimacion) {
+      case 'tension':
+        _tensionController = AnimationController(vsync: this, duration: const Duration(seconds: 8));
+        break;
+      case 'grounding':
+        _groundingController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+        break;
+      case 'visualizacion':
+        _ambientController = AnimationController(vsync: this, duration: const Duration(seconds: 30))..repeat();
+        break;
+    }
+
     _tts = FlutterTts();
     _tts.setLanguage("es-MX");
     _tts.setSpeechRate(0.4);
+    _tts.setCompletionHandler(() => _programarAvanceAutomatico(fallback: false));
 
     _audioPlayer = AudioPlayer();
     _audioPlayer.setReleaseMode(ReleaseMode.loop);
@@ -492,22 +524,48 @@ class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> {
     _tts.stop();
     _audioPlayer.stop();
     _audioPlayer.dispose();
+    _tensionController?.dispose();
+    _groundingController?.dispose();
+    _ambientController?.dispose();
     super.dispose();
   }
 
   void _hablarActual() {
-    if (!_vozActiva) return;
     final t = widget.tecnica;
     final pasos = t.pasos ?? [];
     final texto = _pasoActual < 0 ? (t.introduccion ?? "") : pasos[_pasoActual];
-    if (texto.isEmpty) return;
-    _tts.stop();
-    _tts.speak(texto);
+
+    if (_vozActiva && texto.isNotEmpty) {
+      _tts.stop();
+      _tts.speak(texto);
+    } else if (_modoAutomatico) {
+      _programarAvanceAutomatico(fallback: true);
+    }
+  }
+
+  // En modo automático, avanza solo al terminar de leer el paso (o tras una
+  // pausa fija si la voz está apagada). Compara contra el paso que originó
+  // la espera para no avanzar de más si el usuario ya navegó manualmente.
+  void _programarAvanceAutomatico({required bool fallback}) {
+    if (!_modoAutomatico || !mounted) return;
+    final pasoQueInicioEspera = _pasoActual;
+    final pasos = widget.tecnica.pasos ?? [];
+    final enUltimoPaso = pasoQueInicioEspera == pasos.length - 1;
+    if (enUltimoPaso) return;
+    Future.delayed(Duration(milliseconds: fallback ? 4000 : 900), () {
+      if (!mounted || !_modoAutomatico) return;
+      if (_pasoActual != pasoQueInicioEspera) return;
+      _irAPaso(pasoQueInicioEspera + 1);
+    });
   }
 
   void _irAPaso(int nuevoPaso) {
     setState(() => _pasoActual = nuevoPaso);
     _hablarActual();
+    if (nuevoPaso >= 0) {
+      _tensionController?.forward(from: 0);
+      _groundingController?.forward(from: 0);
+    }
   }
 
   void _finalizar() {
@@ -522,6 +580,7 @@ class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> {
       _hablarActual();
     } else {
       _tts.stop();
+      if (_modoAutomatico) _programarAvanceAutomatico(fallback: true);
     }
   }
 
@@ -531,6 +590,83 @@ class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> {
       _audioPlayer.resume();
     } else {
       _audioPlayer.pause();
+    }
+  }
+
+  void _toggleModoAutomatico() {
+    setState(() => _modoAutomatico = !_modoAutomatico);
+    if (_modoAutomatico) {
+      if (_vozActiva) {
+        _hablarActual();
+      } else {
+        _programarAvanceAutomatico(fallback: true);
+      }
+    }
+  }
+
+  Widget _buildVisual(Tecnica t) {
+    if (_pasoActual < 0) {
+      if (t.tipoAnimacion == 'visualizacion' && _ambientController != null) {
+        return SizedBox(
+          width: 200,
+          height: 200,
+          child: AnimatedBuilder(
+            animation: _ambientController!,
+            builder: (context, _) =>
+                CustomPaint(painter: _EscenaAmbientalPainter(t: _ambientController!.value, color: t.color)),
+          ),
+        );
+      }
+      return Icon(t.icono, color: t.color, size: 60);
+    }
+
+    switch (t.tipoAnimacion) {
+      case 'tension':
+        return SizedBox(
+          width: 200,
+          height: 200,
+          child: AnimatedBuilder(
+            animation: _tensionController!,
+            builder: (context, _) =>
+                CustomPaint(painter: _TensionPainter(progreso: _tensionController!.value, color: t.color)),
+          ),
+        );
+      case 'grounding':
+        final idx = _pasoActual.clamp(0, _iconosGrounding.length - 1);
+        return AnimatedBuilder(
+          animation: _groundingController!,
+          builder: (context, _) {
+            final escala = 0.6 + 0.4 * Curves.elasticOut.transform(_groundingController!.value);
+            return Transform.scale(
+              scale: escala,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(22),
+                    decoration: BoxDecoration(color: t.color.withOpacity(0.12), shape: BoxShape.circle),
+                    child: Icon(_iconosGrounding[idx], color: t.color, size: 52),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(_numerosGrounding[idx],
+                      style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: t.color)),
+                ],
+              ),
+            );
+          },
+        );
+      case 'visualizacion':
+        return SizedBox(
+          width: 200,
+          height: 200,
+          child: AnimatedBuilder(
+            animation: _ambientController!,
+            builder: (context, _) =>
+                CustomPaint(painter: _EscenaAmbientalPainter(t: _ambientController!.value, color: t.color)),
+          ),
+        );
+      default:
+        return Icon(t.icono, color: t.color, size: 60);
     }
   }
 
@@ -560,6 +696,12 @@ class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> {
             tooltip: _musicaActiva ? "Música activada" : "Música desactivada",
             onPressed: _toggleMusica,
           ),
+          IconButton(
+            icon: Icon(_modoAutomatico ? Icons.timer : Icons.touch_app),
+            color: Colors.white,
+            tooltip: _modoAutomatico ? "Avance automático" : "Avance manual",
+            onPressed: _toggleModoAutomatico,
+          ),
         ],
       ),
       body: Padding(
@@ -584,17 +726,24 @@ class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> {
                     ? Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(t.icono, color: t.color, size: 60),
+                          _buildVisual(t),
                           const SizedBox(height: 20),
                           Text(t.introduccion ?? "",
                               textAlign: TextAlign.center,
                               style: const TextStyle(fontSize: 16, height: 1.5)),
                         ],
                       )
-                    : Text(
-                        pasos[_pasoActual],
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 19, height: 1.4, fontWeight: FontWeight.w500),
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildVisual(t),
+                          const SizedBox(height: 24),
+                          Text(
+                            pasos[_pasoActual],
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 19, height: 1.4, fontWeight: FontWeight.w500),
+                          ),
+                        ],
                       ),
               ),
             ),
@@ -630,4 +779,91 @@ class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> {
       ),
     );
   }
+}
+
+// Círculo que se contrae y vibra sutilmente al "tensar" (0.0-0.35), se
+// sostiene tenso (0.35-0.65) y se expande suavemente al "soltar" (0.65-1.0).
+class _TensionPainter extends CustomPainter {
+  final double progreso; // 0..1 a lo largo del ciclo tensa->sostén->suelta
+  final Color color;
+
+  _TensionPainter({required this.progreso, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radioBase = size.width / 2 * 0.55;
+
+    double escala;
+    double jitter;
+    if (progreso < 0.35) {
+      final t = progreso / 0.35;
+      escala = 1.0 - 0.3 * t;
+      jitter = 3.0 * t;
+    } else if (progreso < 0.65) {
+      escala = 0.7;
+      jitter = 3.0;
+    } else {
+      final t = (progreso - 0.65) / 0.35;
+      escala = 0.7 + 0.3 * t;
+      jitter = 3.0 * (1 - t);
+    }
+
+    final centro = center.translate(sin(progreso * 120) * jitter, cos(progreso * 130) * jitter);
+
+    for (int i = 2; i >= 0; i--) {
+      final radio = radioBase * escala * (1 + i * 0.22);
+      final opacidad = (0.14 - i * 0.04).clamp(0.0, 1.0);
+      canvas.drawCircle(centro, radio, Paint()..color = color.withOpacity(opacidad));
+    }
+
+    final radioPrincipal = radioBase * escala;
+    canvas.drawCircle(
+      centro,
+      radioPrincipal,
+      Paint()
+        ..shader = RadialGradient(colors: [color.withOpacity(0.85), color.withOpacity(0.3)])
+            .createShader(Rect.fromCircle(center: centro, radius: radioPrincipal)),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _TensionPainter oldDelegate) => true;
+}
+
+// Escena ambiental: un resplandor que "respira" lentamente con partículas
+// flotando alrededor, para la Visualización guiada.
+class _EscenaAmbientalPainter extends CustomPainter {
+  final double t; // 0..1, progreso del loop continuo
+  final Color color;
+
+  _EscenaAmbientalPainter({required this.t, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radioBase = size.width / 2 * 0.6;
+    final respiro = 0.9 + 0.1 * sin(t * 2 * pi);
+
+    canvas.drawCircle(
+      center,
+      radioBase * respiro,
+      Paint()
+        ..shader = RadialGradient(colors: [color.withOpacity(0.35), color.withOpacity(0.0)])
+            .createShader(Rect.fromCircle(center: center, radius: radioBase * respiro)),
+    );
+
+    const int numParticulas = 6;
+    for (int i = 0; i < numParticulas; i++) {
+      final anguloBase = (2 * pi / numParticulas) * i;
+      final angulo = anguloBase + t * 2 * pi * 0.3;
+      final radioOrbita = radioBase * (0.9 + 0.15 * sin(t * 2 * pi + i));
+      final dx = center.dx + radioOrbita * cos(angulo);
+      final dy = center.dy + radioOrbita * sin(angulo) * 0.6;
+      canvas.drawCircle(Offset(dx, dy), 5, Paint()..color = color.withOpacity(0.45));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _EscenaAmbientalPainter oldDelegate) => true;
 }
