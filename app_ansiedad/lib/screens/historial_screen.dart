@@ -1,200 +1,39 @@
 import 'package:flutter/material.dart';
-import '../app_config.dart';
-import '../api_client.dart';
-import 'dart:convert';
+import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../app_config.dart';
+import '../models/lectura.dart';
+import '../models/resumen_dia.dart';
+import '../providers/historial_provider.dart';
 
-/// Error de red con mensaje ya listo para mostrar al usuario. Se usa para
-/// propagar el mensaje del ApiClient a través de las funciones de carga.
-class _ErrorRed implements Exception {
-  final String mensaje;
-  _ErrorRed(this.mensaje);
-}
-
-// Modelo simple para un resumen diario ya agregado desde el backend.
-class _ResumenDia {
-  final DateTime dia;
-  final int bpmPromedio;
-  final int spo2Promedio;
-  final int hrvPromedio;
-  final double scorePromedio;
-  final int episodiosAltos;
-  final int episodiosModerados;
-  final int episodiosBajos;
-  final int totalRegistros;
-
-  _ResumenDia({
-    required this.dia,
-    required this.bpmPromedio,
-    required this.spo2Promedio,
-    required this.hrvPromedio,
-    required this.scorePromedio,
-    required this.episodiosAltos,
-    required this.episodiosModerados,
-    required this.episodiosBajos,
-    required this.totalRegistros,
-  });
-
-  factory _ResumenDia.fromJson(Map<String, dynamic> json) {
-    return _ResumenDia(
-      dia: DateTime.parse(json['dia']).toLocal(),
-      bpmPromedio: _asInt(json['bpm_promedio']),
-      spo2Promedio: _asInt(json['spo2_promedio']),
-      hrvPromedio: _asInt(json['hrv_promedio']),
-      scorePromedio: _asDouble(json['score_promedio']),
-      episodiosAltos: _asInt(json['episodios_altos']),
-      episodiosModerados: _asInt(json['episodios_moderados']),
-      episodiosBajos: _asInt(json['episodios_bajos']),
-      totalRegistros: _asInt(json['total_registros']),
-    );
-  }
-
-  static int _asInt(dynamic v) => int.tryParse(v?.toString() ?? '') ?? 0;
-  static double _asDouble(dynamic v) => double.tryParse(v?.toString() ?? '') ?? 0.0;
-}
-
-class HistorialScreen extends StatefulWidget {
+/// Pantalla de Historial — capa de UI.
+///
+/// Tras el refactor del Incremento 3, esta pantalla NO llama a la red, NO parsea
+/// JSON y NO calcula KPIs. Solo crea el HistorialProvider, escucha sus cambios y
+/// dibuja. Toda la lógica vive en el provider y el repositorio.
+class HistorialScreen extends StatelessWidget {
   const HistorialScreen({super.key});
 
   @override
-  State<HistorialScreen> createState() => _HistorialScreenState();
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? "";
+    return ChangeNotifierProvider(
+      create: (_) => HistorialProvider(pacienteId: uid)..cargar(),
+      child: const _HistorialView(),
+    );
+  }
 }
 
-class _HistorialScreenState extends State<HistorialScreen> {
+class _HistorialView extends StatelessWidget {
+  const _HistorialView();
+
   static const Color headerColor = Color(0xFF1E6AFB);
-  final String _miPacienteId = FirebaseAuth.instance.currentUser?.uid ?? "";
-
-  // 'dia' | 'semana' | 'mes'
-  String _periodo = 'dia';
-  bool _isLoading = true;
-  String? _errorMsg;
-
-  // Datos para la vista "Día": lecturas individuales de hoy
-  List<dynamic> _lecturasHoy = [];
-
-  // Datos para "Semana"/"Mes": resúmenes diarios agregados
-  List<_ResumenDia> _periodoActual = [];
-  List<_ResumenDia> _periodoAnterior = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _cargarDatos();
-  }
-
-  Future<void> _cargarDatos() async {
-    setState(() {
-      _isLoading = true;
-      _errorMsg = null;
-    });
-
-    if (_miPacienteId.isEmpty) {
-      setState(() {
-        _isLoading = false;
-        _errorMsg = "No se detectó una sesión activa.";
-      });
-      return;
-    }
-
-    try {
-      if (_periodo == 'dia') {
-        await _cargarLecturasDeHoy();
-      } else {
-        await _cargarResumen(_periodo);
-      }
-      setState(() => _isLoading = false);
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-        // El mensaje viene del ApiClient (distingue cold start, sin conexión,
-        // error de servidor) en vez de un texto genérico para todo.
-        _errorMsg = e is _ErrorRed
-            ? e.mensaje
-            : "Ocurrió un error inesperado. Desliza hacia abajo para reintentar.";
-      });
-    }
-  }
-
-  Future<void> _cargarLecturasDeHoy() async {
-    final url = Uri.parse('${AppConfig.urlLecturasPaciente(_miPacienteId)}?limite=200');
-    final res = await ApiClient.get(url);
-
-    if (!res.exito) throw _ErrorRed(res.mensajeUsuario);
-
-    final List<dynamic> data = jsonDecode(res.body ?? '[]');
-    final hoy = DateTime.now();
-
-    final soloHoy = data.where((item) {
-      final fecha = DateTime.tryParse(item['fecha_medicion'] ?? '')?.toLocal();
-      if (fecha == null) return false;
-      return fecha.year == hoy.year && fecha.month == hoy.month && fecha.day == hoy.day;
-    }).toList();
-
-    // Ascendente por hora, para graficar la evolución del día en orden.
-    soloHoy.sort((a, b) => (a['fecha_medicion'] as String).compareTo(b['fecha_medicion'] as String));
-
-    _lecturasHoy = soloHoy;
-  }
-
-  Future<void> _cargarResumen(String periodo) async {
-    final url = Uri.parse('${AppConfig.urlResumenPaciente(_miPacienteId)}?periodo=$periodo');
-    final res = await ApiClient.get(url);
-
-    if (!res.exito) throw _ErrorRed(res.mensajeUsuario);
-
-    final Map<String, dynamic> body = jsonDecode(res.body ?? '{}');
-    final int diasPorPeriodo = body['dias_por_periodo'] ?? (periodo == 'mes' ? 30 : 7);
-    final List<dynamic> serieCompleta = body['serie_completa'] ?? [];
-
-    final resumenes = serieCompleta
-        .map((e) => _ResumenDia.fromJson(e as Map<String, dynamic>))
-        .toList()
-      ..sort((a, b) => a.dia.compareTo(b.dia));
-
-    final corte = DateTime.now().subtract(Duration(days: diasPorPeriodo));
-
-    _periodoActual = resumenes.where((r) => r.dia.isAfter(corte)).toList();
-    _periodoAnterior = resumenes.where((r) => !r.dia.isAfter(corte)).toList();
-  }
-
-  // --- CÁLCULO DE KPIs ---
-
-  double _promedio(List<_ResumenDia> lista, num Function(_ResumenDia) selector) {
-    if (lista.isEmpty) return 0;
-    final totalRegistros = lista.fold<int>(0, (acc, r) => acc + r.totalRegistros);
-    if (totalRegistros == 0) return 0;
-    // Promedio ponderado por número de registros de cada día
-    final suma = lista.fold<double>(0, (acc, r) => acc + selector(r) * r.totalRegistros);
-    return suma / totalRegistros;
-  }
-
-  int _sumaEpisodiosAltos(List<_ResumenDia> lista) =>
-      lista.fold<int>(0, (acc, r) => acc + r.episodiosAltos);
-
-  /// Retorna el % de cambio de [actual] respecto a [anterior], o null si no
-  /// hay suficiente dato en el periodo anterior para comparar.
-  double? _tendencia(double actual, double anterior) {
-    if (anterior == 0) return null;
-    return ((actual - anterior) / anterior) * 100;
-  }
-
-  int _rachaSinEpisodiosAltos() {
-    final ordenDesc = [..._periodoActual, ..._periodoAnterior]
-      ..sort((a, b) => b.dia.compareTo(a.dia));
-    int racha = 0;
-    for (final r in ordenDesc) {
-      if (r.episodiosAltos == 0 && r.totalRegistros > 0) {
-        racha++;
-      } else if (r.totalRegistros > 0) {
-        break;
-      }
-    }
-    return racha;
-  }
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<HistorialProvider>();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FB),
       appBar: AppBar(
@@ -205,24 +44,18 @@ class _HistorialScreenState extends State<HistorialScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _cargarDatos,
+            onPressed: () => provider.cargar(),
             tooltip: "Actualizar datos",
           ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _cargarDatos,
+        onRefresh: () => provider.cargar(),
         child: Column(
           children: [
-            _buildSelectorPeriodo(),
+            _buildSelectorPeriodo(context, provider),
             Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: headerColor))
-                  : _errorMsg != null
-                      ? _buildErrorState()
-                      : _periodo == 'dia'
-                          ? _buildVistaDia()
-                          : _buildVistaAgregada(),
+              child: _buildCuerpo(context, provider),
             ),
           ],
         ),
@@ -230,17 +63,25 @@ class _HistorialScreenState extends State<HistorialScreen> {
     );
   }
 
+  Widget _buildCuerpo(BuildContext context, HistorialProvider p) {
+    switch (p.estado) {
+      case EstadoCarga.inicial:
+      case EstadoCarga.cargando:
+        return const Center(child: CircularProgressIndicator(color: headerColor));
+      case EstadoCarga.error:
+        return _buildErrorState(context, p);
+      case EstadoCarga.listo:
+        return p.periodo == 'dia' ? _buildVistaDia(p) : _buildVistaAgregada(p);
+    }
+  }
+
   // --- SELECTOR DÍA / SEMANA / MES ---
-  Widget _buildSelectorPeriodo() {
+  Widget _buildSelectorPeriodo(BuildContext context, HistorialProvider p) {
     Widget chip(String valor, String label) {
-      final seleccionado = _periodo == valor;
+      final seleccionado = p.periodo == valor;
       return Expanded(
         child: GestureDetector(
-          onTap: () {
-            if (_periodo == valor) return;
-            setState(() => _periodo = valor);
-            _cargarDatos();
-          },
+          onTap: () => p.cambiarPeriodo(valor),
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 4),
             padding: const EdgeInsets.symmetric(vertical: 10),
@@ -275,7 +116,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
     );
   }
 
-  Widget _buildErrorState() {
+  Widget _buildErrorState(BuildContext context, HistorialProvider p) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(30),
@@ -284,9 +125,9 @@ class _HistorialScreenState extends State<HistorialScreen> {
           children: [
             Icon(Icons.cloud_off, size: 70, color: Colors.grey.shade300),
             const SizedBox(height: 15),
-            Text(_errorMsg!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
+            Text(p.errorMsg ?? "Error", textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
             const SizedBox(height: 15),
-            ElevatedButton(onPressed: _cargarDatos, child: const Text("Reintentar")),
+            ElevatedButton(onPressed: () => p.cargar(), child: const Text("Reintentar")),
           ],
         ),
       ),
@@ -296,24 +137,22 @@ class _HistorialScreenState extends State<HistorialScreen> {
   // =========================================================
   // VISTA: DÍA (lecturas individuales de hoy)
   // =========================================================
-  Widget _buildVistaDia() {
-    if (_lecturasHoy.isEmpty) {
+  Widget _buildVistaDia(HistorialProvider p) {
+    final lecturas = p.lecturasHoy;
+    if (lecturas.isEmpty) {
       return ListView(
-        // ListView para que RefreshIndicator funcione aunque esté vacío
         children: [_buildEmptyState("Aún no hay lecturas hoy",
             "Sincroniza desde el Monitor para verlas aquí.")],
       );
     }
 
-    final bpms = _lecturasHoy.map((e) => (e['bpm'] as num).toDouble()).toList();
+    final bpms = lecturas.map((e) => e.bpm.toDouble()).toList();
     final bpmProm = bpms.reduce((a, b) => a + b) / bpms.length;
     final bpmMax = bpms.reduce((a, b) => a > b ? a : b);
 
-    // Estado predominante del día (moda simple)
     final conteo = <String, int>{};
-    for (final e in _lecturasHoy) {
-      final estado = (e['estado_ansiedad'] ?? 'Baja').toString();
-      conteo[estado] = (conteo[estado] ?? 0) + 1;
+    for (final l in lecturas) {
+      conteo[l.estadoAnsiedadTexto] = (conteo[l.estadoAnsiedadTexto] ?? 0) + 1;
     }
     final estadoPredominante =
         conteo.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
@@ -324,7 +163,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
         _buildKpiRow([
           _KpiData("BPM promedio", bpmProm.round().toString(), Icons.favorite, Colors.blueAccent),
           _KpiData("BPM máximo", bpmMax.round().toString(), Icons.trending_up, Colors.redAccent),
-          _KpiData("Lecturas hoy", _lecturasHoy.length.toString(), Icons.list_alt, headerColor),
+          _KpiData("Lecturas hoy", lecturas.length.toString(), Icons.list_alt, headerColor),
           _KpiData("Estado predominante", estadoPredominante, Icons.psychology,
               _colorEstado(estadoPredominante)),
         ]),
@@ -338,13 +177,12 @@ class _HistorialScreenState extends State<HistorialScreen> {
               borderData: FlBorderData(show: false),
               lineBarsData: [
                 LineChartBarData(
-                  spots: List.generate(
-                      bpms.length, (i) => FlSpot(i.toDouble(), bpms[i])),
+                  spots: List.generate(bpms.length, (i) => FlSpot(i.toDouble(), bpms[i])),
                   isCurved: true,
                   color: Colors.blueAccent,
                   barWidth: 3,
                   dotData: const FlDotData(show: false),
-                  belowBarData: BarAreaData(show: true, color: Colors.blueAccent.withOpacity(0.1)),
+                  belowBarData: BarAreaData(show: true, color: Colors.blueAccent.withValues(alpha: 0.1)),
                 ),
               ],
             ),
@@ -354,7 +192,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
         Text("Lecturas recientes",
             style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold, fontSize: 14)),
         const SizedBox(height: 10),
-        ..._lecturasHoy.reversed.map(_buildRegistroCard),
+        ...lecturas.reversed.map(_buildRegistroCard),
       ],
     );
   }
@@ -362,13 +200,14 @@ class _HistorialScreenState extends State<HistorialScreen> {
   // =========================================================
   // VISTA: SEMANA / MES (resúmenes diarios agregados)
   // =========================================================
-  Widget _buildVistaAgregada() {
-    if (_periodoActual.isEmpty) {
+  Widget _buildVistaAgregada(HistorialProvider p) {
+    final actual = p.periodoActual;
+    if (actual.isEmpty) {
       return ListView(
         children: [
           _buildEmptyState(
             "Sin datos en este periodo",
-            _periodo == 'semana'
+            p.periodo == 'semana'
                 ? "No hay resúmenes de los últimos 7 días."
                 : "No hay resúmenes de los últimos 30 días.",
           ),
@@ -376,14 +215,9 @@ class _HistorialScreenState extends State<HistorialScreen> {
       );
     }
 
-    final bpmProm = _promedio(_periodoActual, (r) => r.bpmPromedio);
-    final hrvProm = _promedio(_periodoActual, (r) => r.hrvPromedio);
-    final scoreProm = _promedio(_periodoActual, (r) => r.scorePromedio);
-    final episodiosAltos = _sumaEpisodiosAltos(_periodoActual);
-
-    final scorePromAnterior = _promedio(_periodoAnterior, (r) => r.scorePromedio);
-    final tendenciaScore = _tendencia(scoreProm, scorePromAnterior);
-    final racha = _rachaSinEpisodiosAltos();
+    final bpmProm = p.promedioPonderado((r) => r.bpmPromedio);
+    final hrvProm = p.promedioPonderado((r) => r.hrvPromedio);
+    final scoreProm = p.promedioPonderado((r) => r.scorePromedio);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
@@ -391,11 +225,11 @@ class _HistorialScreenState extends State<HistorialScreen> {
         _buildKpiRow([
           _KpiData("BPM promedio", bpmProm.round().toString(), Icons.favorite, Colors.blueAccent),
           _KpiData("HRV promedio", hrvProm.round().toString(), Icons.timer, Colors.orange),
-          _KpiData("Episodios altos", episodiosAltos.toString(), Icons.warning_amber_rounded, Colors.red),
-          _KpiData("Días sin episodios altos", racha.toString(), Icons.emoji_events, Colors.teal),
+          _KpiData("Episodios altos", p.episodiosAltosTotales.toString(), Icons.warning_amber_rounded, Colors.red),
+          _KpiData("Días sin episodios altos", p.rachaSinEpisodiosAltos.toString(), Icons.emoji_events, Colors.teal),
         ]),
         const SizedBox(height: 10),
-        _buildTendenciaCard(scoreProm, tendenciaScore),
+        _buildTendenciaCard(scoreProm, p.tendenciaScore),
         const SizedBox(height: 20),
         _buildCardChart(
           "Tendencia de ansiedad (score promedio/día)",
@@ -411,14 +245,13 @@ class _HistorialScreenState extends State<HistorialScreen> {
                   sideTitles: SideTitles(
                     showTitles: true,
                     reservedSize: 26,
-                    interval: _periodo == 'mes' ? 5 : 1,
+                    interval: p.periodo == 'mes' ? 5 : 1,
                     getTitlesWidget: (value, meta) {
                       final idx = value.toInt();
-                      if (idx < 0 || idx >= _periodoActual.length) return const SizedBox();
-                      final dia = _periodoActual[idx].dia;
+                      if (idx < 0 || idx >= actual.length) return const SizedBox();
                       return Padding(
                         padding: const EdgeInsets.only(top: 6),
-                        child: Text(_etiquetaDia(dia),
+                        child: Text(_etiquetaDia(actual[idx].dia, p.periodo),
                             style: const TextStyle(fontSize: 10, color: Colors.grey)),
                       );
                     },
@@ -427,13 +260,13 @@ class _HistorialScreenState extends State<HistorialScreen> {
               ),
               lineBarsData: [
                 LineChartBarData(
-                  spots: List.generate(_periodoActual.length,
-                      (i) => FlSpot(i.toDouble(), _periodoActual[i].scorePromedio)),
+                  spots: List.generate(actual.length,
+                      (i) => FlSpot(i.toDouble(), actual[i].scorePromedio)),
                   isCurved: true,
                   color: headerColor,
                   barWidth: 3,
                   dotData: const FlDotData(show: true),
-                  belowBarData: BarAreaData(show: true, color: headerColor.withOpacity(0.1)),
+                  belowBarData: BarAreaData(show: true, color: headerColor.withValues(alpha: 0.1)),
                 ),
               ],
               minY: 0,
@@ -445,7 +278,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
         Text("Resumen por día",
             style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold, fontSize: 14)),
         const SizedBox(height: 10),
-        ..._periodoActual.reversed.map(_buildResumenDiaCard),
+        ...actual.reversed.map(_buildResumenDiaCard),
       ],
     );
   }
@@ -513,7 +346,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -521,7 +354,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
           Icon(icono, color: color),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(texto, style: TextStyle(color: color.withOpacity(0.9), fontSize: 12.5)),
+            child: Text(texto, style: TextStyle(color: color.withValues(alpha: 0.9), fontSize: 12.5)),
           ),
         ],
       ),
@@ -547,10 +380,9 @@ class _HistorialScreenState extends State<HistorialScreen> {
     );
   }
 
-  Widget _buildRegistroCard(dynamic registro) {
-    final estado = (registro['estado_ansiedad'] ?? 'Baja').toString();
-    final color = _colorEstado(estado);
-    final fecha = DateTime.tryParse(registro['fecha_medicion'] ?? '')?.toLocal();
+  Widget _buildRegistroCard(Lectura registro) {
+    final color = _colorEstado(registro.estadoAnsiedadTexto);
+    final fecha = registro.fechaMedicion;
     final hora = fecha != null
         ? "${fecha.hour.toString().padLeft(2, '0')}:${fecha.minute.toString().padLeft(2, '0')}"
         : "--:--";
@@ -570,16 +402,17 @@ class _HistorialScreenState extends State<HistorialScreen> {
             const SizedBox(width: 10),
             Text(hora, style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold, fontSize: 13)),
             const Spacer(),
-            _buildMiniDato("BPM", "${registro['bpm']}"),
+            _buildMiniDato("BPM", "${registro.bpm}"),
             const SizedBox(width: 14),
-            _buildMiniDato("SpO2", "${registro['spo2']}%"),
+            _buildMiniDato("SpO2", "${registro.spo2}%"),
             const SizedBox(width: 14),
-            _buildMiniDato("HRV", "${registro['hrv']}"),
+            _buildMiniDato("HRV", "${registro.hrv}"),
             const SizedBox(width: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-              child: Text(estado.toUpperCase(), style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold)),
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+              child: Text(registro.estadoAnsiedadTexto.toUpperCase(),
+                  style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -587,7 +420,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
     );
   }
 
-  Widget _buildResumenDiaCard(_ResumenDia r) {
+  Widget _buildResumenDiaCard(ResumenDia r) {
     final colorPredominante = r.episodiosAltos > 0
         ? Colors.red
         : r.episodiosModerados > 0
@@ -654,15 +487,12 @@ class _HistorialScreenState extends State<HistorialScreen> {
     );
   }
 
-  Color _colorEstado(String estado) {
-    // La lógica de color por estado vive ahora en app_config.dart (enum central)
-    return EstadoAnsiedadInfo.colorDesdeTexto(estado);
-  }
+  Color _colorEstado(String estado) => EstadoAnsiedadInfo.colorDesdeTexto(estado);
 
   static const _diasSemana = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
-  String _etiquetaDia(DateTime dia) {
-    if (_periodo == 'semana') {
+  String _etiquetaDia(DateTime dia, String periodo) {
+    if (periodo == 'semana') {
       return _diasSemana[dia.weekday - 1];
     }
     return dia.day.toString();

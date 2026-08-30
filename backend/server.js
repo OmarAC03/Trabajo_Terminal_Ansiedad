@@ -163,6 +163,51 @@ app.post('/api/usuarios', async (req, res) => {
   }
 });
 
+// Obtener el perfil de un usuario (usado por PerfilScreen en la app)
+app.get('/api/usuarios/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT id, nombre, email, rol FROM usuarios WHERE id = $1', [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Error al obtener usuario:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Editar el nombre del perfil (único campo que el paciente puede cambiar
+// desde la app; email/rol quedan fuera por ahora para no complicar Firebase)
+app.put('/api/usuarios/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nombre } = req.body;
+
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ error: 'El nombre no puede estar vacío' });
+    }
+
+    const result = await pool.query(
+      'UPDATE usuarios SET nombre = $1 WHERE id = $2 RETURNING id, nombre, email, rol',
+      [nombre.trim(), id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    console.log('✅ Perfil actualizado:', nombre);
+    res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Error al actualizar usuario:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // Escuchando conexiones en tiempo real (WebSockets)
 io.on('connection', (socket) => {
   console.log('🟢 Un cliente se ha conectado:', socket.id);
