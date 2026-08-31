@@ -32,20 +32,27 @@ app_ansiedad/lib/
 ├── main_layout.dart             # BottomNavigationBar con 5 pestañas
 ├── firebase_options.dart
 ├── avatar_widgets.dart          # avatares de animales (CustomPainter)
-├── models/                      # capa de modelos (Incremento 3)
+├── models/                      # capa de modelos
 │   ├── lectura.dart
-│   └── resumen_dia.dart
-├── repositories/                # capa de datos (Incremento 3)
-│   └── lectura_repository.dart
-├── providers/                   # capa de estado (Incremento 3)
-│   └── historial_provider.dart
+│   ├── resumen_dia.dart
+│   ├── perfil.dart              # (Incremento 4)
+│   └── lectura_cruda.dart       # lectura biométrica antes del semáforo (Incremento 4)
+├── repositories/                # capa de datos
+│   ├── repository_exception.dart # excepción compartida por todos los repos (Incremento 4)
+│   ├── lectura_repository.dart  # +enviarResumen() (Incremento 4)
+│   ├── perfil_repository.dart   # (Incremento 4)
+│   └── sensor_repository.dart   # Bluetooth Serial del ESP32 (Incremento 4)
+├── providers/                   # capa de estado
+│   ├── historial_provider.dart
+│   ├── perfil_provider.dart     # (Incremento 4)
+│   └── alerta_provider.dart     # (Incremento 4)
 └── screens/
     ├── login_screen.dart
     ├── registro_screen.dart     # registro transaccional (Incremento 2)
-    ├── alerta_screen.dart       # Monitor: Bluetooth + gráfica + modo simulación
+    ├── alerta_screen.dart       # REFACTORIZADA con Provider (Incremento 4)
     ├── historial_screen.dart    # REFACTORIZADA con Provider (Incremento 3)
-    ├── mensajes_screen.dart     # chat Socket.io (sin revisar a fondo aún)
-    ├── perfil_screen.dart       # perfil + avatares
+    ├── mensajes_screen.dart     # chat Socket.io (PENDIENTE revisar a fondo)
+    ├── perfil_screen.dart       # REFACTORIZADA con Provider (Incremento 4)
     └── tecnicas_screen.dart     # técnicas de relajación: respiración animada +
                                   #  voz/música/animación por técnica (ver sección 6)
 ```
@@ -78,7 +85,10 @@ Plan de 4 fases / 7 incrementos hacia una app de producción.
 ### ✅ Fase 2 — Arquitectura (en progreso)
 - **Incremento 2 (hecho):** registro **transaccional** (si falla el guardado en Supabase, se borra la cuenta de Firebase recién creada — evita "cuentas fantasma"); `AuthGate` para persistencia de sesión (la app ya no pide login cada vez); validaciones previas en registro; limpieza de código en `login_screen`.
 - **Incremento 3 (hecho):** refactor por capas usando **Provider**, con Historial como piloto. Creadas capas `models/`, `repositories/`, `providers/`. La UI de Historial ya no toca red ni parseo. Dependencia nueva: `provider: ^6.1.2`.
-- **Incremento 4 (PENDIENTE — siguiente paso):** completar y revisar `MensajesScreen` (chat Socket.io) ya con la arquitectura por capas. Migrar Perfil y Alerta al mismo patrón de Historial.
+- **Incremento 4 (en progreso):**
+  - ✅ **Perfil migrado a capas**: `models/perfil.dart`, `repositories/perfil_repository.dart`, `providers/perfil_provider.dart`. `PerfilScreen` quedó como `StatelessWidget` que solo arma el `ChangeNotifierProvider` y dibuja (mismo patrón que Historial); la lógica de avatar (Firebase `photoURL`) y edición de nombre, con sus actualizaciones optimistas y reversión en error, vive ahora en `PerfilProvider`. De paso se extrajo `RepositoryException` a `repositories/repository_exception.dart` (compartida por todos los repos; antes vivía duplicable solo dentro de `lectura_repository.dart`, que ahora la reexporta).
+  - ✅ **Alerta migrado a capas**: `models/lectura_cruda.dart`, `repositories/sensor_repository.dart` (encapsula Bluetooth Serial: permisos, búsqueda del dispositivo vinculado `TT_SENSOR_CLASICO`, expone un `Stream<String>` de líneas JSON crudas), `providers/alerta_provider.dart` (semáforo de ansiedad, buffers para promedios, modo simulación, envío del resumen — mismas reglas que antes: bpm>95 o hrv<25 → Alta, bpm>85 → Moderada, si no Baja). `lectura_repository.dart` ganó `enviarResumen()`. `AlertaScreen` quedó como `StatelessWidget` igual que Historial y Perfil. El provider cancela su suscripción al stream y el timer de simulación en `dispose()` para no notificar después de destruido. De paso se limpiaron los `withOpacity` deprecados, el `print()` de depuración y un método muerto (`_buildSensorStatusChip`) que tenía esa pantalla. **Pendiente de confirmar:** probar en dispositivo físico con Bluetooth real (aquí solo se validó con `flutter analyze`, no en hardware).
+  - ⏳ **PENDIENTE — siguiente paso:** completar y revisar `MensajesScreen` (chat Socket.io) con el mismo patrón de capas.
 
 ### ⏳ Fase 3 — Robustez, seguridad y calidad (PENDIENTE)
 - **Incremento 5:** manejo global de excepciones en Flutter; validación estricta en el backend; logging estructurado.
@@ -92,10 +102,10 @@ Plan de 4 fases / 7 incrementos hacia una app de producción.
 ## 5. Deuda técnica / pendientes conocidos
 
 - **Seguridad (prioritario, Inc. 6):** `GET /api/lecturas` devuelve lecturas de todos los pacientes sin autenticación; el portal web no exige login.
-- **`withOpacity` deprecado:** ~20 avisos de `flutter analyze` (cosmético). En Historial ya se migró a `.withValues()`; falta en alerta, perfil, tecnicas, main_layout. Agendado para Inc. 5.
-- **`avoid_print`:** hay `print()` en `alerta_screen` y `mensajes_screen`; cambiar por logging (Inc. 5).
+- **`withOpacity` deprecado:** avisos de `flutter analyze` (cosmético). Ya migrado en Historial, Perfil y Alerta a `.withValues()`; falta en tecnicas y main_layout. Agendado para Inc. 5.
+- **`avoid_print`:** hay `print()` en `mensajes_screen` (ya se quitó de `alerta_screen` al migrarla); cambiar por logging (Inc. 5).
 - **Navegaciones manuales redundantes:** login/logout aún navegan a mano aunque el `AuthGate` ya lo maneja; limpiar al migrar esas pantallas a capas.
-- **Migrar a capas:** Perfil, Alerta y Mensajes todavía tienen lógica mezclada (solo Historial está refactorizada).
+- **Migrar a capas:** solo falta Mensajes (Historial, Perfil y Alerta ya están refactorizadas).
 - **Animación respiración:** el texto de fase ("Inhala"/"Sostén") se sale del círculo en pantallas chicas; ajustar con `FittedBox` o fuente adaptativa.
 
 ---
@@ -134,4 +144,6 @@ Plan de 4 fases / 7 incrementos hacia una app de producción.
 
 ## 8. Siguiente paso sugerido
 
-El feature de audio + animaciones (sección 6) ya quedó completo y pusheado. Lo siguiente es el **Incremento 4**: revisar `MensajesScreen` (chat Socket.io) y migrar Perfil y Alerta a la arquitectura por capas (`models/` + `repositories/` + `providers/`), siguiendo el mismo patrón que ya se usó en Historial (Incremento 3). El portal web (`web_portal`) se trabajará más adelante.
+El feature de audio + animaciones (sección 6) ya quedó completo y pusheado. Dentro del **Incremento 4**, Perfil y Alerta ya se migraron a la arquitectura por capas (ver sección 4). Lo único que falta del incremento es revisar y migrar `MensajesScreen` (chat Socket.io) al mismo patrón (`models/` + `repositories/` + `providers/`). El portal web (`web_portal`) se trabajará más adelante.
+
+**Pendiente de probar en dispositivo físico:** la migración de Alerta toca el flujo de Bluetooth real con el ESP32; solo se validó con `flutter analyze` en esta sesión, falta confirmarla en el celular (conectar sensor, modo simulación, gráfica, sincronizar resumen).

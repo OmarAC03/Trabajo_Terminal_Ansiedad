@@ -1,102 +1,48 @@
 import 'package:flutter/material.dart';
-import '../app_config.dart';
-import '../api_client.dart';
-import 'dart:convert';
+import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
 import '../avatar_widgets.dart';
+import '../providers/perfil_provider.dart';
 
-class PerfilScreen extends StatefulWidget {
+/// Pantalla de Perfil — capa de UI.
+///
+/// Tras el refactor a capas, esta pantalla NO llama a la red, NO parsea JSON
+/// y NO toca FirebaseAuth para leer/guardar el avatar o el nombre. Solo crea
+/// el PerfilProvider, escucha sus cambios y dibuja.
+class PerfilScreen extends StatelessWidget {
   const PerfilScreen({super.key});
 
   @override
-  State<PerfilScreen> createState() => _PerfilScreenState();
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? "";
+    return ChangeNotifierProvider(
+      create: (_) => PerfilProvider(uid: uid)..cargar(),
+      child: const _PerfilView(),
+    );
+  }
 }
 
-class _PerfilScreenState extends State<PerfilScreen> {
+class _PerfilView extends StatelessWidget {
+  const _PerfilView();
+
   static const Color headerColor = Color(0xFF1E6AFB);
 
-  bool _isLoading = true;
-  String? _errorMsg;
-  String _nombre = "";
-  String _email = "";
-  String _rol = "paciente";
-  TipoAvatar? _avatar;
+  Future<void> _elegirAvatar(BuildContext context, PerfilProvider p) async {
+    final elegido = await mostrarSelectorAvatar(context, actual: p.avatar);
+    if (elegido == null || elegido == p.avatar) return;
 
-  @override
-  void initState() {
-    super.initState();
-    _cargarPerfil();
+    final ok = await p.actualizarAvatar(elegido);
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? "✅ Avatar actualizado" : "❌ No se pudo guardar el avatar. Intenta de nuevo."),
+      backgroundColor: ok ? Colors.green : Colors.red,
+    ));
   }
 
-  Future<void> _cargarPerfil() async {
-    setState(() {
-      _isLoading = true;
-      _errorMsg = null;
-    });
-
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      setState(() {
-        _isLoading = false;
-        _errorMsg = "No se detectó una sesión activa.";
-      });
-      return;
-    }
-
-    // El avatar vive en Firebase (photoURL), no en Supabase.
-    _avatar = avatarDesdePhotoUrl(FirebaseAuth.instance.currentUser?.photoURL);
-
-    final res = await ApiClient.get(Uri.parse(AppConfig.urlUsuario(uid)));
-
-    if (res.exito) {
-      final data = jsonDecode(res.body ?? '{}');
-      setState(() {
-        _nombre = data['nombre'] ?? "";
-        _email = data['email'] ?? (FirebaseAuth.instance.currentUser?.email ?? "");
-        _rol = data['rol'] ?? "paciente";
-        _isLoading = false;
-      });
-    } else {
-      setState(() {
-        _isLoading = false;
-        // Aun si falla la carga del perfil en Supabase, mostramos al menos
-        // el correo de Firebase para que la pantalla no quede vacía del todo.
-        _email = FirebaseAuth.instance.currentUser?.email ?? "";
-        _errorMsg = res.mensajeUsuario;
-      });
-    }
-  }
-
-  Future<void> _elegirAvatar() async {
-    final elegido = await mostrarSelectorAvatar(context, actual: _avatar);
-    if (elegido == null || elegido == _avatar) return;
-
-    final avatarAnterior = _avatar;
-    setState(() => _avatar = elegido); // optimista
-
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception("Sin sesión activa");
-      await user.updatePhotoURL(avatarAPhotoUrl(elegido));
-      await user.reload();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ Avatar actualizado"), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _avatar = avatarAnterior);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ No se pudo guardar el avatar. Intenta de nuevo."), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  Future<void> _editarNombre() async {
-    final controller = TextEditingController(text: _nombre);
+  Future<void> _editarNombre(BuildContext context, PerfilProvider p) async {
+    final controller = TextEditingController(text: p.nombre);
 
     final nuevoNombre = await showDialog<String>(
       context: context,
@@ -122,37 +68,23 @@ class _PerfilScreenState extends State<PerfilScreen> {
       ),
     );
 
-    if (nuevoNombre == null || nuevoNombre.isEmpty || nuevoNombre == _nombre) return;
+    if (nuevoNombre == null || nuevoNombre.isEmpty || nuevoNombre == p.nombre) return;
 
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+    final error = await p.editarNombre(nuevoNombre);
+    if (!context.mounted) return;
 
-    // Actualización optimista: mostramos el cambio de inmediato...
-    final nombreAnterior = _nombre;
-    setState(() => _nombre = nuevoNombre);
-
-    final res = await ApiClient.put(
-      Uri.parse(AppConfig.urlUsuario(uid)),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({"nombre": nuevoNombre}),
-    );
-
-    if (!mounted) return;
-
-    if (res.exito) {
+    if (error == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("✅ Nombre actualizado"), backgroundColor: Colors.green),
       );
     } else {
-      // Si falla, revertimos el cambio optimista y avisamos con el motivo real.
-      setState(() => _nombre = nombreAnterior);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ ${res.mensajeUsuario}"), backgroundColor: Colors.red),
+        SnackBar(content: Text("❌ $error"), backgroundColor: Colors.red),
       );
     }
   }
 
-  Future<void> _cerrarSesion() async {
+  Future<void> _cerrarSesion(BuildContext context) async {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -173,7 +105,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
     if (confirmar != true) return;
 
     await FirebaseAuth.instance.signOut();
-    if (!mounted) return;
+    if (!context.mounted) return;
 
     Navigator.pushAndRemoveUntil(
       context,
@@ -182,8 +114,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
     );
   }
 
-  String _iniciales(String nombre) {
-    final partes = nombre.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  String _iniciales(String nombre, String email) {
+    final base = nombre.isEmpty ? email : nombre;
+    final partes = base.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
     if (partes.isEmpty) return "?";
     if (partes.length == 1) return partes[0][0].toUpperCase();
     return (partes[0][0] + partes[1][0]).toUpperCase();
@@ -191,6 +124,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.watch<PerfilProvider>();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FB),
       appBar: AppBar(
@@ -199,8 +134,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
         elevation: 0,
       ),
       body: RefreshIndicator(
-        onRefresh: _cargarPerfil,
-        child: _isLoading
+        onRefresh: p.cargar,
+        child: p.isLoading
             ? ListView(children: const [
                 Padding(
                   padding: EdgeInsets.only(top: 150),
@@ -210,36 +145,36 @@ class _PerfilScreenState extends State<PerfilScreen> {
             : ListView(
                 padding: const EdgeInsets.all(24),
                 children: [
-                  if (_errorMsg != null) _buildBannerError(),
-                  _buildTarjetaPerfil(),
+                  if (p.errorMsg != null) _buildBannerError(p.errorMsg!),
+                  _buildTarjetaPerfil(context, p),
                   const SizedBox(height: 24),
-                  _buildSeccionCuenta(),
+                  _buildSeccionCuenta(p),
                   const SizedBox(height: 24),
                   _buildSeccionAcerca(),
                   const SizedBox(height: 30),
-                  _buildBotonCerrarSesion(),
+                  _buildBotonCerrarSesion(context),
                 ],
               ),
       ),
     );
   }
 
-  Widget _buildBannerError() {
+  Widget _buildBannerError(String mensaje) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(14)),
       child: Row(
         children: [
           const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
           const SizedBox(width: 10),
-          Expanded(child: Text(_errorMsg!, style: const TextStyle(color: Colors.orange, fontSize: 12))),
+          Expanded(child: Text(mensaje, style: const TextStyle(color: Colors.orange, fontSize: 12))),
         ],
       ),
     );
   }
 
-  Widget _buildTarjetaPerfil() {
+  Widget _buildTarjetaPerfil(BuildContext context, PerfilProvider p) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -250,17 +185,17 @@ class _PerfilScreenState extends State<PerfilScreen> {
       child: Column(
         children: [
           GestureDetector(
-            onTap: _elegirAvatar,
+            onTap: () => _elegirAvatar(context, p),
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                _avatar != null
-                    ? AnimalAvatar(tipo: _avatar!, size: 84)
+                p.avatar != null
+                    ? AnimalAvatar(tipo: p.avatar!, size: 84)
                     : CircleAvatar(
                         radius: 42,
                         backgroundColor: headerColor,
                         child: Text(
-                          _iniciales(_nombre.isEmpty ? _email : _nombre),
+                          _iniciales(p.nombre, p.email),
                           style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -282,17 +217,17 @@ class _PerfilScreenState extends State<PerfilScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            _nombre.isEmpty ? "Sin nombre registrado" : _nombre,
+            p.nombre.isEmpty ? "Sin nombre registrado" : p.nombre,
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
-          Text(_email, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+          Text(p.email, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(color: headerColor.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(color: headerColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
             child: Text(
-              _rol == 'especialista' ? "ESPECIALISTA" : "PACIENTE",
+              p.rol == 'especialista' ? "ESPECIALISTA" : "PACIENTE",
               style: TextStyle(color: headerColor, fontSize: 11, fontWeight: FontWeight.bold),
             ),
           ),
@@ -300,12 +235,12 @@ class _PerfilScreenState extends State<PerfilScreen> {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: _editarNombre,
+              onPressed: () => _editarNombre(context, p),
               icon: const Icon(Icons.edit, size: 16),
               label: const Text("Editar nombre"),
               style: OutlinedButton.styleFrom(
                 foregroundColor: headerColor,
-                side: BorderSide(color: headerColor.withOpacity(0.4)),
+                side: BorderSide(color: headerColor.withValues(alpha: 0.4)),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
@@ -316,10 +251,10 @@ class _PerfilScreenState extends State<PerfilScreen> {
     );
   }
 
-  Widget _buildSeccionCuenta() {
+  Widget _buildSeccionCuenta(PerfilProvider p) {
     return _buildSeccion("Cuenta", [
-      _buildFila(Icons.email_outlined, "Correo electrónico", _email),
-      _buildFila(Icons.badge_outlined, "Tipo de cuenta", _rol == 'especialista' ? "Especialista" : "Paciente"),
+      _buildFila(Icons.email_outlined, "Correo electrónico", p.email),
+      _buildFila(Icons.badge_outlined, "Tipo de cuenta", p.rol == 'especialista' ? "Especialista" : "Paciente"),
     ]);
   }
 
@@ -374,11 +309,11 @@ class _PerfilScreenState extends State<PerfilScreen> {
     );
   }
 
-  Widget _buildBotonCerrarSesion() {
+  Widget _buildBotonCerrarSesion(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
-        onPressed: _cerrarSesion,
+        onPressed: () => _cerrarSesion(context),
         icon: const Icon(Icons.logout, color: Colors.red, size: 18),
         label: const Text("Cerrar sesión", style: TextStyle(color: Colors.red)),
         style: OutlinedButton.styleFrom(

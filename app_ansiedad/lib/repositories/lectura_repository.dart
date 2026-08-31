@@ -3,15 +3,9 @@ import '../app_config.dart';
 import '../api_client.dart';
 import '../models/lectura.dart';
 import '../models/resumen_dia.dart';
+import 'repository_exception.dart';
 
-/// Excepción de la capa de datos con un mensaje ya listo para el usuario.
-/// La UI/estado la captura y muestra el mensaje sin tener que saber de HTTP.
-class RepositoryException implements Exception {
-  final String mensaje;
-  RepositoryException(this.mensaje);
-  @override
-  String toString() => mensaje;
-}
+export 'repository_exception.dart';
 
 /// Punto único de acceso a los datos de lecturas biométricas.
 ///
@@ -66,6 +60,33 @@ class LecturaRepository {
       ..sort((a, b) => a.dia.compareTo(b.dia));
 
     return ResultadoResumen(diasPorPeriodo: diasPorPeriodo, serie: resumenes);
+  }
+
+  /// Envía el resumen (promedios) de una sesión de monitoreo al backend.
+  Future<void> enviarResumen({
+    required String pacienteId,
+    required int bpm,
+    required int spo2,
+    required int hrv,
+    required double scoreAnsiedad,
+    required String estadoAnsiedad,
+  }) async {
+    final payload = {
+      "paciente_id": pacienteId,
+      "bpm": bpm,
+      "spo2": spo2,
+      "hrv": hrv,
+      "score_ansiedad": scoreAnsiedad,
+      "estado_ansiedad": estadoAnsiedad,
+    };
+
+    final res = await ApiClient.post(
+      Uri.parse(AppConfig.urlLecturas),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode(payload),
+    );
+
+    if (!res.exito) throw RepositoryException(res.mensajeUsuario);
   }
 }
 
