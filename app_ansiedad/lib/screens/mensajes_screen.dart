@@ -1,80 +1,55 @@
 import 'package:flutter/material.dart';
-import 'package:app_ansiedad/app_config.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/mensaje.dart';
+import '../providers/mensajes_provider.dart';
 
-class MensajesScreen extends StatefulWidget {
+/// Pantalla de Mensajes (chat con especialista) — capa de UI.
+///
+/// Tras el refactor a capas, esta pantalla NO toca Socket.io: solo crea el
+/// MensajesProvider, escucha sus cambios y dibuja, igual que Historial,
+/// Perfil y Alerta.
+class MensajesScreen extends StatelessWidget {
   const MensajesScreen({super.key});
 
   @override
-  State<MensajesScreen> createState() => _MensajesScreenState();
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? "";
+    return ChangeNotifierProvider(
+      create: (_) => MensajesProvider(pacienteId: uid),
+      child: const _MensajesView(),
+    );
+  }
 }
 
-class _MensajesScreenState extends State<MensajesScreen> {
-  // Lista local para mostrar los mensajes en pantalla
-  List<Map<String, dynamic>> _mensajes = [];
-  final TextEditingController _controladorTexto = TextEditingController();
-  late IO.Socket socket;
-
-  final String _miPacienteId = FirebaseAuth.instance.currentUser?.uid ?? "";
+class _MensajesView extends StatefulWidget {
+  const _MensajesView();
 
   @override
-  void initState() {
-    super.initState();
-    _conectarSocket();
-  }
+  State<_MensajesView> createState() => _MensajesViewState();
+}
 
-  void _conectarSocket() {
-    // 1. Configurar la conexión hacia tu Node.js
-    socket = IO.io(AppConfig.backendUrl, IO.OptionBuilder()
-        .setTransports(['websocket']) // Forzar WebSockets
-        .disableAutoConnect() 
-        .build());
+class _MensajesViewState extends State<_MensajesView> {
+  // El controlador del campo de texto es puramente de UI (foco, contenido
+  // tecleado): no forma parte del estado del chat, así que vive aquí y no
+  // en el provider.
+  final TextEditingController _controladorTexto = TextEditingController();
 
-    socket.connect();
-
-    // 2. Evento: Confirmar conexión
-    socket.onConnect((_) {
-      print('✅ Conectado al servidor de Sockets');
-    });
-
-    // 3. Evento: Escuchar nuevos mensajes del servidor
-    socket.on('recibir_mensaje', (data) {
-      if (!mounted) return;
-      setState(() {
-        _mensajes.add(data);
-      });
-    });
-  }
-
-  void _enviarMensaje() {
-    if (_controladorTexto.text.trim().isEmpty) return;
-
-    // Armamos el paquete de datos
-    final dataMensaje = {
-      "paciente_id": _miPacienteId,
-      "texto": _controladorTexto.text.trim(),
-      "tipo_mensaje": "texto"
-    };
-
-    // Disparamos el evento hacia Node.js
-    socket.emit('enviar_mensaje', dataMensaje);
-    
-    // Limpiamos la caja de texto
+  void _enviar(MensajesProvider p) {
+    p.enviarMensaje(_controladorTexto.text);
     _controladorTexto.clear();
   }
 
   @override
   void dispose() {
-    // Apagamos el socket al salir de la pantalla
-    socket.disconnect();
-    socket.dispose();
     _controladorTexto.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final p = context.watch<MensajesProvider>();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FB),
       appBar: AppBar(
@@ -84,68 +59,73 @@ class _MensajesScreenState extends State<MensajesScreen> {
       ),
       body: Column(
         children: [
-          // Área de los mensajes
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: _mensajes.length,
-              itemBuilder: (context, index) {
-                final msg = _mensajes[index];
-                // Por ahora, asumimos que todos los mensajes los enviaste tú
-                return Align(
-                  alignment: Alignment.centerRight,
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF1E6AFB),
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(15),
-                        bottomLeft: Radius.circular(15),
-                        topRight: Radius.circular(15),
-                      ),
-                    ),
-                    child: Text(
-                      msg['texto'] ?? '',
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
-                    ),
-                  ),
-                );
-              },
+              itemCount: p.mensajes.length,
+              itemBuilder: (context, index) => _buildBurbuja(p, p.mensajes[index]),
             ),
           ),
-          
-          // Caja de texto inferior
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
-            color: Colors.white,
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controladorTexto,
-                    decoration: InputDecoration(
-                      hintText: "Escribe un mensaje...",
-                      filled: true,
-                      fillColor: Colors.grey[200],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(25),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-                    ),
-                  ),
+          _buildCajaTexto(p),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBurbuja(MensajesProvider p, Mensaje msg) {
+    final esMio = p.esMio(msg);
+    return Align(
+      alignment: esMio ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: esMio ? const Color(0xFF1E6AFB) : Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(15),
+            bottomLeft: Radius.circular(esMio ? 15 : 0),
+            topRight: const Radius.circular(15),
+            bottomRight: Radius.circular(esMio ? 0 : 15),
+          ),
+          border: esMio ? null : Border.all(color: Colors.grey.shade200),
+        ),
+        child: Text(
+          msg.texto,
+          style: TextStyle(color: esMio ? Colors.white : Colors.black87, fontSize: 16),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCajaTexto(MensajesProvider p) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+      color: Colors.white,
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _controladorTexto,
+              decoration: InputDecoration(
+                hintText: "Escribe un mensaje...",
+                filled: true,
+                fillColor: Colors.grey[200],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(25),
+                  borderSide: BorderSide.none,
                 ),
-                const SizedBox(width: 8),
-                CircleAvatar(
-                  backgroundColor: const Color(0xFF1E6AFB),
-                  radius: 25,
-                  child: IconButton(
-                    icon: const Icon(Icons.send, color: Colors.white),
-                    onPressed: _enviarMensaje,
-                  ),
-                )
-              ],
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              ),
+              onSubmitted: (_) => _enviar(p),
+            ),
+          ),
+          const SizedBox(width: 8),
+          CircleAvatar(
+            backgroundColor: const Color(0xFF1E6AFB),
+            radius: 25,
+            child: IconButton(
+              icon: const Icon(Icons.send, color: Colors.white),
+              onPressed: () => _enviar(p),
             ),
           ),
         ],
