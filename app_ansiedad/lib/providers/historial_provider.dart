@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../logger.dart';
 import '../models/lectura.dart';
 import '../models/resumen_dia.dart';
 import '../repositories/lectura_repository.dart';
@@ -67,7 +68,8 @@ class HistorialProvider extends ChangeNotifier {
     } on RepositoryException catch (e) {
       _estado = EstadoCarga.error;
       _errorMsg = e.mensaje;
-    } catch (_) {
+    } catch (e, stackTrace) {
+      AppLogger.error('Error inesperado al cargar historial', tag: 'historial', error: e, stackTrace: stackTrace);
       _estado = EstadoCarga.error;
       _errorMsg = "Ocurrió un error inesperado. Desliza hacia abajo para reintentar.";
     }

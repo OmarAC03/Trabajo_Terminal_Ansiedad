@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../avatar_widgets.dart';
+import '../logger.dart';
 import '../repositories/perfil_repository.dart';
 import '../repositories/repository_exception.dart';
 
@@ -60,7 +61,8 @@ class PerfilProvider extends ChangeNotifier {
       // Firebase para que la pantalla no quede vacía del todo.
       _email = user.email ?? '';
       _errorMsg = e.mensaje;
-    } catch (_) {
+    } catch (e, stackTrace) {
+      AppLogger.error('Error inesperado al cargar perfil', tag: 'perfil', error: e, stackTrace: stackTrace);
       _isLoading = false;
       _email = user.email ?? '';
       _errorMsg = "Ocurrió un error inesperado.";
@@ -80,7 +82,8 @@ class PerfilProvider extends ChangeNotifier {
       await user.updatePhotoURL(avatarAPhotoUrl(nuevo));
       await user.reload();
       return true;
-    } catch (_) {
+    } catch (e, stackTrace) {
+      AppLogger.error('Error inesperado al actualizar avatar', tag: 'perfil', error: e, stackTrace: stackTrace);
       _avatar = anterior;
       notifyListeners();
       return false;
@@ -100,7 +103,8 @@ class PerfilProvider extends ChangeNotifier {
       _nombre = anterior;
       notifyListeners();
       return e.mensaje;
-    } catch (_) {
+    } catch (e, stackTrace) {
+      AppLogger.error('Error inesperado al editar nombre', tag: 'perfil', error: e, stackTrace: stackTrace);
       _nombre = anterior;
       notifyListeners();
       return "Ocurrió un error inesperado.";

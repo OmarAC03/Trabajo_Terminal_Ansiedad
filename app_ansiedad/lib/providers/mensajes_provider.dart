@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../logger.dart';
 import '../models/mensaje.dart';
 import '../repositories/chat_repository.dart';
 
@@ -26,10 +27,15 @@ class MensajesProvider extends ChangeNotifier {
   StreamSubscription<Mensaje>? _sub;
 
   void _conectar() {
-    _sub = _chatRepo.conectar().listen((mensaje) {
-      _mensajes.add(mensaje);
-      notifyListeners();
-    });
+    _sub = _chatRepo.conectar().listen(
+      (mensaje) {
+        _mensajes.add(mensaje);
+        notifyListeners();
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        AppLogger.error('Error en el stream de mensajes', tag: 'mensajes', error: error, stackTrace: stackTrace);
+      },
+    );
   }
 
   void enviarMensaje(String texto) {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../app_config.dart';
+import '../logger.dart';
 import '../models/lectura_cruda.dart';
 import '../repositories/lectura_repository.dart';
 import '../repositories/sensor_repository.dart';
@@ -117,7 +118,8 @@ class AlertaProvider extends ChangeNotifier {
       _lastSyncTime = e.tipo == ErrorSensor.permisos ? "Sin permisos" : "No vinculado";
       notifyListeners();
       return MensajeAlerta(e.mensaje, advertencia: e.tipo == ErrorSensor.noVinculado);
-    } catch (_) {
+    } catch (e, stackTrace) {
+      AppLogger.error('Error inesperado al conectar sensor', tag: 'alerta', error: e, stackTrace: stackTrace);
       _isScanning = false;
       _lastSyncTime = "Error de enlace";
       notifyListeners();
@@ -130,8 +132,10 @@ class AlertaProvider extends ChangeNotifier {
       final datos = jsonDecode(linea) as Map<String, dynamic>;
       final anterior = LecturaCruda(bpm: _bpmActual, spo2: _spo2Actual, hrv: _hrvActual);
       _procesarLectura(LecturaCruda.fromJson(datos, anterior: anterior));
-    } catch (_) {
-      // Línea corrupta del sensor: se ignora y se espera la siguiente.
+    } catch (e) {
+      // Línea corrupta del sensor: se ignora y se espera la siguiente. Nivel
+      // debug (no error): es ruido esperado del serial, no una falla real.
+      AppLogger.debug('Línea de sensor descartada: $e', tag: 'alerta');
     }
   }
 
@@ -231,7 +235,8 @@ class AlertaProvider extends ChangeNotifier {
     } on RepositoryException catch (e) {
       // No limpiamos el buffer: si falla el guardado, no se pierden lecturas.
       return ResultadoSincronizacion(ResultadoSync.error, mensajeError: e.mensaje);
-    } catch (_) {
+    } catch (e, stackTrace) {
+      AppLogger.error('Error inesperado al sincronizar resumen', tag: 'alerta', error: e, stackTrace: stackTrace);
       return ResultadoSincronizacion(ResultadoSync.error, mensajeError: "Ocurrió un error inesperado.");
     }
   }
