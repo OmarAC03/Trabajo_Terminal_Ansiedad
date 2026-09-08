@@ -12,4 +12,17 @@ class ValidationError extends Error {
   }
 }
 
-module.exports = { ValidationError };
+/**
+ * Error de autenticación/autorización: token ausente/inválido (401) o token
+ * válido pero sin permiso para el recurso pedido (403). Mismo mecanismo que
+ * ValidationError: el middleware de error de server.js lee `statusCode`.
+ */
+class AuthError extends Error {
+  constructor(mensaje, statusCode = 401) {
+    super(mensaje);
+    this.name = 'AuthError';
+    this.statusCode = statusCode;
+  }
+}
+
+module.exports = { ValidationError, AuthError };

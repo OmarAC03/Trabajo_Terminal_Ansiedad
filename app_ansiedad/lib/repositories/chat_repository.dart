@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../app_config.dart';
 import '../models/mensaje.dart';
@@ -13,17 +14,28 @@ class ChatRepository {
 
   /// Conecta el socket y devuelve un stream con cada mensaje que llega del
   /// servidor (propios y de otros participantes del chat).
-  Stream<Mensaje> conectar() {
+  ///
+  /// El backend exige un token Firebase en el handshake (`auth.token`), por
+  /// eso este método espera el idToken antes de armar las opciones del socket.
+  Future<Stream<Mensaje>> conectar() async {
     final controller = StreamController<Mensaje>();
+    final token = await FirebaseAuth.instance.currentUser?.getIdToken();
 
     final socket = IO.io(
       AppConfig.backendUrl,
-      IO.OptionBuilder().setTransports(['websocket']).disableAutoConnect().build(),
+      IO.OptionBuilder()
+          .setTransports(['websocket'])
+          .setAuth({'token': token})
+          .disableAutoConnect()
+          .build(),
     );
     _socket = socket;
 
     socket.on('recibir_mensaje', (data) {
       controller.add(Mensaje.fromJson(Map<String, dynamic>.from(data as Map)));
+    });
+    socket.on('connect_error', (error) {
+      controller.addError(error ?? 'connect_error');
     });
 
     socket.connect();

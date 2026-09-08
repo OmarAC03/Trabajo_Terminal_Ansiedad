@@ -6,6 +6,8 @@ const { Pool } = require('pg'); // Importamos el conector de PostgreSQL
 require('dotenv').config();
 
 const logger = require('./logger');
+const { AuthError } = require('./errors');
+const { inicializarFirebaseAdmin, requiereAuth, requiereAuthSocket } = require('./auth');
 const { validarLectura, validarUsuarioNuevo, validarNombre, validarMensajeChat } = require('./validation');
 
 const app = express();
@@ -38,14 +40,36 @@ pool.connect((err, client, release) => {
 });
 // ----------------------------------------------
 
+// --- AUTENTICACIÓN (Firebase Admin) ---
+// Falla rápido al arrancar si falta la credencial, en vez de servir 500 en
+// cada request que llegue después.
+try {
+  inicializarFirebaseAdmin();
+} catch (error) {
+  logger.error('No se pudo inicializar Firebase Admin', { detalle: error.message });
+  process.exit(1);
+}
+
+// Todas las rutas /api/* requieren un token Firebase válido. Adjunta
+// req.uid (uid del token) y req.rol ('paciente' | 'especialista' | null si
+// el token es válido pero aún no hay fila en `usuarios`). La autorización
+// específica de cada ruta (dueño vs. especialista, etc.) se decide abajo,
+// al inicio de cada handler.
+app.use('/api', requiereAuth(pool));
+// ----------------------------------------------
+
 // Nota sobre manejo de errores: Express 5 reenvía automáticamente a
 // next(err) cualquier excepción síncrona o promesa rechazada dentro de un
 // handler `async`. Por eso las rutas de abajo ya no llevan try/catch propio:
-// un validador que lanza ValidationError, o un fallo real de `pool.query`,
-// terminan en el middleware de error centralizado al final del archivo.
+// un validador que lanza ValidationError, un chequeo de autorización que
+// lanza AuthError, o un fallo real de `pool.query`, terminan en el
+// middleware de error centralizado al final del archivo.
 
 // Ruta para recibir lecturas biométricas de la App / ESP32
 app.post('/api/lecturas', async (req, res) => {
+  if (req.body?.paciente_id !== req.uid) {
+    throw new AuthError('Solo puedes reportar tus propias lecturas.', 403);
+  }
   const datos = validarLectura(req.body);
 
   const query = `
@@ -63,6 +87,9 @@ app.post('/api/lecturas', async (req, res) => {
 
 // --- NUEVA RUTA PARA CONSULTAR EL HISTORIAL ---
 app.get('/api/lecturas', async (req, res) => {
+  if (req.rol !== 'especialista') {
+    throw new AuthError('Solo un especialista puede ver las lecturas de todos los pacientes.', 403);
+  }
   // "ORDER BY 1" ordena por la primera columna (normalmente el ID o la fecha)
   const query = 'SELECT * FROM lecturas_biometricas ORDER BY 1 DESC';
   const result = await pool.query(query);
@@ -74,6 +101,9 @@ app.get('/api/lecturas', async (req, res) => {
 // Usado por la app móvil. GET /api/lecturas/:pacienteId?limite=50
 app.get('/api/lecturas/:pacienteId', async (req, res) => {
   const { pacienteId } = req.params;
+  if (pacienteId !== req.uid && req.rol !== 'especialista') {
+    throw new AuthError('No autorizado para ver las lecturas de este paciente.', 403);
+  }
   const limite = parseInt(req.query.limite) || 50;
 
   const query = `
@@ -93,6 +123,9 @@ app.get('/api/lecturas/:pacienteId', async (req, res) => {
 // (tendencias, rachas, etc.) sin tener que hacer una segunda llamada.
 app.get('/api/lecturas/:pacienteId/resumen', async (req, res) => {
   const { pacienteId } = req.params;
+  if (pacienteId !== req.uid && req.rol !== 'especialista') {
+    throw new AuthError('No autorizado para ver el resumen de este paciente.', 403);
+  }
   const periodo = req.query.periodo === 'mes' ? 'mes' : 'semana';
   const diasPorPeriodo = periodo === 'mes' ? 30 : 7;
   const rangoConsulta = diasPorPeriodo * 2; // periodo actual + periodo anterior
@@ -125,6 +158,9 @@ app.get('/api/lecturas/:pacienteId/resumen', async (req, res) => {
 
 // Ruta para registrar un nuevo usuario en Supabase (después de Firebase)
 app.post('/api/usuarios', async (req, res) => {
+  if (req.body?.id !== req.uid) {
+    throw new AuthError('Solo puedes registrar tu propio usuario.', 403);
+  }
   const datos = validarUsuarioNuevo(req.body);
 
   const query = `
@@ -143,6 +179,9 @@ app.post('/api/usuarios', async (req, res) => {
 // Obtener el perfil de un usuario (usado por PerfilScreen en la app)
 app.get('/api/usuarios/:id', async (req, res) => {
   const { id } = req.params;
+  if (id !== req.uid && req.rol !== 'especialista') {
+    throw new AuthError('No autorizado para ver este perfil.', 403);
+  }
   const result = await pool.query('SELECT id, nombre, email, rol FROM usuarios WHERE id = $1', [id]);
 
   if (result.rows.length === 0) {
@@ -156,6 +195,9 @@ app.get('/api/usuarios/:id', async (req, res) => {
 // desde la app; email/rol quedan fuera por ahora para no complicar Firebase)
 app.put('/api/usuarios/:id', async (req, res) => {
   const { id } = req.params;
+  if (id !== req.uid && req.rol !== 'especialista') {
+    throw new AuthError('No autorizado para editar este perfil.', 403);
+  }
   const nombre = validarNombre(req.body);
 
   const result = await pool.query(
@@ -183,14 +225,26 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Todo socket debe traer un token Firebase válido en el handshake
+// (`io(url, { auth: { token } })` del lado del cliente).
+io.use(requiereAuthSocket(pool));
+
 // Escuchando conexiones en tiempo real (WebSockets)
 io.on('connection', (socket) => {
-  logger.info('Cliente conectado', { socketId: socket.id });
+  logger.info('Cliente conectado', { socketId: socket.id, uid: socket.data.uid });
 
   // Escuchar cuando el paciente o especialista envía un mensaje
   socket.on('enviar_mensaje', async (data) => {
     try {
       const datos = validarMensajeChat(data);
+
+      if (datos.paciente_id !== socket.data.uid && socket.data.rol !== 'especialista') {
+        logger.warn('Mensaje rechazado: paciente_id no coincide con el emisor', {
+          socketId: socket.id,
+          uid: socket.data.uid,
+        });
+        return;
+      }
 
       // 1. Guardar el mensaje en la base de datos (Supabase)
       const query = `

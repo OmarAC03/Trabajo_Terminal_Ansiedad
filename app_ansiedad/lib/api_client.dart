@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
 /// Resultado de una operación de red, para que las pantallas sepan qué mostrar
@@ -53,13 +54,24 @@ class ApiClient {
   /// Número de reintentos ante timeout/sin conexión (además del intento inicial).
   static const int _maxReintentos = 2;
 
-  static Future<RespuestaRed> get(Uri url) => _ejecutar(() => http.get(url));
+  static Future<RespuestaRed> get(Uri url) =>
+      _ejecutar(() async => http.get(url, headers: await _conHeaderAuth(null)));
 
   static Future<RespuestaRed> post(Uri url, {Map<String, String>? headers, Object? body}) =>
-      _ejecutar(() => http.post(url, headers: headers, body: body));
+      _ejecutar(() async => http.post(url, headers: await _conHeaderAuth(headers), body: body));
 
   static Future<RespuestaRed> put(Uri url, {Map<String, String>? headers, Object? body}) =>
-      _ejecutar(() => http.put(url, headers: headers, body: body));
+      _ejecutar(() async => http.put(url, headers: await _conHeaderAuth(headers), body: body));
+
+  /// Agrega `Authorization: Bearer <idToken>` a los headers si hay sesión
+  /// Firebase activa. Centralizado aquí para que ningún repositorio tenga
+  /// que acordarse de mandar el token: todo pasa por ApiClient.
+  static Future<Map<String, String>> _conHeaderAuth(Map<String, String>? headers) async {
+    final resultado = Map<String, String>.from(headers ?? {});
+    final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+    if (token != null) resultado['Authorization'] = 'Bearer $token';
+    return resultado;
+  }
 
   static Future<RespuestaRed> _ejecutar(Future<http.Response> Function() peticion) async {
     for (int intento = 0; intento <= _maxReintentos; intento++) {

@@ -26,8 +26,9 @@ class MensajesProvider extends ChangeNotifier {
 
   StreamSubscription<Mensaje>? _sub;
 
-  void _conectar() {
-    _sub = _chatRepo.conectar().listen(
+  Future<void> _conectar() async {
+    final stream = await _chatRepo.conectar();
+    _sub = stream.listen(
       (mensaje) {
         _mensajes.add(mensaje);
         notifyListeners();
