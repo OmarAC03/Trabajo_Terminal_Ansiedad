@@ -191,6 +191,33 @@ app.get('/api/usuarios/:id', async (req, res) => {
   res.status(200).json(result.rows[0]);
 });
 
+// Lista de pacientes para el Portal Web (con su última lectura, si tiene).
+// Solo un especialista puede ver la lista completa.
+app.get('/api/pacientes', async (req, res) => {
+  if (req.rol !== 'especialista') {
+    throw new AuthError('Solo un especialista puede ver la lista de pacientes.', 403);
+  }
+
+  const query = `
+    SELECT
+      u.id, u.nombre, u.email,
+      lu.estado_ansiedad AS ultimo_estado,
+      lu.fecha_medicion AS ultima_lectura
+    FROM usuarios u
+    LEFT JOIN LATERAL (
+      SELECT estado_ansiedad, fecha_medicion
+      FROM lecturas_biometricas l
+      WHERE l.paciente_id = u.id
+      ORDER BY fecha_medicion DESC
+      LIMIT 1
+    ) lu ON true
+    WHERE u.rol = 'paciente'
+    ORDER BY u.nombre ASC;
+  `;
+  const result = await pool.query(query);
+  res.status(200).json(result.rows);
+});
+
 // Editar el nombre del perfil (único campo que el paciente puede cambiar
 // desde la app; email/rol quedan fuera por ahora para no complicar Firebase)
 app.put('/api/usuarios/:id', async (req, res) => {

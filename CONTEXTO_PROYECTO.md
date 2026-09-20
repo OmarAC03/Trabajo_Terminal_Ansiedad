@@ -64,12 +64,13 @@ Las 5 pestañas del `main_layout`: **Inicio (Alerta)**, **Historial**, **Mensaje
 ## 3. Endpoints del backend (`backend/server.js`)
 
 - `POST /api/lecturas` — guarda una lectura biométrica.
-- `GET /api/lecturas` — TODAS las lecturas (lo usa el portal web; ⚠️ sin filtro ni auth — deuda de seguridad conocida).
+- `GET /api/lecturas` — TODAS las lecturas; requiere `rol === 'especialista'` (cerrado en Inc. 6a).
 - `GET /api/lecturas/:pacienteId` — lecturas de un paciente (con `?limite=`).
 - `GET /api/lecturas/:pacienteId/resumen?periodo=semana|mes` — agregación por día (GROUP BY), devuelve periodo actual + anterior para comparar.
 - `POST /api/usuarios` — registra usuario tras crear cuenta en Firebase.
 - `GET /api/usuarios/:id` — trae perfil (nombre, email, rol).
 - `PUT /api/usuarios/:id` — edita el nombre.
+- `GET /api/pacientes` — lista de usuarios con `rol='paciente'` (nombre, email, última lectura si tiene); requiere `rol === 'especialista'`. Nuevo en Portal Web Fase 1.
 
 **Tabla `lecturas_biometricas`:** id (uuid), paciente_id (varchar), bpm (int4), spo2 (int4), hrv (int4), score_ansiedad (numeric), estado_ansiedad (varchar: 'Alta'|'Moderada'|'Baja'), fecha_medicion (timestamptz).
 
@@ -114,7 +115,7 @@ Plan de 4 fases / 7 incrementos hacia una app de producción.
 
 Con el Incremento 6a cerrado (auth Firebase end-to-end), el siguiente foco es construir el `web_portal/` (React) para que el especialista pueda monitorear pacientes. Se divide en 3 fases:
 
-- **Fase 1 — Login de especialista + lista de pacientes:** completar el flujo de login (ya existe `Login.js` del Inc. 6a) y construir la vista que lista los pacientes del especialista. Esta fase **cierra el pendiente menor del Incremento 6a**: confirmar el rol especialista end-to-end se valida naturalmente al iniciar sesión como especialista y ver la lista de pacientes cargar correctamente (o el mensaje de 403 si el rol no está bien puesto).
+- **Fase 1 — Login de especialista + lista de pacientes (código hecho, verificación pendiente):** login ya existía (`Login.js` del Inc. 6a). Se agregó `GET /api/pacientes` en el backend (join `usuarios` + última fila de `lecturas_biometricas` por paciente, solo `rol === 'especialista'`) y `web_portal/src/PacientesList.js` (nuevo, tarjetas con nombre/email/estado del semáforo/última lectura); `App.js` ahora apunta a `/api/pacientes` en vez de al `/api/lecturas` crudo y delega el render a `PacientesList`. Validado con `npm run build` (compila sin warnings) y `npm start` local (pantalla de login renderiza bien). **Pendiente de confirmar** (requiere credenciales reales, no automatizable): login como especialista de verdad y ver la lista de pacientes cargar — esto cierra también el pendiente menor del Incremento 6a.
 - **Fase 2 — Ver lecturas y gráficas de cada paciente:** al seleccionar un paciente de la lista, mostrar su historial de lecturas biométricas (bpm, spo2, hrv, score de ansiedad) con gráficas, reusando `GET /api/lecturas/:pacienteId` y `GET /api/lecturas/:pacienteId/resumen`.
 - **Fase 3 — Chat en tiempo real especialista–paciente vía Socket.io:** reusar el mismo canal de chat que ya usa la app Flutter (`enviar_mensaje`, autenticado con `requiereAuthSocket`) para que el especialista converse en vivo con el paciente seleccionado.
 
@@ -166,10 +167,10 @@ Con el Incremento 6a cerrado (auth Firebase end-to-end), el siguiente foco es co
 
 ## 8. Siguiente paso sugerido
 
-El feature de audio + animaciones (sección 6), el **Incremento 5** (manejo global de excepciones en Flutter, validación estricta y logging estructurado en el backend) y el **Incremento 6a** (auth Firebase end-to-end) ya quedaron implementados y verificados. El siguiente foco es el **Portal Web** (sección 4bis), empezando por su Fase 1 (login de especialista + lista de pacientes), que de paso cierra el pendiente menor del rol especialista. En paralelo sigue pendiente el **Incremento 6b** (testing).
+El feature de audio + animaciones (sección 6), el **Incremento 5** (manejo global de excepciones en Flutter, validación estricta y logging estructurado en el backend) y el **Incremento 6a** (auth Firebase end-to-end) ya quedaron implementados y verificados. El **Portal Web Fase 1** (sección 4bis) ya tiene el código listo (endpoint `/api/pacientes` + vista de lista); falta la verificación manual con una cuenta de especialista real. Después sigue la **Fase 2** del Portal Web (lecturas y gráficas por paciente) y, en paralelo, el **Incremento 6b** (testing).
 
 **Sección de pruebas pendientes (acumulada, se revisa más adelante — no bloquea seguir con los incrementos):**
 - Alerta: flujo de Bluetooth real con el ESP32 (conectar sensor, modo simulación, gráfica, sincronizar resumen) — solo validado con `flutter analyze`.
 - Mensajes: enviar/recibir mensajes reales por Socket.io y confirmar que la alineación de burbujas (`esMio`) distingue bien remitente propio vs. ajeno — solo validado con `flutter analyze` y reinstalado en el dispositivo.
 - Incremento 5: probar `POST /api/lecturas` con datos inválidos contra el backend real (Render) y confirmar `400`; confirmar en el celular que los mensajes de error al usuario no cambiaron con el refactor.
-- Portal Web Fase 1: confirmar el rol especialista end-to-end (login como especialista + ver la lista de pacientes cargar).
+- Portal Web Fase 1: confirmar el rol especialista end-to-end (login como especialista real + ver la lista de pacientes cargar con datos correctos) — código listo, solo falta esta prueba manual.
