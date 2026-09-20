@@ -97,16 +97,12 @@ Plan de 4 fases / 7 incrementos hacia una app de producción.
   - **Backend — logging estructurado:** `backend/logger.js` (nuevo, JSON por línea con timestamp/nivel/mensaje/metadata, sin dependencia nueva) reemplaza los `console.log`/`console.error` sueltos.
   - **Backend — manejo global de errores:** se apoya en que Express 5 (`^5.2.1`) reenvía automáticamente a `next(err)` cualquier excepción síncrona o promesa rechazada de un handler `async`; se quitaron los `try/catch` duplicados de cada ruta y se añadió un único middleware de error al final de `server.js` que loguea y responde 400 (validación) o 500 (fallo interno) de forma consistente. El listener de socket `enviar_mensaje` mantiene su propio `try/catch` (no es una ruta Express) pero ahora usa `validarMensajeChat` y el logger estructurado.
   - **Pendiente de confirmar:** probar en caliente contra el backend en Render (`POST /api/lecturas` con datos inválidos → debe dar 400 sin llegar a Supabase) y en el celular (que los mensajes de error al usuario no cambiaron).
-- **Incremento 6a (código hecho, verificación pendiente):** autenticación Firebase end-to-end para cerrar la fuga de `GET /api/lecturas`.
-  - **Backend:** `backend/auth.js` (nuevo) usa `firebase-admin` para verificar el `idToken` del header `Authorization: Bearer <token>`; como no hay custom claims, el `rol` (`'paciente'`|`'especialista'`) se resuelve consultando la tabla `usuarios` por el uid. Montado a nivel de router (`app.use('/api', requiereAuth(pool))`) antes de las rutas. Cada ruta de `server.js` gana su chequeo de autorización (dueño del recurso o especialista; `GET /api/lecturas` sin filtro ahora exige `rol === 'especialista'`). `POST /api/usuarios` permite el caso especial de `rol === null` (token válido pero la fila en `usuarios` aún no existe, justo entre crear la cuenta Firebase y el insert). Socket.io: `io.use(requiereAuthSocket(pool))` exige token en el handshake; `enviar_mensaje` valida que `paciente_id` coincida con el emisor o que sea especialista. Nuevo `AuthError` en `backend/errors.js` (mismo patrón que `ValidationError`, cae en el middleware de error existente). Nueva dependencia `firebase-admin` en `package.json` (falta `npm install`).
+- **Incremento 6a (✅ CERRADO):** autenticación Firebase end-to-end para cerrar la fuga de `GET /api/lecturas`.
+  - **Backend:** `backend/auth.js` (nuevo) usa `firebase-admin` para verificar el `idToken` del header `Authorization: Bearer <token>`; como no hay custom claims, el `rol` (`'paciente'`|`'especialista'`) se resuelve consultando la tabla `usuarios` por el uid. Montado a nivel de router (`app.use('/api', requiereAuth(pool))`) antes de las rutas. Cada ruta de `server.js` gana su chequeo de autorización (dueño del recurso o especialista; `GET /api/lecturas` sin filtro ahora exige `rol === 'especialista'`). `POST /api/usuarios` permite el caso especial de `rol === null` (token válido pero la fila en `usuarios` aún no existe, justo entre crear la cuenta Firebase y el insert). Socket.io: `io.use(requiereAuthSocket(pool))` exige token en el handshake; `enviar_mensaje` valida que `paciente_id` coincida con el emisor o que sea especialista. Nuevo `AuthError` en `backend/errors.js` (mismo patrón que `ValidationError`, cae en el middleware de error existente). Nueva dependencia `firebase-admin` en `package.json`.
   - **App Flutter:** `api_client.dart` inyecta `Authorization: Bearer <idToken>` en cada request (`FirebaseAuth.instance.currentUser?.getIdToken()`), centralizado ahí — ningún repositorio cambió. `chat_repository.dart` (`conectar()` ahora async) manda el token en el handshake del socket (`setAuth({'token': ...})`); `mensajes_provider.dart` (`_conectar()` ahora `Future<void>`) se adaptó para esperarlo sin bloquear el constructor. `flutter analyze` limpio (solo quedan los avisos cosméticos de `withOpacity` ya conocidos).
-  - **Portal web:** ganó login mínimo — `web_portal/src/firebase.js` (nuevo, init del SDK Web reusando la config de `firebase_options.dart`) y `web_portal/src/Login.js` (nuevo, email/password). `App.js` ahora exige sesión (`onAuthStateChanged`), manda el token en cada `axios.get`, tiene botón de logout y muestra un mensaje si el backend responde 403 (cuenta sin rol especialista) en vez de fallar en silencio. Nueva dependencia `firebase` en `package.json` (falta `npm install`).
-  - **Pendiente antes de dar por cerrado el incremento (pasos manuales, no automatizables):**
-    1. Generar la Service Account key en Firebase Console y ponerla como `FIREBASE_SERVICE_ACCOUNT_JSON` en `backend/.env` local y en las env vars de Render.
-    2. Crear al menos una cuenta de prueba con `rol='especialista'` (hoy no hay forma de auto-registrarse como especialista desde la app).
-    3. Correr `npm install` en `backend/` y `web_portal/` (no se pudo ejecutar en esta sesión: node/npm no están en el PATH del entorno de trabajo usado, aunque `backend/node_modules` sí está commiteado al repo).
-    4. Verificar end-to-end: las 8 rutas del backend con/sin token y con distintos roles, el socket de chat, la app en el celular físico (Historial, Alerta, Perfil, Mensajes) y el portal (`npm start`) con la cuenta de especialista.
-    5. Desplegar el backend actualizado a Render (con la env var ya puesta ahí antes del deploy).
+  - **Portal web:** ganó login mínimo — `web_portal/src/firebase.js` (nuevo, init del SDK Web reusando la config de `firebase_options.dart`) y `web_portal/src/Login.js` (nuevo, email/password). `App.js` ahora exige sesión (`onAuthStateChanged`), manda el token en cada `axios.get`, tiene botón de logout y muestra un mensaje si el backend responde 403 (cuenta sin rol especialista) en vez de fallar en silencio. Nueva dependencia `firebase` en `package.json`.
+  - **Verificado:** backend desplegado y *live* en Render con `firebase-admin` funcionando (Service Account key puesta como env var); la app Flutter manda el token en cada request y el paciente ve solo sus propios datos; la fuga de seguridad de `GET /api/lecturas` (antes sin filtro ni auth) quedó cerrada — ahora exige `rol === 'especialista'`.
+  - **Pendiente menor (no bloquea el cierre):** confirmar el rol especialista end-to-end (login como especialista + ver la lista de pacientes) — se verificará de forma natural al construir el Portal Web (ver sección 4bis, Fase 1), no hace falta una prueba manual aparte.
 - **Incremento 6b (pendiente):** estrategia de testing (unit, widget, integración) — deliberadamente separado de 6a porque ese ya tocaba 4 superficies distintas. Empezar por tests unitarios de `auth.js`/`validation.js` en el backend y un test de `api_client.dart` que confirme que se agrega el header de auth.
 
 ### ⏳ Fase 4 — Lanzamiento (PENDIENTE)
@@ -114,9 +110,19 @@ Plan de 4 fases / 7 incrementos hacia una app de producción.
 
 ---
 
+## 4bis. Portal Web (próximo objetivo)
+
+Con el Incremento 6a cerrado (auth Firebase end-to-end), el siguiente foco es construir el `web_portal/` (React) para que el especialista pueda monitorear pacientes. Se divide en 3 fases:
+
+- **Fase 1 — Login de especialista + lista de pacientes:** completar el flujo de login (ya existe `Login.js` del Inc. 6a) y construir la vista que lista los pacientes del especialista. Esta fase **cierra el pendiente menor del Incremento 6a**: confirmar el rol especialista end-to-end se valida naturalmente al iniciar sesión como especialista y ver la lista de pacientes cargar correctamente (o el mensaje de 403 si el rol no está bien puesto).
+- **Fase 2 — Ver lecturas y gráficas de cada paciente:** al seleccionar un paciente de la lista, mostrar su historial de lecturas biométricas (bpm, spo2, hrv, score de ansiedad) con gráficas, reusando `GET /api/lecturas/:pacienteId` y `GET /api/lecturas/:pacienteId/resumen`.
+- **Fase 3 — Chat en tiempo real especialista–paciente vía Socket.io:** reusar el mismo canal de chat que ya usa la app Flutter (`enviar_mensaje`, autenticado con `requiereAuthSocket`) para que el especialista converse en vivo con el paciente seleccionado.
+
+---
+
 ## 5. Deuda técnica / pendientes conocidos
 
-- **Seguridad (Inc. 6a, código hecho, verificación pendiente):** `GET /api/lecturas` y el resto de endpoints ya exigen token Firebase y el portal web ya exige login — ver detalle e ítems manuales pendientes en la sección 4.
+- **Seguridad (Inc. 6a, ✅ CERRADO):** `GET /api/lecturas` y el resto de endpoints ya exigen token Firebase y el portal web ya exige login — verificado end-to-end (ver sección 4). Queda solo el pendiente menor de confirmar el rol especialista, que se cierra construyendo la Fase 1 del Portal Web (sección 4bis).
 - **`withOpacity` deprecado:** avisos de `flutter analyze` (cosmético). Ya migrado en Historial, Perfil y Alerta a `.withValues()`; falta en tecnicas y main_layout. Agendado para Inc. 5.
 - **`avoid_print`:** resuelto (Inc. 5) — no quedan `print()` en la app; los providers usan `AppLogger` (`lib/logger.dart`) y el backend usa el logger estructurado (`backend/logger.js`).
 - **Navegaciones manuales redundantes:** login/logout aún navegan a mano aunque el `AuthGate` ya lo maneja; limpiar al migrar esas pantallas a capas.
@@ -154,15 +160,16 @@ Plan de 4 fases / 7 incrementos hacia una app de producción.
 - Flujo Git: `git add .` → `git commit -m "..."` → `git push`. Se recomienda empezar a usar ramas por incremento.
 - **Cold start de Render:** el plan gratuito duerme el servidor tras ~15 min; la primera petición tarda 30-50s. El `api_client.dart` ya lo maneja con reintentos.
 - **Supabase** (plan gratuito) puede pausarse por inactividad; si el backend no guarda, revisar que el proyecto Supabase esté activo.
+- **⚠️ Nota de operación:** antes de cualquier presentación o prueba importante, despertar manualmente **Supabase** y **Render** (ambos en plan gratuito y se pausan por inactividad) — entrar a los dashboards de ambos con antelación para que ya estén activos y no se pierda tiempo con el cold start en vivo.
 
 ---
 
 ## 8. Siguiente paso sugerido
 
-El feature de audio + animaciones (sección 6), el **Incremento 5** (manejo global de excepciones en Flutter, validación estricta y logging estructurado en el backend) y el código del **Incremento 6a** (auth Firebase end-to-end) ya quedaron implementados. El siguiente paso natural es completar los pasos manuales y la verificación end-to-end del Incremento 6a (sección 4), y después el **Incremento 6b** (testing).
+El feature de audio + animaciones (sección 6), el **Incremento 5** (manejo global de excepciones en Flutter, validación estricta y logging estructurado en el backend) y el **Incremento 6a** (auth Firebase end-to-end) ya quedaron implementados y verificados. El siguiente foco es el **Portal Web** (sección 4bis), empezando por su Fase 1 (login de especialista + lista de pacientes), que de paso cierra el pendiente menor del rol especialista. En paralelo sigue pendiente el **Incremento 6b** (testing).
 
 **Sección de pruebas pendientes (acumulada, se revisa más adelante — no bloquea seguir con los incrementos):**
 - Alerta: flujo de Bluetooth real con el ESP32 (conectar sensor, modo simulación, gráfica, sincronizar resumen) — solo validado con `flutter analyze`.
 - Mensajes: enviar/recibir mensajes reales por Socket.io y confirmar que la alineación de burbujas (`esMio`) distingue bien remitente propio vs. ajeno — solo validado con `flutter analyze` y reinstalado en el dispositivo.
 - Incremento 5: probar `POST /api/lecturas` con datos inválidos contra el backend real (Render) y confirmar `400`; confirmar en el celular que los mensajes de error al usuario no cambiaron con el refactor.
-- Incremento 6a: todos los ítems de verificación listados en la sección 4 (pasos manuales de credenciales + pruebas end-to-end de auth en backend, app y portal).
+- Portal Web Fase 1: confirmar el rol especialista end-to-end (login como especialista + ver la lista de pacientes cargar).
