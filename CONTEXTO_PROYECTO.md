@@ -121,6 +121,15 @@ Con el Incremento 6a cerrado (auth Firebase end-to-end), el siguiente foco es co
 
 ---
 
+## 4ter. Diseño de relación paciente–especialista (decidido, pendiente de construir)
+
+- **Registro de especialista:** pantalla propia en el portal web, protegida por un código de institución (una variable de entorno en el backend). Sin ese código no se puede crear cuenta de especialista. Justificación: la validación profesional real la hace la institución al entregar el código; la app provee el control de acceso técnico.
+- **Vinculación paciente–especialista (tipo Classroom):** cada especialista tiene un código de vinculación fijo; el paciente lo escribe en su app; un paciente pertenece a un solo especialista.
+- **Modelo de datos:** campo `especialista_id` en la tabla `usuarios` (referencia al id del especialista). Campo `codigo_vinculacion` en las filas de especialistas.
+- **Filtrado:** `GET /api/pacientes` debe filtrar por `especialista_id` del especialista autenticado (hoy trae todos — hay que corregirlo).
+
+---
+
 ## 5. Deuda técnica / pendientes conocidos
 
 - **Seguridad (Inc. 6a, ✅ CERRADO):** `GET /api/lecturas` y el resto de endpoints ya exigen token Firebase y el portal web ya exige login — verificado end-to-end (ver sección 4). Queda solo el pendiente menor de confirmar el rol especialista, que se cierra construyendo la Fase 1 del Portal Web (sección 4bis).
