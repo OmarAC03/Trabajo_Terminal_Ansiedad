@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from './firebase';
 
-function Login() {
+function Login({ onIrARegistro }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -46,6 +46,9 @@ function Login() {
         <button type="submit" disabled={loading} style={styles.button}>
           {loading ? 'Entrando...' : 'Entrar'}
         </button>
+        <button type="button" onClick={onIrARegistro} style={styles.linkButton}>
+          ¿Eres especialista? Regístrate
+        </button>
       </form>
     </div>
   );
@@ -81,6 +84,14 @@ const styles = {
     color: '#fff',
     cursor: 'pointer',
     fontSize: '14px',
+  },
+  linkButton: {
+    padding: '4px',
+    border: 'none',
+    backgroundColor: 'transparent',
+    color: '#1E6AFB',
+    cursor: 'pointer',
+    fontSize: '13px',
   },
   error: { color: '#ef4444', fontSize: '13px', margin: 0 },
 };

@@ -59,6 +59,15 @@ function validarUsuarioNuevo(body) {
   };
 }
 
+/** POST /api/especialistas — registro de especialista con código de institución. */
+function validarEspecialistaNuevo(body) {
+  return {
+    nombre: requerirString(body.nombre, 'nombre'),
+    email: requerirString(body.email, 'email'),
+    codigo_institucion: requerirString(body.codigo_institucion, 'codigo_institucion'),
+  };
+}
+
 /** PUT /api/usuarios/:id — único campo editable desde la app. */
 function validarNombre(body) {
   return requerirString(body.nombre, 'nombre');
@@ -76,6 +85,7 @@ function validarMensajeChat(data) {
 module.exports = {
   validarLectura,
   validarUsuarioNuevo,
+  validarEspecialistaNuevo,
   validarNombre,
   validarMensajeChat,
 };

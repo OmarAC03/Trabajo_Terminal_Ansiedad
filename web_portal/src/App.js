@@ -4,6 +4,7 @@ import { Activity, RefreshCw, LogOut } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import Login from './Login';
+import RegistroEspecialista from './RegistroEspecialista';
 import PacientesList from './PacientesList';
 
 const API_URL = "https://tt-ansiedad-backend.onrender.com/api/pacientes";
@@ -14,6 +15,10 @@ function App() {
   const [pacientes, setPacientes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorAcceso, setErrorAcceso] = useState('');
+  // 'login' | 'registro'. Mientras es 'registro' no se carga el dashboard:
+  // Firebase abre sesión al crear la cuenta, pero la fila en `usuarios` aún
+  // no existe hasta que el backend termina el registro.
+  const [vista, setVista] = useState('login');
 
   useEffect(() => onAuthStateChanged(auth, setUsuario), []);
 
@@ -35,18 +40,26 @@ function App() {
   };
 
   useEffect(() => {
-    if (!usuario) return;
+    if (!usuario || vista === 'registro') return;
     fetchData();
     const interval = setInterval(fetchData, 15000); // Actualiza cada 15 seg
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [usuario]);
+  }, [usuario, vista]);
 
   if (usuario === undefined) {
     return <div style={styles.center}>Cargando...</div>;
   }
+  if (vista === 'registro') {
+    return (
+      <RegistroEspecialista
+        onVolver={() => setVista('login')}
+        onRegistrado={() => setVista('login')}
+      />
+    );
+  }
   if (usuario === null) {
-    return <Login />;
+    return <Login onIrARegistro={() => setVista('registro')} />;
   }
 
   return (

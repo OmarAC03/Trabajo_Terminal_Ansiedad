@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const crypto = require('crypto');
 const cors = require('cors');
 const { Server } = require('socket.io');
 const { Pool } = require('pg'); // Importamos el conector de PostgreSQL
@@ -8,7 +9,13 @@ require('dotenv').config();
 const logger = require('./logger');
 const { AuthError } = require('./errors');
 const { inicializarFirebaseAdmin, requiereAuth, requiereAuthSocket } = require('./auth');
-const { validarLectura, validarUsuarioNuevo, validarNombre, validarMensajeChat } = require('./validation');
+const {
+  validarLectura,
+  validarUsuarioNuevo,
+  validarEspecialistaNuevo,
+  validarNombre,
+  validarMensajeChat,
+} = require('./validation');
 
 const app = express();
 const server = http.createServer(app);
@@ -38,6 +45,15 @@ pool.connect((err, client, release) => {
   logger.info('Conexión exitosa a la base de datos en Supabase (PostgreSQL)');
   release();
 });
+// ----------------------------------------------
+
+// --- CÓDIGO DE INSTITUCIÓN (registro de especialistas) ---
+// Sin este código nadie puede crear una cuenta de especialista. Si falta,
+// el servidor arranca igual (para no tirar el resto de la API) pero el
+// registro de especialistas responde 500 hasta que se configure.
+if (!process.env.CODIGO_INSTITUCION) {
+  logger.warn('Falta la variable de entorno CODIGO_INSTITUCION: el registro de especialistas estará deshabilitado.');
+}
 // ----------------------------------------------
 
 // --- AUTENTICACIÓN (Firebase Admin) ---
@@ -162,6 +178,11 @@ app.post('/api/usuarios', async (req, res) => {
     throw new AuthError('Solo puedes registrar tu propio usuario.', 403);
   }
   const datos = validarUsuarioNuevo(req.body);
+  // Ser especialista exige el código de institución: se registra únicamente
+  // por POST /api/especialistas, nunca por esta ruta.
+  if (datos.rol !== 'paciente') {
+    throw new AuthError('Este endpoint solo registra pacientes.', 403);
+  }
 
   const query = `
     INSERT INTO usuarios (id, nombre, email, rol)
@@ -174,6 +195,71 @@ app.post('/api/usuarios', async (req, res) => {
 
   logger.info('Nuevo usuario registrado', { nombre: datos.nombre });
   res.status(201).json({ mensaje: 'Usuario guardado con éxito', data: result.rows[0] });
+});
+
+// Alfabeto sin caracteres ambiguos (0/O, 1/I/L) para que el código sea fácil
+// de dictar o copiar. 31^6 ≈ 887 millones de combinaciones.
+const ALFABETO_CODIGO = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const LONGITUD_CODIGO = 6;
+const MAX_INTENTOS_CODIGO = 5;
+
+function generarCodigoVinculacion() {
+  let codigo = '';
+  for (let i = 0; i < LONGITUD_CODIGO; i++) {
+    codigo += ALFABETO_CODIGO[crypto.randomInt(ALFABETO_CODIGO.length)];
+  }
+  return codigo;
+}
+
+// Comparación en tiempo constante para no filtrar el código por timing.
+function codigoInstitucionValido(recibido) {
+  const esperado = process.env.CODIGO_INSTITUCION;
+  const a = crypto.createHash('sha256').update(recibido).digest();
+  const b = crypto.createHash('sha256').update(esperado).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+// Registro de especialista (después de crear su cuenta en Firebase, igual que
+// POST /api/usuarios). Exige el código de institución y le asigna su código de
+// vinculación único, el que luego compartirá con sus pacientes.
+app.post('/api/especialistas', async (req, res) => {
+  if (!process.env.CODIGO_INSTITUCION) {
+    throw new Error('CODIGO_INSTITUCION no está configurada en el servidor.');
+  }
+  const datos = validarEspecialistaNuevo(req.body);
+  if (!codigoInstitucionValido(datos.codigo_institucion)) {
+    logger.warn('Registro de especialista rechazado: código de institución incorrecto', { uid: req.uid });
+    throw new AuthError('Código de institución incorrecto.', 403);
+  }
+
+  // ON CONFLICT (codigo_vinculacion) DO NOTHING: si el código generado ya
+  // existe no hay fila nueva y reintentamos con otro. Un conflicto en `id`
+  // (la cuenta ya está registrada) sí lanza error y se responde 409 abajo.
+  const query = `
+    INSERT INTO usuarios (id, nombre, email, rol, codigo_vinculacion)
+    VALUES ($1, $2, $3, 'especialista', $4)
+    ON CONFLICT (codigo_vinculacion) DO NOTHING
+    RETURNING id, nombre, email, rol, codigo_vinculacion;
+  `;
+
+  let fila = null;
+  try {
+    for (let intento = 0; intento < MAX_INTENTOS_CODIGO && !fila; intento++) {
+      const result = await pool.query(query, [req.uid, datos.nombre, datos.email, generarCodigoVinculacion()]);
+      fila = result.rows[0] ?? null;
+    }
+  } catch (error) {
+    if (error.code === '23505') {
+      throw new AuthError('Esta cuenta ya está registrada.', 409);
+    }
+    throw error;
+  }
+  if (!fila) {
+    throw new Error('No se pudo generar un código de vinculación único.');
+  }
+
+  logger.info('Nuevo especialista registrado', { nombre: fila.nombre });
+  res.status(201).json({ mensaje: 'Especialista registrado con éxito', data: fila });
 });
 
 // Obtener el perfil de un usuario (usado por PerfilScreen en la app)
