@@ -73,6 +73,16 @@ function validarNombre(body) {
   return requerirString(body.nombre, 'nombre');
 }
 
+/** POST /api/vinculacion — código que el paciente ingresa para vincularse a
+ * su especialista. Se normaliza a mayúsculas porque así se generan los
+ * códigos (ver ALFABETO_CODIGO en server.js) y el paciente puede tipearlo en
+ * minúsculas sin que falle por eso. */
+function validarCodigoVinculacion(body) {
+  return {
+    codigo_vinculacion: requerirString(body.codigo_vinculacion, 'codigo_vinculacion').toUpperCase(),
+  };
+}
+
 /** Evento de socket `enviar_mensaje`. */
 function validarMensajeChat(data) {
   return {
@@ -87,5 +97,6 @@ module.exports = {
   validarUsuarioNuevo,
   validarEspecialistaNuevo,
   validarNombre,
+  validarCodigoVinculacion,
   validarMensajeChat,
 };

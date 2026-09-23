@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
+import 'vinculacion_screen.dart';
 import '../avatar_widgets.dart';
 import '../providers/perfil_provider.dart';
 
@@ -149,6 +150,10 @@ class _PerfilView extends StatelessWidget {
                   _buildTarjetaPerfil(context, p),
                   const SizedBox(height: 24),
                   _buildSeccionCuenta(p),
+                  if (p.rol == 'paciente') ...[
+                    const SizedBox(height: 24),
+                    _buildSeccionEspecialista(context),
+                  ],
                   const SizedBox(height: 24),
                   _buildSeccionAcerca(),
                   const SizedBox(height: 30),
@@ -256,6 +261,33 @@ class _PerfilView extends StatelessWidget {
       _buildFila(Icons.email_outlined, "Correo electrónico", p.email),
       _buildFila(Icons.badge_outlined, "Tipo de cuenta", p.rol == 'especialista' ? "Especialista" : "Paciente"),
     ]);
+  }
+
+  Widget _buildSeccionEspecialista(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 10),
+          child: Text("Especialista",
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700, fontSize: 13)),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            leading: const Icon(Icons.medical_services_outlined, size: 20, color: headerColor),
+            title: const Text("Especialista vinculado", style: TextStyle(fontSize: 13)),
+            trailing: const Icon(Icons.chevron_right, size: 20),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VinculacionScreen())),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildSeccionAcerca() {

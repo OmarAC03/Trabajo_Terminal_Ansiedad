@@ -121,12 +121,23 @@ Con el Incremento 6a cerrado (auth Firebase end-to-end), el siguiente foco es co
 
 ---
 
-## 4ter. Diseño de relación paciente–especialista (decidido, pendiente de construir)
+## 4ter. Diseño de relación paciente–especialista
 
 - **Registro de especialista:** pantalla propia en el portal web, protegida por un código de institución (una variable de entorno en el backend). Sin ese código no se puede crear cuenta de especialista. Justificación: la validación profesional real la hace la institución al entregar el código; la app provee el control de acceso técnico.
 - **Vinculación paciente–especialista (tipo Classroom):** cada especialista tiene un código de vinculación fijo; el paciente lo escribe en su app; un paciente pertenece a un solo especialista.
 - **Modelo de datos:** campo `especialista_id` en la tabla `usuarios` (referencia al id del especialista). Campo `codigo_vinculacion` en las filas de especialistas.
-- **Filtrado:** `GET /api/pacientes` debe filtrar por `especialista_id` del especialista autenticado (hoy trae todos — hay que corregirlo).
+- **Filtrado:** `GET /api/pacientes` debe filtrar por `especialista_id` del especialista autenticado (hoy trae todos — pendiente, ver Fase D abajo).
+
+**Fase A (✅ hecha):** diseño de arriba, documentado; columna `especialista_id` ya creada a mano en la tabla `usuarios` de Supabase.
+
+**Fase B (✅ hecha, commit `a3ea17c`):** registro de especialista con código de institución — `POST /api/especialistas` en el backend (genera `codigo_vinculacion` único de 6 caracteres) y `web_portal/src/RegistroEspecialista.js`.
+
+**Fase C (✅ hecha, lista para probar):**
+- **Backend:** `POST /api/vinculacion` — el paciente autenticado manda `{ codigo_vinculacion }`; el backend busca el especialista dueño de ese código (`ValidationError` 400 si no existe) y guarda su id en `usuarios.especialista_id` del paciente. `GET /api/vinculacion` — consulta el estado actual (vinculado sí/no + nombre del especialista). Ambos exigen `rol === 'paciente'`. Nuevo `validarCodigoVinculacion` en `validation.js` (normaliza a mayúsculas).
+- **App Flutter:** capas nuevas siguiendo el patrón de Historial/Perfil — `models/vinculacion.dart`, `repositories/vinculacion_repository.dart`, `providers/vinculacion_provider.dart`, `screens/vinculacion_screen.dart`. Se accede desde una fila nueva "Especialista vinculado" en `PerfilScreen` (solo visible si `rol == 'paciente'`); la pantalla muestra el nombre del especialista si ya está vinculado, o un campo para escribir el código si no.
+- **Pendiente de confirmar:** probar end-to-end con una cuenta de paciente real y el código de un especialista ya registrado (Fase B) — código listo, solo falta esta prueba manual.
+
+**Fase D (pendiente):** corregir `GET /api/pacientes` para que filtre por `especialista_id` del especialista autenticado (hoy trae todos los pacientes sin importar a quién están vinculados).
 
 ---
 
@@ -176,7 +187,7 @@ Con el Incremento 6a cerrado (auth Firebase end-to-end), el siguiente foco es co
 
 ## 8. Siguiente paso sugerido
 
-El feature de audio + animaciones (sección 6), el **Incremento 5** (manejo global de excepciones en Flutter, validación estricta y logging estructurado en el backend) y el **Incremento 6a** (auth Firebase end-to-end) ya quedaron implementados y verificados. El **Portal Web Fase 1** (sección 4bis) ya tiene el código listo (endpoint `/api/pacientes` + vista de lista); falta la verificación manual con una cuenta de especialista real. Después sigue la **Fase 2** del Portal Web (lecturas y gráficas por paciente) y, en paralelo, el **Incremento 6b** (testing).
+El feature de audio + animaciones (sección 6), el **Incremento 5** (manejo global de excepciones en Flutter, validación estricta y logging estructurado en el backend) y el **Incremento 6a** (auth Firebase end-to-end) ya quedaron implementados y verificados. El **Portal Web Fase 1** (sección 4bis) ya tiene el código listo (endpoint `/api/pacientes` + vista de lista); falta la verificación manual con una cuenta de especialista real. La **Fase C de vinculación** (sección 4ter) también tiene el código listo (`/api/vinculacion` + pantalla en la app) y ya puede probarse de punta a punta (la columna `especialista_id` ya existe en Supabase desde la Fase A). Después sigue la **Fase D** (filtrar `/api/pacientes` por especialista), la **Fase 2** del Portal Web (lecturas y gráficas por paciente) y, en paralelo, el **Incremento 6b** (testing).
 
 **Sección de pruebas pendientes (acumulada, se revisa más adelante — no bloquea seguir con los incrementos):**
 - Alerta: flujo de Bluetooth real con el ESP32 (conectar sensor, modo simulación, gráfica, sincronizar resumen) — solo validado con `flutter analyze`.

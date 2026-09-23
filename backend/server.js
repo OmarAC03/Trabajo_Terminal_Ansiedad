@@ -7,13 +7,14 @@ const { Pool } = require('pg'); // Importamos el conector de PostgreSQL
 require('dotenv').config();
 
 const logger = require('./logger');
-const { AuthError } = require('./errors');
+const { AuthError, ValidationError } = require('./errors');
 const { inicializarFirebaseAdmin, requiereAuth, requiereAuthSocket } = require('./auth');
 const {
   validarLectura,
   validarUsuarioNuevo,
   validarEspecialistaNuevo,
   validarNombre,
+  validarCodigoVinculacion,
   validarMensajeChat,
 } = require('./validation');
 
@@ -260,6 +261,58 @@ app.post('/api/especialistas', async (req, res) => {
 
   logger.info('Nuevo especialista registrado', { nombre: fila.nombre });
   res.status(201).json({ mensaje: 'Especialista registrado con éxito', data: fila });
+});
+
+// --- VINCULACIÓN PACIENTE–ESPECIALISTA (tipo Classroom, ver CONTEXTO_PROYECTO.md 4ter) ---
+// El paciente ingresa el codigo_vinculacion fijo de su especialista; si existe,
+// se guarda el id del especialista en su propia fila (`usuarios.especialista_id`).
+// Requiere la columna `especialista_id` en `usuarios` (varchar, referencia a
+// usuarios.id) — agregarla a mano en Supabase si todavía no existe.
+app.post('/api/vinculacion', async (req, res) => {
+  if (req.rol !== 'paciente') {
+    throw new AuthError('Solo un paciente puede vincularse a un especialista.', 403);
+  }
+  const datos = validarCodigoVinculacion(req.body);
+
+  const especialista = await pool.query(
+    "SELECT id, nombre FROM usuarios WHERE rol = 'especialista' AND codigo_vinculacion = $1",
+    [datos.codigo_vinculacion]
+  );
+  if (especialista.rows.length === 0) {
+    throw new ValidationError('Código de vinculación inválido.');
+  }
+  const { id: especialistaId, nombre: especialistaNombre } = especialista.rows[0];
+
+  await pool.query('UPDATE usuarios SET especialista_id = $1 WHERE id = $2', [especialistaId, req.uid]);
+
+  logger.info('Paciente vinculado a especialista', { paciente_id: req.uid, especialista_id: especialistaId });
+  res.status(200).json({
+    mensaje: 'Vinculación exitosa',
+    data: { especialista_id: especialistaId, especialista_nombre: especialistaNombre },
+  });
+});
+
+// Consulta el estado de vinculación del paciente autenticado (y el nombre del
+// especialista, si ya está vinculado). Usado por VinculacionScreen en la app.
+app.get('/api/vinculacion', async (req, res) => {
+  if (req.rol !== 'paciente') {
+    throw new AuthError('Solo un paciente puede consultar su vinculación.', 403);
+  }
+
+  const result = await pool.query(
+    `SELECT e.id AS especialista_id, e.nombre AS especialista_nombre
+     FROM usuarios u
+     LEFT JOIN usuarios e ON e.id = u.especialista_id
+     WHERE u.id = $1`,
+    [req.uid]
+  );
+  const fila = result.rows[0];
+
+  res.status(200).json({
+    vinculado: Boolean(fila?.especialista_id),
+    especialista_id: fila?.especialista_id ?? null,
+    especialista_nombre: fila?.especialista_nombre ?? null,
+  });
 });
 
 // Obtener el perfil de un usuario (usado por PerfilScreen en la app)
