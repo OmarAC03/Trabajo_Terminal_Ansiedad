@@ -25,21 +25,48 @@ function App() {
 
   useEffect(() => onAuthStateChanged(auth, setUsuario), []);
 
+  // Pide la lista de pacientes y el perfil propio (para el codigo_vinculacion)
+  // en cada vuelta del polling. Antes el perfil se pedía una sola vez al
+  // entrar; si esa única petición fallaba (p. ej. el cold start de Render,
+  // ver sección 7 de CONTEXTO_PROYECTO.md) el código no se volvía a intentar
+  // y la barra se quedaba vacía toda la sesión, aunque pacientes sí se
+  // recuperaba en la siguiente vuelta. Con Promise.allSettled cada resultado
+  // se procesa por separado: uno puede fallar sin bloquear al otro, y ambos
+  // se reintentan solos cada 15s.
   const fetchData = async () => {
     if (!auth.currentUser) return;
+    let token;
     try {
-      const token = await auth.currentUser.getIdToken();
-      const response = await axios.get(API_URL, { headers: { Authorization: `Bearer ${token}` } });
-      setPacientes(response.data);
-      setErrorAcceso('');
+      token = await auth.currentUser.getIdToken();
     } catch (error) {
+      console.error("Error al obtener el token de sesión:", error);
+      setLoading(false);
+      return;
+    }
+
+    const [pacientesResultado, perfilResultado] = await Promise.allSettled([
+      axios.get(API_URL, { headers: { Authorization: `Bearer ${token}` } }),
+      axios.get(`${USUARIOS_URL}/${auth.currentUser.uid}`, { headers: { Authorization: `Bearer ${token}` } }),
+    ]);
+
+    if (pacientesResultado.status === 'fulfilled') {
+      setPacientes(pacientesResultado.value.data);
+      setErrorAcceso('');
+    } else {
+      const error = pacientesResultado.reason;
       if (error.response?.status === 403) {
         setErrorAcceso('Tu cuenta no tiene permiso de especialista para ver estos datos.');
       }
-      console.error("Error al obtener datos:", error);
-    } finally {
-      setLoading(false);
+      console.error("Error al obtener pacientes:", error);
     }
+
+    if (perfilResultado.status === 'fulfilled') {
+      setCodigoVinculacion(perfilResultado.value.data.codigo_vinculacion || null);
+    } else {
+      console.error("Error al obtener el código de vinculación:", perfilResultado.reason);
+    }
+
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -48,23 +75,6 @@ function App() {
     const interval = setInterval(fetchData, 15000); // Actualiza cada 15 seg
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [usuario, vista]);
-
-  // El código de vinculación es fijo (no cambia mientras dura la sesión), así
-  // que se pide una sola vez al entrar, sin el polling de fetchData.
-  useEffect(() => {
-    if (!usuario || vista === 'registro') return;
-    (async () => {
-      try {
-        const token = await auth.currentUser.getIdToken();
-        const response = await axios.get(`${USUARIOS_URL}/${usuario.uid}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setCodigoVinculacion(response.data.codigo_vinculacion || null);
-      } catch (error) {
-        console.error("Error al obtener el código de vinculación:", error);
-      }
-    })();
   }, [usuario, vista]);
 
   if (usuario === undefined) {
