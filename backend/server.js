@@ -315,13 +315,15 @@ app.get('/api/vinculacion', async (req, res) => {
   });
 });
 
-// Obtener el perfil de un usuario (usado por PerfilScreen en la app)
+// Obtener el perfil de un usuario (usado por PerfilScreen en la app y por el
+// Portal Web para leer su propio codigo_vinculacion; en pacientes ese campo
+// simplemente viene null).
 app.get('/api/usuarios/:id', async (req, res) => {
   const { id } = req.params;
   if (id !== req.uid && req.rol !== 'especialista') {
     throw new AuthError('No autorizado para ver este perfil.', 403);
   }
-  const result = await pool.query('SELECT id, nombre, email, rol FROM usuarios WHERE id = $1', [id]);
+  const result = await pool.query('SELECT id, nombre, email, rol, codigo_vinculacion FROM usuarios WHERE id = $1', [id]);
 
   if (result.rows.length === 0) {
     return res.status(404).json({ error: 'Usuario no encontrado' });
@@ -331,7 +333,8 @@ app.get('/api/usuarios/:id', async (req, res) => {
 });
 
 // Lista de pacientes para el Portal Web (con su última lectura, si tiene).
-// Solo un especialista puede ver la lista completa.
+// Solo un especialista puede ver la lista, y SOLO la de sus propios pacientes
+// (los vinculados a él vía `especialista_id`, Fase D — antes traía a todos).
 app.get('/api/pacientes', async (req, res) => {
   if (req.rol !== 'especialista') {
     throw new AuthError('Solo un especialista puede ver la lista de pacientes.', 403);
@@ -350,10 +353,10 @@ app.get('/api/pacientes', async (req, res) => {
       ORDER BY fecha_medicion DESC
       LIMIT 1
     ) lu ON true
-    WHERE u.rol = 'paciente'
+    WHERE u.rol = 'paciente' AND u.especialista_id = $1
     ORDER BY u.nombre ASC;
   `;
-  const result = await pool.query(query);
+  const result = await pool.query(query, [req.uid]);
   res.status(200).json(result.rows);
 });
 

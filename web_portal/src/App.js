@@ -6,8 +6,10 @@ import { auth } from './firebase';
 import Login from './Login';
 import RegistroEspecialista from './RegistroEspecialista';
 import PacientesList from './PacientesList';
+import CodigoVinculacion from './CodigoVinculacion';
 
 const API_URL = "https://tt-ansiedad-backend.onrender.com/api/pacientes";
+const USUARIOS_URL = "https://tt-ansiedad-backend.onrender.com/api/usuarios";
 
 function App() {
   // undefined = todavía no sabemos si hay sesión, null = no hay sesión.
@@ -15,6 +17,7 @@ function App() {
   const [pacientes, setPacientes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorAcceso, setErrorAcceso] = useState('');
+  const [codigoVinculacion, setCodigoVinculacion] = useState(null);
   // 'login' | 'registro'. Mientras es 'registro' no se carga el dashboard:
   // Firebase abre sesión al crear la cuenta, pero la fila en `usuarios` aún
   // no existe hasta que el backend termina el registro.
@@ -47,6 +50,23 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuario, vista]);
 
+  // El código de vinculación es fijo (no cambia mientras dura la sesión), así
+  // que se pide una sola vez al entrar, sin el polling de fetchData.
+  useEffect(() => {
+    if (!usuario || vista === 'registro') return;
+    (async () => {
+      try {
+        const token = await auth.currentUser.getIdToken();
+        const response = await axios.get(`${USUARIOS_URL}/${usuario.uid}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setCodigoVinculacion(response.data.codigo_vinculacion || null);
+      } catch (error) {
+        console.error("Error al obtener el código de vinculación:", error);
+      }
+    })();
+  }, [usuario, vista]);
+
   if (usuario === undefined) {
     return <div style={styles.center}>Cargando...</div>;
   }
@@ -76,6 +96,10 @@ function App() {
         </div>
       </header>
 
+      <div style={styles.codigoBar}>
+        <CodigoVinculacion codigo={codigoVinculacion} />
+      </div>
+
       <main style={styles.main}>
         {errorAcceso && <div style={styles.errorBanner}>{errorAcceso}</div>}
         {loading ? (
@@ -97,6 +121,7 @@ const styles = {
   refreshBtn: { display: 'flex', gap: '8px', padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#1E6AFB', color: '#fff', cursor: 'pointer' },
   logoutBtn: { display: 'flex', gap: '8px', padding: '10px 20px', borderRadius: '8px', border: '1px solid #ddd', backgroundColor: '#fff', color: '#444', cursor: 'pointer' },
   errorBanner: { backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '12px 20px', borderRadius: '10px', marginBottom: '20px' },
+  codigoBar: { paddingTop: '20px' },
   main: { padding: '40px' },
   center: { textAlign: 'center', marginTop: '50px', color: '#666' }
 };
