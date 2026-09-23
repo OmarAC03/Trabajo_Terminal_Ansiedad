@@ -111,39 +111,44 @@ Plan de 4 fases / 7 incrementos hacia una app de producción.
 
 ---
 
-## 4bis. Portal Web (próximo objetivo)
+## 4bis. Portal Web
 
-Con el Incremento 6a cerrado (auth Firebase end-to-end), el siguiente foco es construir el `web_portal/` (React) para que el especialista pueda monitorear pacientes. Se divide en 3 fases:
+Con el Incremento 6a cerrado (auth Firebase end-to-end), el foco pasó a construir el `web_portal/` (React) para que el especialista pueda monitorear pacientes. Se divide en 3 fases:
 
-- **Fase 1 — Login de especialista + lista de pacientes (código hecho, verificación pendiente):** login ya existía (`Login.js` del Inc. 6a). Se agregó `GET /api/pacientes` en el backend (join `usuarios` + última fila de `lecturas_biometricas` por paciente, solo `rol === 'especialista'`) y `web_portal/src/PacientesList.js` (nuevo, tarjetas con nombre/email/estado del semáforo/última lectura); `App.js` ahora apunta a `/api/pacientes` en vez de al `/api/lecturas` crudo y delega el render a `PacientesList`. Validado con `npm run build` (compila sin warnings) y `npm start` local (pantalla de login renderiza bien). **Pendiente de confirmar** (requiere credenciales reales, no automatizable): login como especialista de verdad y ver la lista de pacientes cargar — esto cierra también el pendiente menor del Incremento 6a.
-- **Fase 2 — Ver lecturas y gráficas de cada paciente:** al seleccionar un paciente de la lista, mostrar su historial de lecturas biométricas (bpm, spo2, hrv, score de ansiedad) con gráficas, reusando `GET /api/lecturas/:pacienteId` y `GET /api/lecturas/:pacienteId/resumen`.
-- **Fase 3 — Chat en tiempo real especialista–paciente vía Socket.io:** reusar el mismo canal de chat que ya usa la app Flutter (`enviar_mensaje`, autenticado con `requiereAuthSocket`) para que el especialista converse en vivo con el paciente seleccionado.
+- **Fase 1 — Login de especialista + lista de pacientes (✅ COMPLETA y verificada):** login ya existía (`Login.js` del Inc. 6a). `GET /api/pacientes` en el backend (join `usuarios` + última fila de `lecturas_biometricas` por paciente, solo `rol === 'especialista'`) y `web_portal/src/PacientesList.js` (tarjetas con nombre/email/estado del semáforo/última lectura). **Verificado end-to-end** al probar la Fase D (sección 4ter): login real como especialista y la lista de pacientes carga con datos correctos — esto cierra también el pendiente menor del Incremento 6a.
+- **Fase 2 (siguiente, pendiente):** al seleccionar un paciente de la lista, mostrar su historial de lecturas biométricas (bpm, spo2, hrv, score de ansiedad) con gráficas, reusando `GET /api/lecturas/:pacienteId` y `GET /api/lecturas/:pacienteId/resumen`.
+- **Fase 3 (pendiente):** chat en tiempo real especialista–paciente vía Socket.io — reusar el mismo canal que ya usa la app Flutter (`enviar_mensaje`, autenticado con `requiereAuthSocket`) para que el especialista converse en vivo con el paciente seleccionado.
 
 ---
 
 ## 4ter. Diseño de relación paciente–especialista
 
+**Estado: ✅ COMPLETO Y VERIFICADO** (Fases A, B, C y D — probado end-to-end con cuentas reales de paciente y especialista).
+
 - **Registro de especialista:** pantalla propia en el portal web, protegida por un código de institución (una variable de entorno en el backend). Sin ese código no se puede crear cuenta de especialista. Justificación: la validación profesional real la hace la institución al entregar el código; la app provee el control de acceso técnico.
 - **Vinculación paciente–especialista (tipo Classroom):** cada especialista tiene un código de vinculación fijo; el paciente lo escribe en su app; un paciente pertenece a un solo especialista.
 - **Modelo de datos:** campo `especialista_id` en la tabla `usuarios` (referencia al id del especialista). Campo `codigo_vinculacion` en las filas de especialistas.
-- **Filtrado:** `GET /api/pacientes` debe filtrar por `especialista_id` del especialista autenticado (hoy trae todos — pendiente, ver Fase D abajo).
+- **Filtrado:** `GET /api/pacientes` filtra por `especialista_id` del especialista autenticado (Fase D).
 
-**Fase A (✅ hecha):** diseño de arriba, documentado; columna `especialista_id` ya creada a mano en la tabla `usuarios` de Supabase.
+**Fase A (✅ COMPLETA):** diseño de arriba, documentado; columna `especialista_id` creada a mano en la tabla `usuarios` de Supabase.
 
-**Fase B (✅ hecha, commit `a3ea17c`):** registro de especialista con código de institución — `POST /api/especialistas` en el backend (genera `codigo_vinculacion` único de 6 caracteres) y `web_portal/src/RegistroEspecialista.js`.
+**Fase B (✅ COMPLETA, commit `a3ea17c`):** registro de especialista con código de institución — `POST /api/especialistas` en el backend (genera `codigo_vinculacion` único de 6 caracteres) y `web_portal/src/RegistroEspecialista.js`.
 
-**Fase C (✅ hecha, lista para probar):**
+**Fase C (✅ COMPLETA y verificada, commit `56c2090`):**
 - **Backend:** `POST /api/vinculacion` — el paciente autenticado manda `{ codigo_vinculacion }`; el backend busca el especialista dueño de ese código (`ValidationError` 400 si no existe) y guarda su id en `usuarios.especialista_id` del paciente. `GET /api/vinculacion` — consulta el estado actual (vinculado sí/no + nombre del especialista). Ambos exigen `rol === 'paciente'`. Nuevo `validarCodigoVinculacion` en `validation.js` (normaliza a mayúsculas).
 - **App Flutter:** capas nuevas siguiendo el patrón de Historial/Perfil — `models/vinculacion.dart`, `repositories/vinculacion_repository.dart`, `providers/vinculacion_provider.dart`, `screens/vinculacion_screen.dart`. Se accede desde una fila nueva "Especialista vinculado" en `PerfilScreen` (solo visible si `rol == 'paciente'`); la pantalla muestra el nombre del especialista si ya está vinculado, o un campo para escribir el código si no.
-- **Pendiente de confirmar:** probar end-to-end con una cuenta de paciente real y el código de un especialista ya registrado (Fase B) — código listo, solo falta esta prueba manual.
+- **Verificado:** probado end-to-end con una cuenta de paciente real y el código de un especialista ya registrado.
 
-**Fase D (pendiente):** corregir `GET /api/pacientes` para que filtre por `especialista_id` del especialista autenticado (hoy trae todos los pacientes sin importar a quién están vinculados).
+**Fase D (✅ COMPLETA y verificada, commit `7c821e1`):**
+- **Backend:** `GET /api/pacientes` ahora filtra `WHERE u.rol = 'paciente' AND u.especialista_id = $1` con el uid del especialista autenticado (antes traía a todos los pacientes sin importar el vínculo). `GET /api/usuarios/:id` ahora incluye `codigo_vinculacion` en la respuesta (en pacientes viene `null`).
+- **Portal web:** `web_portal/src/CodigoVinculacion.js` (nuevo) — barra visible bajo el header con "Tu código de vinculación: XXXXXX" y botón de copiar, para que el especialista lo comparta con sus pacientes. `App.js` pide su propio perfil junto con la lista de pacientes en cada vuelta del polling de 15s (con `Promise.allSettled`, para que un fallo transitorio de uno no bloquee al otro — el primer intento era una petición única que no se reintentaba si fallaba por el cold start de Render).
+- **Verificado:** login real como especialista, la lista de pacientes muestra solo los suyos, y el código de vinculación aparece visible en el portal.
 
 ---
 
 ## 5. Deuda técnica / pendientes conocidos
 
-- **Seguridad (Inc. 6a, ✅ CERRADO):** `GET /api/lecturas` y el resto de endpoints ya exigen token Firebase y el portal web ya exige login — verificado end-to-end (ver sección 4). Queda solo el pendiente menor de confirmar el rol especialista, que se cierra construyendo la Fase 1 del Portal Web (sección 4bis).
+- **Seguridad (Inc. 6a, ✅ CERRADO):** `GET /api/lecturas` y el resto de endpoints ya exigen token Firebase y el portal web ya exige login — verificado end-to-end (ver sección 4). El pendiente menor de confirmar el rol especialista quedó cerrado al verificar la Fase D del sistema de vinculación (sección 4ter).
 - **`withOpacity` deprecado:** avisos de `flutter analyze` (cosmético). Ya migrado en Historial, Perfil y Alerta a `.withValues()`; falta en tecnicas y main_layout. Agendado para Inc. 5.
 - **`avoid_print`:** resuelto (Inc. 5) — no quedan `print()` en la app; los providers usan `AppLogger` (`lib/logger.dart`) y el backend usa el logger estructurado (`backend/logger.js`).
 - **Navegaciones manuales redundantes:** login/logout aún navegan a mano aunque el `AuthGate` ya lo maneja; limpiar al migrar esas pantallas a capas.
@@ -187,7 +192,12 @@ Con el Incremento 6a cerrado (auth Firebase end-to-end), el siguiente foco es co
 
 ## 8. Siguiente paso sugerido
 
-El feature de audio + animaciones (sección 6), el **Incremento 5** (manejo global de excepciones en Flutter, validación estricta y logging estructurado en el backend) y el **Incremento 6a** (auth Firebase end-to-end) ya quedaron implementados y verificados. El **Portal Web Fase 1** (sección 4bis) ya tiene el código listo (endpoint `/api/pacientes` + vista de lista); falta la verificación manual con una cuenta de especialista real. La **Fase C de vinculación** (sección 4ter) también tiene el código listo (`/api/vinculacion` + pantalla en la app) y ya puede probarse de punta a punta (la columna `especialista_id` ya existe en Supabase desde la Fase A). Después sigue la **Fase D** (filtrar `/api/pacientes` por especialista), la **Fase 2** del Portal Web (lecturas y gráficas por paciente) y, en paralelo, el **Incremento 6b** (testing).
+El feature de audio + animaciones (sección 6), el **Incremento 5** (manejo global de excepciones en Flutter, validación estricta y logging estructurado en el backend), el **Incremento 6a** (auth Firebase end-to-end), el **Portal Web Fase 1** (login + lista de pacientes) y el **sistema de vinculación paciente–especialista completo (Fases A–D, sección 4ter)** ya quedaron implementados y verificados end-to-end. Frentes abiertos, sin orden estricto entre ellos:
+
+- **Portal Web Fase 2** (sección 4bis): al seleccionar un paciente de la lista, mostrar su historial de lecturas biométricas (bpm, spo2, hrv, score de ansiedad) con gráficas, reusando `GET /api/lecturas/:pacienteId` y `GET /api/lecturas/:pacienteId/resumen`.
+- **Portal Web Fase 3** (sección 4bis): chat en tiempo real especialista–paciente vía Socket.io, reusando el mismo canal que ya usa la app Flutter (`enviar_mensaje`, autenticado con `requiereAuthSocket`).
+- **Incremento 6b** (sección 4, Fase 3): estrategia de testing (unit, widget, integración) — empezar por `auth.js`/`validation.js` en el backend y un test de `api_client.dart` que confirme el header de auth.
+- **Pulido de interfaces:** deuda técnica acumulada en la sección 5 (`withOpacity` deprecado en técnicas/main_layout, navegaciones manuales redundantes en login/logout, animación de respiración que se sale del círculo en pantallas chicas) y una revisión general de UX ahora que las 3 piezas (app, backend, portal) ya tienen sus flujos principales completos.
 
 **Sección de pruebas pendientes (acumulada, se revisa más adelante — no bloquea seguir con los incrementos):**
 - Alerta: flujo de Bluetooth real con el ESP32 (conectar sensor, modo simulación, gráfica, sincronizar resumen) — solo validado con `flutter analyze`.
