@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Activity, RefreshCw, LogOut } from 'lucide-react';
+import { Activity, RefreshCw, LogOut, Info } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import Login from './Login';
@@ -111,6 +111,14 @@ function App() {
       </div>
 
       <main style={styles.main}>
+        <div style={styles.disclaimer}>
+          <Info size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
+          <span>
+            Este sistema monitorea parámetros fisiológicos (frecuencia cardiaca, SpO2 y HRV) asociados
+            a la ansiedad como apoyo al especialista. Los datos fisiológicos son de apoyo: la
+            interpretación y el diagnóstico corresponden al profesional de salud.
+          </span>
+        </div>
         {errorAcceso && <div style={styles.errorBanner}>{errorAcceso}</div>}
         {loading ? (
           <div style={styles.center}>Cargando pacientes...</div>
@@ -131,6 +139,7 @@ const styles = {
   refreshBtn: { display: 'flex', gap: '8px', padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#1E6AFB', color: '#fff', cursor: 'pointer' },
   logoutBtn: { display: 'flex', gap: '8px', padding: '10px 20px', borderRadius: '8px', border: '1px solid #ddd', backgroundColor: '#fff', color: '#444', cursor: 'pointer' },
   errorBanner: { backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '12px 20px', borderRadius: '10px', marginBottom: '20px' },
+  disclaimer: { display: 'flex', gap: '8px', alignItems: 'flex-start', backgroundColor: '#f1f5f9', color: '#64748b', fontSize: '13px', lineHeight: 1.4, padding: '10px 16px', borderRadius: '10px', marginBottom: '20px' },
   codigoBar: { paddingTop: '20px' },
   main: { padding: '40px' },
   center: { textAlign: 'center', marginTop: '50px', color: '#666' }

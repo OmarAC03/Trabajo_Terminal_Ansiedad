@@ -54,6 +54,10 @@ class _HistorialView extends StatelessWidget {
         child: Column(
           children: [
             _buildSelectorPeriodo(context, provider),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 4, 20, 4),
+              child: DisclaimerNota(Disclaimers.historial),
+            ),
             Expanded(
               child: _buildCuerpo(context, provider),
             ),
@@ -164,7 +168,7 @@ class _HistorialView extends StatelessWidget {
           _KpiData("BPM promedio", bpmProm.round().toString(), Icons.favorite, Colors.blueAccent),
           _KpiData("BPM máximo", bpmMax.round().toString(), Icons.trending_up, Colors.redAccent),
           _KpiData("Lecturas hoy", lecturas.length.toString(), Icons.list_alt, headerColor),
-          _KpiData("Estado predominante", estadoPredominante, Icons.psychology,
+          _KpiData("Nivel predominante", EstadoAnsiedadInfo.textoUIDesdeTexto(estadoPredominante), Icons.psychology,
               _colorEstado(estadoPredominante)),
         ]),
         const SizedBox(height: 20),
@@ -225,14 +229,14 @@ class _HistorialView extends StatelessWidget {
         _buildKpiRow([
           _KpiData("BPM promedio", bpmProm.round().toString(), Icons.favorite, Colors.blueAccent),
           _KpiData("HRV promedio", hrvProm.round().toString(), Icons.timer, Colors.orange),
-          _KpiData("Episodios altos", p.episodiosAltosTotales.toString(), Icons.warning_amber_rounded, Colors.red),
-          _KpiData("Días sin episodios altos", p.rachaSinEpisodiosAltos.toString(), Icons.emoji_events, Colors.teal),
+          _KpiData("Lecturas altas", p.episodiosAltosTotales.toString(), Icons.warning_amber_rounded, Colors.red),
+          _KpiData("Días sin lecturas altas", p.rachaSinEpisodiosAltos.toString(), Icons.emoji_events, Colors.teal),
         ]),
         const SizedBox(height: 10),
         _buildTendenciaCard(scoreProm, p.tendenciaScore),
         const SizedBox(height: 20),
         _buildCardChart(
-          "Tendencia de ansiedad (score promedio/día)",
+          "Tendencia de indicadores fisiológicos (índice promedio/día)",
           LineChart(
             LineChartData(
               gridData: const FlGridData(show: false),
@@ -330,15 +334,15 @@ class _HistorialView extends StatelessWidget {
       color = Colors.grey;
       icono = Icons.info_outline;
     } else if (tendencia <= -5) {
-      texto = "Tu nivel de ansiedad promedio bajó ${tendencia.abs().toStringAsFixed(0)}% vs el periodo anterior.";
+      texto = "El índice promedio de tus indicadores fisiológicos bajó ${tendencia.abs().toStringAsFixed(0)}% vs el periodo anterior.";
       color = Colors.green;
       icono = Icons.trending_down;
     } else if (tendencia >= 5) {
-      texto = "Tu nivel de ansiedad promedio subió ${tendencia.toStringAsFixed(0)}% vs el periodo anterior.";
+      texto = "El índice promedio de tus indicadores fisiológicos subió ${tendencia.toStringAsFixed(0)}% vs el periodo anterior.";
       color = Colors.red;
       icono = Icons.trending_up;
     } else {
-      texto = "Tu nivel de ansiedad se mantiene estable respecto al periodo anterior.";
+      texto = "Tus indicadores fisiológicos se mantienen estables respecto al periodo anterior.";
       color = Colors.blueGrey;
       icono = Icons.trending_flat;
     }
@@ -411,7 +415,7 @@ class _HistorialView extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-              child: Text(registro.estadoAnsiedadTexto.toUpperCase(),
+              child: Text(EstadoAnsiedadInfo.textoUIDesdeTexto(registro.estadoAnsiedadTexto).toUpperCase(),
                   style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold)),
             ),
           ],
@@ -446,7 +450,7 @@ class _HistorialView extends StatelessWidget {
                 children: [
                   Text(_etiquetaFechaCompleta(r.dia),
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  Text("${r.totalRegistros} lecturas · ${r.episodiosAltos} episodios altos",
+                  Text("${r.totalRegistros} lecturas · ${r.episodiosAltos} lecturas altas",
                       style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                 ],
               ),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
 import 'vinculacion_screen.dart';
+import '../app_config.dart';
 import '../avatar_widgets.dart';
 import '../providers/perfil_provider.dart';
 
@@ -294,6 +295,10 @@ class _PerfilView extends StatelessWidget {
     return _buildSeccion("Acerca de la app", [
       _buildFila(Icons.info_outline, "Proyecto", "Trabajo Terminal — Sistema de Ansiedad"),
       _buildFila(Icons.cloud_outlined, "Servidor", "Conectado (Render + Supabase)"),
+      const Padding(
+        padding: EdgeInsets.fromLTRB(16, 4, 16, 14),
+        child: DisclaimerNota(Disclaimers.alcance),
+      ),
     ]);
   }
 

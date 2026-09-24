@@ -8,6 +8,16 @@ const getStatusColor = (status) => {
   return '#9ca3af'; // sin lecturas aún
 };
 
+// Etiqueta visible de los indicadores fisiológicos. El backend sigue enviando
+// estado_ansiedad = 'Alta' | 'Moderada' | 'Baja'; aquí solo cambia el texto
+// (ver MARCO_ALCANCE_Y_LENGUAJE.md, sección 2).
+const getStatusLabel = (status) => {
+  if (status === 'Alta') return 'Altos';
+  if (status === 'Moderada') return 'Elevados';
+  if (status === 'Baja') return 'Normal';
+  return 'Sin datos';
+};
+
 function PacientesList({ pacientes }) {
   if (pacientes.length === 0) {
     return (
@@ -24,8 +34,11 @@ function PacientesList({ pacientes }) {
         <div key={p.id} style={styles.card}>
           <div style={styles.cardHeader}>
             <span style={styles.nombre}>{p.nombre}</span>
-            <span style={{ ...styles.badge, backgroundColor: getStatusColor(p.ultimo_estado) }}>
-              {p.ultimo_estado || 'Sin datos'}
+            <span
+              style={{ ...styles.badge, backgroundColor: getStatusColor(p.ultimo_estado) }}
+              title="Indicadores fisiológicos de la última lectura"
+            >
+              {getStatusLabel(p.ultimo_estado)}
             </span>
           </div>
           <div style={styles.email}>{p.email}</div>

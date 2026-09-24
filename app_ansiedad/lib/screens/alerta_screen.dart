@@ -66,11 +66,16 @@ class _AlertaView extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FB),
-      body: Stack(
+      // El fondo azul vive DENTRO del área scrolleable (antes estaba fijo
+      // detrás y se despegaba del contenido al hacer scroll).
+      body: SingleChildScrollView(
+        child: Stack(
         children: [
-          _buildDisenoFondo(context, primaryBlue), // El fondo azul
-          SingleChildScrollView(
-            padding: const EdgeInsets.only(top: 50, left: 20, right: 20, bottom: 20),
+          Positioned(top: 0, left: 0, right: 0, child: _buildDisenoFondo(context, primaryBlue)), // El fondo azul
+          Padding(
+            // Padding inferior amplio para que el FAB "Conectar Sensor" no
+            // tape el botón de sincronizar al final del scroll.
+            padding: const EdgeInsets.only(top: 50, left: 20, right: 20, bottom: 100),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -79,6 +84,8 @@ class _AlertaView extends StatelessWidget {
                 _buildBotonSimulacion(context, p),
                 const SizedBox(height: 25),
                 _buildAnxietyIndicator(p), // El semáforo visual
+                const SizedBox(height: 10),
+                const DisclaimerNota(Disclaimers.monitor),
 
                 const SizedBox(height: 20),
                 Row(
@@ -93,7 +100,7 @@ class _AlertaView extends StatelessWidget {
                   children: [
                     Expanded(child: _buildMetricCard("VARIABILIDAD", "${p.hrvActual}", "ms", Colors.orange, Icons.timer)),
                     Expanded(
-                      child: _buildMetricCard("ESTRÉS", p.ansiedadScore.toStringAsFixed(1), "/10", _colorEstado(p), Icons.psychology),
+                      child: _buildMetricCard("ÍNDICE", p.ansiedadScore.toStringAsFixed(1), "/10", _colorEstado(p), Icons.psychology),
                     ),
                   ],
                 ),
@@ -109,6 +116,7 @@ class _AlertaView extends StatelessWidget {
             ),
           ),
         ],
+        ),
       ),
       floatingActionButton: _buildFabConectar(context, p, primaryBlue),
     );
@@ -117,12 +125,17 @@ class _AlertaView extends StatelessWidget {
   Color _colorEstado(AlertaProvider p) =>
       p.tieneLectura ? EstadoAnsiedadInfo.colorDesdeTexto(p.estadoAnsiedadTexto) : Colors.grey;
 
+  // Texto visible del semáforo: "Normal" / "Elevados" / "Altos". Por dentro
+  // el provider sigue manejando el valor de BD ("Baja" / "Moderada" / "Alta").
+  String _etiquetaEstado(AlertaProvider p) =>
+      p.tieneLectura ? EstadoAnsiedadInfo.textoUIDesdeTexto(p.estadoAnsiedadTexto) : p.estadoAnsiedadTexto;
+
   // --- Botón de Sincronización ---
   Widget _buildBotonSincronizar(BuildContext context, AlertaProvider p) {
     return ElevatedButton.icon(
       onPressed: p.sensorConectado ? () => _sincronizar(context, p) : null,
       icon: const Icon(Icons.cloud_upload),
-      label: const Text("Sincronizar Resumen Clínico"),
+      label: const Text("Sincronizar resumen de datos"),
       style: ElevatedButton.styleFrom(
         padding: const EdgeInsets.symmetric(vertical: 18),
         backgroundColor: Colors.teal,
@@ -215,9 +228,21 @@ class _AlertaView extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade200)),
       child: Column(children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          const Text("Nivel de Ansiedad", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-          Text(p.estadoAnsiedadTexto.toUpperCase(), style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+        // Título y estado comparten la fila pero cada uno es Flexible: si no
+        // caben (ej. "ESPERANDO SENSOR..." en pantallas angostas) bajan de
+        // línea en vez de encimarse o desbordar la fila.
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Flexible(
+            child: Text("Indicadores fisiológicos", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              _etiquetaEstado(p).toUpperCase(),
+              textAlign: TextAlign.end,
+              style: TextStyle(color: color, fontWeight: FontWeight.bold),
+            ),
+          ),
         ]),
         const SizedBox(height: 12),
         ClipRRect(

@@ -19,6 +19,8 @@ Sistema de monitoreo biométrico de ansiedad con 3 componentes en un monorepo:
 
 > Nota: el ESP32 lo desarrolla otro compañero. Para trabajar la app sin hardware, existe un **modo simulación** que genera lecturas falsas.
 
+> **Alcance (ver sección 4quater y `MARCO_ALCANCE_Y_LENGUAJE.md`):** el sistema **muestra parámetros fisiológicos** (BPM, SpO2, HRV) asociados a la ansiedad como apoyo al especialista. **No diagnostica** ansiedad ni reemplaza al profesional de salud; la interpretación clínica corresponde siempre al especialista.
+
 ---
 
 ## 2. Estructura de la app Flutter (post-refactor)
@@ -146,6 +148,21 @@ Con el Incremento 6a cerrado (auth Firebase end-to-end), el foco pasó a constru
 
 ---
 
+## 4quater. Re-enfoque de alcance y lenguaje (parámetros fisiológicos, no diagnóstico)
+
+**Estado: ✅ COMPLETO** (validado con `flutter analyze` y `npm run build`; ajustes de layout del Monitor pendientes de confirmar con hot reload).
+
+Referencia: `MARCO_ALCANCE_Y_LENGUAJE.md`. El sistema monitorea parámetros fisiológicos asociados a la ansiedad como apoyo al especialista; **no emite diagnósticos**. Fue un cambio **solo de textos visibles y avisos**, sin tocar lógica ni base de datos.
+
+- **Nombres internos intactos:** `estado_ansiedad` sigue guardando `'Alta'|'Moderada'|'Baja'`, igual que `score_ansiedad`, el enum `EstadoAnsiedad` y `textoDB`. La traducción a texto visible vive en `EstadoAnsiedadInfo.textoUI` / `textoUIDesdeTexto()` (`app_config.dart`) y en `getStatusLabel()` (`web_portal/src/PacientesList.js`).
+- **Semáforo:** título "Nivel de Ansiedad" → **"Indicadores fisiológicos"**; valores Baja/Moderada/Alta → **Normal/Elevados/Altos** (mismos colores). En el Monitor la tarjeta "ESTRÉS" pasó a "ÍNDICE" y el botón a "Sincronizar resumen de datos".
+- **Historial:** "Tendencia de indicadores fisiológicos", textos de la tarjeta de tendencia reformulados, KPIs "Nivel predominante" / "Lecturas altas" / "Días sin lecturas altas".
+- **Disclaimers:** textos centralizados en la clase `Disclaimers` + widget `DisclaimerNota` (`app_config.dart`). Visibles en Monitor (bajo el semáforo), Historial (encabezado) y Perfil ("Acerca de la app"). En el portal, banner gris sobre la lista de pacientes.
+- **Layout del Monitor (de paso):** título/estado del semáforo con `Flexible` para que no se encimen; fondo azul dentro del área scrolleable; padding inferior de 100 px para que el FAB no tape el botón de sincronizar.
+- **Regla para pantallas nuevas:** toda pantalla que muestre datos del paciente (ej. Portal Web Fase 2) debe nacer con el lenguaje de "indicadores fisiológicos" y su disclaimer de alcance.
+
+---
+
 ## 5. Deuda técnica / pendientes conocidos
 
 - **Seguridad (Inc. 6a, ✅ CERRADO):** `GET /api/lecturas` y el resto de endpoints ya exigen token Firebase y el portal web ya exige login — verificado end-to-end (ver sección 4). El pendiente menor de confirmar el rol especialista quedó cerrado al verificar la Fase D del sistema de vinculación (sección 4ter).
@@ -194,7 +211,7 @@ Con el Incremento 6a cerrado (auth Firebase end-to-end), el foco pasó a constru
 
 El feature de audio + animaciones (sección 6), el **Incremento 5** (manejo global de excepciones en Flutter, validación estricta y logging estructurado en el backend), el **Incremento 6a** (auth Firebase end-to-end), el **Portal Web Fase 1** (login + lista de pacientes) y el **sistema de vinculación paciente–especialista completo (Fases A–D, sección 4ter)** ya quedaron implementados y verificados end-to-end. Frentes abiertos, sin orden estricto entre ellos:
 
-- **Portal Web Fase 2** (sección 4bis): al seleccionar un paciente de la lista, mostrar su historial de lecturas biométricas (bpm, spo2, hrv, score de ansiedad) con gráficas, reusando `GET /api/lecturas/:pacienteId` y `GET /api/lecturas/:pacienteId/resumen`.
+- **Portal Web Fase 2** (sección 4bis): al seleccionar un paciente de la lista, mostrar su historial de lecturas biométricas (bpm, spo2, hrv, score de ansiedad) con gráficas, reusando `GET /api/lecturas/:pacienteId` y `GET /api/lecturas/:pacienteId/resumen`. Debe nacer con el lenguaje de "indicadores fisiológicos" y el disclaimer del detalle del paciente (sección 4quater).
 - **Portal Web Fase 3** (sección 4bis): chat en tiempo real especialista–paciente vía Socket.io, reusando el mismo canal que ya usa la app Flutter (`enviar_mensaje`, autenticado con `requiereAuthSocket`).
 - **Incremento 6b** (sección 4, Fase 3): estrategia de testing (unit, widget, integración) — empezar por `auth.js`/`validation.js` en el backend y un test de `api_client.dart` que confirme el header de auth.
 - **Pulido de interfaces:** deuda técnica acumulada en la sección 5 (`withOpacity` deprecado en técnicas/main_layout, navegaciones manuales redundantes en login/logout, animación de respiración que se sale del círculo en pantallas chicas) y una revisión general de UX ahora que las 3 piezas (app, backend, portal) ya tienen sus flujos principales completos.

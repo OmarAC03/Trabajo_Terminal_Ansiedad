@@ -48,6 +48,20 @@ extension EstadoAnsiedadInfo on EstadoAnsiedad {
     }
   }
 
+  /// El texto que VE el usuario (ver MARCO_ALCANCE_Y_LENGUAJE.md, sección 2).
+  /// El sistema reporta indicadores fisiológicos, no un diagnóstico de
+  /// ansiedad; por eso la etiqueta visible difiere de [textoDB].
+  String get textoUI {
+    switch (this) {
+      case EstadoAnsiedad.alta:
+        return 'Altos';
+      case EstadoAnsiedad.moderada:
+        return 'Elevados';
+      case EstadoAnsiedad.baja:
+        return 'Normal';
+    }
+  }
+
   Color get color {
     switch (this) {
       case EstadoAnsiedad.alta:
@@ -89,4 +103,42 @@ extension EstadoAnsiedadInfo on EstadoAnsiedad {
   /// Color a partir de un texto crudo de la BD, sin tener que instanciar el
   /// enum manualmente. Atajo cómodo para las pantallas.
   static Color colorDesdeTexto(String? texto) => desdeTexto(texto).color;
+
+  /// Etiqueta visible a partir de un texto crudo de la BD.
+  static String textoUIDesdeTexto(String? texto) => desdeTexto(texto).textoUI;
+}
+
+/// Avisos de alcance mostrados en las pantallas con datos del paciente
+/// (MARCO_ALCANCE_Y_LENGUAJE.md, sección 3).
+class Disclaimers {
+  Disclaimers._();
+
+  static const String monitor =
+      'Estos son parámetros fisiológicos, no un diagnóstico. Consulta a tu especialista.';
+  static const String historial =
+      'Datos de apoyo. La interpretación corresponde a tu especialista.';
+  static const String alcance =
+      'Esta app monitorea parámetros fisiológicos (frecuencia cardiaca, SpO2 y HRV) '
+      'asociados a la ansiedad como apoyo a tu especialista. No emite diagnósticos '
+      'ni reemplaza la atención de un profesional de salud.';
+}
+
+/// Aviso discreto (texto gris con ícono) para acompañar los datos.
+class DisclaimerNota extends StatelessWidget {
+  final String texto;
+  const DisclaimerNota(this.texto, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(texto, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, height: 1.3)),
+        ),
+      ],
+    );
+  }
 }
