@@ -120,14 +120,29 @@ app.get('/api/lecturas', async (req, res) => {
 // podía ver a cualquier paciente poniendo su id en la URL.
 async function autorizarLecturaPaciente(req, pacienteId, mensaje) {
   if (pacienteId === req.uid) return;
-  if (req.rol === 'especialista') {
-    const vinculo = await pool.query(
-      "SELECT 1 FROM usuarios WHERE id = $1 AND rol = 'paciente' AND especialista_id = $2",
-      [pacienteId, req.uid]
-    );
-    if (vinculo.rowCount > 0) return;
-  }
+  if (req.rol === 'especialista' && (await esPacienteVinculado(pacienteId, req.uid))) return;
   throw new AuthError(mensaje, 403);
+}
+
+// ¿El paciente está vinculado a ese especialista? Usado por las lecturas, el
+// historial de mensajes y el chat por Socket.io.
+async function esPacienteVinculado(pacienteId, especialistaId) {
+  const vinculo = await pool.query(
+    "SELECT 1 FROM usuarios WHERE id = $1 AND rol = 'paciente' AND especialista_id = $2",
+    [pacienteId, especialistaId]
+  );
+  return vinculo.rowCount > 0;
+}
+
+// Especialista vinculado ACTUALMENTE al paciente (o null). Una conversación
+// es el par paciente ↔ este especialista: si el paciente se vincula con otro,
+// el nuevo no ve los mensajes anteriores.
+async function especialistaDePaciente(pacienteId) {
+  const result = await pool.query(
+    "SELECT especialista_id FROM usuarios WHERE id = $1 AND rol = 'paciente'",
+    [pacienteId]
+  );
+  return result.rows[0]?.especialista_id || null;
 }
 
 // --- HISTORIAL DE UN PACIENTE ESPECÍFICO (registros recientes, sin exponer a otros pacientes) ---
@@ -183,6 +198,33 @@ app.get('/api/lecturas/:pacienteId/resumen', async (req, res) => {
     dias_por_periodo: diasPorPeriodo,
     serie_completa: result.rows, // el cliente separa "actual" vs "anterior" por fecha
   });
+});
+
+// --- HISTORIAL DEL CHAT DE UN PACIENTE (Fase 2b) ---
+// GET /api/mensajes/:pacienteId — el propio paciente o su especialista
+// vinculado. Solo devuelve la conversación con el especialista vinculado
+// ACTUAL (filtra por `mensajes_chat.especialista_id`). Últimos 200, en orden
+// cronológico.
+app.get('/api/mensajes/:pacienteId', async (req, res) => {
+  const { pacienteId } = req.params;
+  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver los mensajes de este paciente.');
+
+  const especialistaId = await especialistaDePaciente(pacienteId);
+  if (!especialistaId) {
+    return res.status(200).json([]);
+  }
+
+  const query = `
+    SELECT * FROM (
+      SELECT * FROM mensajes_chat
+      WHERE paciente_id = $1 AND especialista_id = $2
+      ORDER BY fecha_envio DESC
+      LIMIT 200
+    ) ultimos
+    ORDER BY fecha_envio ASC;
+  `;
+  const result = await pool.query(query, [pacienteId, especialistaId]);
+  res.status(200).json(result.rows);
 });
 
 // Ruta para registrar un nuevo usuario en Supabase (después de Firebase)
@@ -410,37 +452,68 @@ app.use((err, req, res, next) => {
 // (`io(url, { auth: { token } })` del lado del cliente).
 io.use(requiereAuthSocket(pool));
 
+// Salas privadas: cada usuario escucha solo la suya. Antes el servidor hacía
+// io.emit a TODOS los sockets conectados, así que cada paciente recibía los
+// mensajes de los demás. Ahora cada mensaje va solo al paciente y a su
+// especialista vinculado ACTUAL (calculado en el momento del envío, así que
+// si el paciente cambia de especialista el anterior deja de recibir).
+const salaUsuario = (uid) => `usuario:${uid}`;
+
+// Responde al emisor por el callback de acknowledgement de Socket.io, si lo
+// mandó (los clientes viejos emiten sin callback).
+const responder = (ack, respuesta) => {
+  if (typeof ack === 'function') ack(respuesta);
+};
+
 // Escuchando conexiones en tiempo real (WebSockets)
 io.on('connection', (socket) => {
   logger.info('Cliente conectado', { socketId: socket.id, uid: socket.data.uid });
 
+  // Cada socket escucha solo su propia sala. El portal filtra por paciente
+  // en el cliente (al especialista solo le llegan mensajes de SUS pacientes).
+  socket.join(salaUsuario(socket.data.uid));
+
   // Escuchar cuando el paciente o especialista envía un mensaje
-  socket.on('enviar_mensaje', async (data) => {
+  socket.on('enviar_mensaje', async (data, ack) => {
     try {
       const datos = validarMensajeChat(data);
+      const { uid, rol } = socket.data;
 
-      if (datos.paciente_id !== socket.data.uid && socket.data.rol !== 'especialista') {
-        logger.warn('Mensaje rechazado: paciente_id no coincide con el emisor', {
-          socketId: socket.id,
-          uid: socket.data.uid,
-        });
-        return;
+      // Autorización: el paciente solo escribe en SU conversación (y debe
+      // tener especialista vinculado); el especialista solo a SUS pacientes.
+      let especialistaId;
+      if (rol === 'paciente' && datos.paciente_id === uid) {
+        especialistaId = await especialistaDePaciente(uid);
+        if (!especialistaId) {
+          return responder(ack, { ok: false, error: 'Aún no tienes un especialista vinculado.' });
+        }
+      } else if (rol === 'especialista' && (await esPacienteVinculado(datos.paciente_id, uid))) {
+        especialistaId = uid;
+      } else {
+        logger.warn('Mensaje rechazado: emisor sin acceso a la conversación', { socketId: socket.id, uid });
+        return responder(ack, { ok: false, error: 'No autorizado para escribir en esta conversación.' });
       }
 
-      // 1. Guardar el mensaje en la base de datos (Supabase)
+      // 1. Guardar el mensaje en la base de datos (Supabase). remitente_id y
+      // especialista_id los pone el servidor, nunca el cliente.
       const query = `
-        INSERT INTO mensajes_chat (paciente_id, texto, tipo_mensaje)
-        VALUES ($1, $2, $3)
+        INSERT INTO mensajes_chat (remitente_id, paciente_id, especialista_id, texto, tipo_mensaje)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING *;
       `;
-      const values = [datos.paciente_id, datos.texto, datos.tipo_mensaje];
+      const values = [uid, datos.paciente_id, especialistaId, datos.texto, datos.tipo_mensaje];
       const result = await pool.query(query, values);
 
-      // 2. Rebotar el mensaje a todos los dispositivos conectados
-      // Emitimos el mensaje ya guardado (con su ID y fecha de la base de datos)
-      io.emit('recibir_mensaje', result.rows[0]);
+      // 2. Enviar el mensaje ya guardado (con su id y fecha) SOLO a los dos
+      // participantes de la conversación.
+      io.to(salaUsuario(datos.paciente_id)).to(salaUsuario(especialistaId)).emit('recibir_mensaje', result.rows[0]);
+      responder(ack, { ok: true });
     } catch (error) {
       logger.error('Error al guardar el mensaje', { detalle: error.message, socketId: socket.id });
+      responder(ack, {
+        ok: false,
+        error: error instanceof ValidationError ? error.message : 'No se pudo enviar el mensaje.',
+      });
     }
   });
 

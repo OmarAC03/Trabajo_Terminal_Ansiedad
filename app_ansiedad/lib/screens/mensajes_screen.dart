@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/mensaje.dart';
 import '../providers/mensajes_provider.dart';
+import 'vinculacion_screen.dart';
 
 /// Pantalla de Mensajes (chat con especialista) — capa de UI.
 ///
@@ -35,9 +36,23 @@ class _MensajesViewState extends State<_MensajesView> {
   // en el provider.
   final TextEditingController _controladorTexto = TextEditingController();
 
-  void _enviar(MensajesProvider p) {
-    p.enviarMensaje(_controladorTexto.text);
+  Future<void> _enviar(MensajesProvider p) async {
+    final texto = _controladorTexto.text;
+    if (texto.trim().isEmpty) return;
     _controladorTexto.clear();
+
+    final error = await p.enviarMensaje(texto);
+    if (error == null || !mounted) return;
+    // Si no se pudo enviar, se devuelve el texto al campo para no perderlo.
+    _controladorTexto.text = texto;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("❌ $error"), backgroundColor: Colors.red),
+    );
+  }
+
+  Future<void> _irAVincular(MensajesProvider p) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const VinculacionScreen()));
+    if (mounted) p.cargar();
   }
 
   @override
@@ -53,21 +68,65 @@ class _MensajesViewState extends State<_MensajesView> {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FB),
       appBar: AppBar(
-        title: const Text("Chat con Especialista"),
+        title: Text(p.especialistaNombre != null ? "Chat con ${p.especialistaNombre}" : "Chat con Especialista"),
         backgroundColor: const Color(0xFF1E6AFB),
         foregroundColor: Colors.white,
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: p.mensajes.length,
-              itemBuilder: (context, index) => _buildBurbuja(p, p.mensajes[index]),
+      body: _buildCuerpo(p),
+    );
+  }
+
+  Widget _buildCuerpo(MensajesProvider p) {
+    switch (p.estado) {
+      case EstadoChat.cargando:
+        return const Center(child: CircularProgressIndicator(color: Color(0xFF1E6AFB)));
+      case EstadoChat.sinEspecialista:
+        return _buildAviso(
+          Icons.link_off,
+          "Aún no tienes un especialista vinculado",
+          "Vincúlate con el código que te dio tu especialista para poder chatear.",
+          "Vincular especialista",
+          () => _irAVincular(p),
+        );
+      case EstadoChat.error:
+        return _buildAviso(Icons.cloud_off, "No se pudo abrir el chat", p.errorMsg ?? "", "Reintentar", p.cargar);
+      case EstadoChat.listo:
+        return Column(
+          children: [
+            Expanded(
+              child: p.mensajes.isEmpty
+                  ? Center(child: Text("Aún no hay mensajes. ¡Escribe el primero!", style: TextStyle(color: Colors.grey.shade500)))
+                  // reverse: la lista arranca abajo (en el último mensaje), como
+                  // cualquier chat, sin tener que manejar un ScrollController.
+                  : ListView.builder(
+                      reverse: true,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: p.mensajes.length,
+                      itemBuilder: (context, index) => _buildBurbuja(p, p.mensajes[p.mensajes.length - 1 - index]),
+                    ),
             ),
-          ),
-          _buildCajaTexto(p),
-        ],
+            _buildCajaTexto(p),
+          ],
+        );
+    }
+  }
+
+  Widget _buildAviso(IconData icono, String titulo, String detalle, String boton, VoidCallback onPressed) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icono, size: 70, color: Colors.grey.shade300),
+            const SizedBox(height: 15),
+            Text(titulo, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            Text(detalle, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+            const SizedBox(height: 15),
+            ElevatedButton(onPressed: onPressed, child: Text(boton)),
+          ],
+        ),
       ),
     );
   }

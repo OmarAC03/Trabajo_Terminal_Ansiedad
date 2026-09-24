@@ -84,10 +84,16 @@ function validarCodigoVinculacion(body) {
 }
 
 /** Evento de socket `enviar_mensaje`. */
+const MAX_LARGO_MENSAJE = 2000;
+
 function validarMensajeChat(data) {
+  const texto = requerirString(data && data.texto, 'texto');
+  if (texto.length > MAX_LARGO_MENSAJE) {
+    throw new ValidationError(`El mensaje no puede superar ${MAX_LARGO_MENSAJE} caracteres.`);
+  }
   return {
     paciente_id: requerirString(data && data.paciente_id, 'paciente_id'),
-    texto: requerirString(data && data.texto, 'texto'),
+    texto,
     tipo_mensaje: esStringNoVacio(data && data.tipo_mensaje) ? data.tipo_mensaje.trim() : 'texto',
   };
 }

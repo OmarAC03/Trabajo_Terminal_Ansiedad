@@ -4,6 +4,7 @@ import { ArrowLeft, Heart, Timer, AlertTriangle, Clock, Info, Mail } from 'lucid
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 import { auth } from './firebase';
 import { getStatusColor, getStatusLabel } from './semaforo';
+import ChatPaciente from './ChatPaciente';
 
 const LECTURAS_URL = "https://tt-ansiedad-backend.onrender.com/api/lecturas";
 
@@ -139,6 +140,8 @@ function PacienteDetalle({ paciente, onVolver, recarga }) {
       ) : (
         <VistaAgregada dias={dias} paciente={paciente} periodo={periodo} />
       )}
+
+      <ChatPaciente paciente={paciente} />
     </div>
   );
 }

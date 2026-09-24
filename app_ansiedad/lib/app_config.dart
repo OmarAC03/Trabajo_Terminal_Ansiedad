@@ -20,6 +20,7 @@ class AppConfig {
   static String get urlUsuarios => '$backendUrl/api/usuarios';
   static String urlUsuario(String id) => '$backendUrl/api/usuarios/$id';
   static String get urlVinculacion => '$backendUrl/api/vinculacion';
+  static String urlMensajesPaciente(String pacienteId) => '$backendUrl/api/mensajes/$pacienteId';
 }
 
 /// Los tres niveles de ansiedad que maneja el sistema.

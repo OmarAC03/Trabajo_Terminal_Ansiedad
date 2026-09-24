@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import '../api_client.dart';
 import '../app_config.dart';
 import '../models/mensaje.dart';
+import 'repository_exception.dart';
 
 /// Encapsula la conexión Socket.io del chat paciente–especialista.
 ///
@@ -12,8 +15,19 @@ import '../models/mensaje.dart';
 class ChatRepository {
   IO.Socket? _socket;
 
+  /// Historial de la conversación con el especialista vinculado actual
+  /// (`GET /api/mensajes/:pacienteId`), en orden cronológico.
+  Future<List<Mensaje>> obtenerHistorial(String pacienteId) async {
+    final res = await ApiClient.get(Uri.parse(AppConfig.urlMensajesPaciente(pacienteId)));
+    if (!res.exito) throw RepositoryException(res.mensajeUsuario);
+
+    final List<dynamic> data = jsonDecode(res.body ?? '[]');
+    return data.map((e) => Mensaje.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
   /// Conecta el socket y devuelve un stream con cada mensaje que llega del
-  /// servidor (propios y de otros participantes del chat).
+  /// servidor. El backend solo le manda a este socket los mensajes de SU
+  /// conversación (sala privada por usuario).
   ///
   /// El backend exige un token Firebase en el handshake (`auth.token`), por
   /// eso este método espera el idToken antes de armar las opciones del socket.
@@ -43,8 +57,33 @@ class ChatRepository {
     return controller.stream;
   }
 
-  void enviarMensaje(Mensaje mensaje) {
-    _socket?.emit('enviar_mensaje', mensaje.toJson());
+  /// Envía el mensaje y espera la confirmación del servidor. Devuelve null si
+  /// se guardó, o el motivo del rechazo para mostrárselo al usuario (antes
+  /// un mensaje rechazado o fallido se perdía en silencio).
+  Future<String?> enviarMensaje(Mensaje mensaje) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) {
+      return Future.value("Sin conexión con el chat. Intenta de nuevo en unos segundos.");
+    }
+
+    final completer = Completer<String?>();
+    socket.emitWithAck('enviar_mensaje', mensaje.toJson(), ack: (data) {
+      // Según la versión del cliente el ack llega como el objeto o como lista
+      // de argumentos.
+      final resp = data is List && data.isNotEmpty ? data.first : data;
+      if (completer.isCompleted) return;
+      if (resp is Map && resp['ok'] == true) {
+        completer.complete(null);
+      } else {
+        final error = resp is Map ? resp['error'] : null;
+        completer.complete(error is String ? error : "No se pudo enviar el mensaje.");
+      }
+    });
+
+    return completer.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => "El servidor no respondió. Revisa tu conexión e intenta de nuevo.",
+    );
   }
 
   void desconectar() {
