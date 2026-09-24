@@ -6,6 +6,7 @@ import { auth } from './firebase';
 import Login from './Login';
 import RegistroEspecialista from './RegistroEspecialista';
 import PacientesList from './PacientesList';
+import PacienteDetalle from './PacienteDetalle';
 import CodigoVinculacion from './CodigoVinculacion';
 
 const API_URL = "https://tt-ansiedad-backend.onrender.com/api/pacientes";
@@ -22,6 +23,13 @@ function App() {
   // Firebase abre sesión al crear la cuenta, pero la fila en `usuarios` aún
   // no existe hasta que el backend termina el registro.
   const [vista, setVista] = useState('login');
+  // Paciente abierto en el detalle (Fase 2a), o null para ver la lista. Se
+  // guarda solo el id y el objeto se toma de `pacientes`, así el detalle
+  // recibe la "última lectura" fresca de cada vuelta del polling.
+  const [pacienteSeleccionadoId, setPacienteSeleccionadoId] = useState(null);
+  // Se incrementa con el botón "Actualizar" para que el detalle recargue.
+  const [recargaDetalle, setRecargaDetalle] = useState(0);
+  const pacienteSeleccionado = pacientes.find((p) => p.id === pacienteSeleccionadoId) || null;
 
   useEffect(() => onAuthStateChanged(auth, setUsuario), []);
 
@@ -97,10 +105,22 @@ function App() {
       <header style={styles.header}>
         <h1 style={styles.title}><Activity color="#1E6AFB" size={32} /> Portal Clínico TT</h1>
         <div style={styles.headerActions}>
-          <button onClick={fetchData} style={styles.refreshBtn}>
+          <button
+            onClick={() => {
+              fetchData();
+              setRecargaDetalle((n) => n + 1);
+            }}
+            style={styles.refreshBtn}
+          >
             <RefreshCw size={20} /> Actualizar
           </button>
-          <button onClick={() => signOut(auth)} style={styles.logoutBtn}>
+          <button
+            onClick={() => {
+              setPacienteSeleccionadoId(null);
+              signOut(auth);
+            }}
+            style={styles.logoutBtn}
+          >
             <LogOut size={20} /> Salir
           </button>
         </div>
@@ -111,19 +131,30 @@ function App() {
       </div>
 
       <main style={styles.main}>
-        <div style={styles.disclaimer}>
-          <Info size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
-          <span>
-            Este sistema monitorea parámetros fisiológicos (frecuencia cardiaca, SpO2 y HRV) asociados
-            a la ansiedad como apoyo al especialista. Los datos fisiológicos son de apoyo: la
-            interpretación y el diagnóstico corresponden al profesional de salud.
-          </span>
-        </div>
         {errorAcceso && <div style={styles.errorBanner}>{errorAcceso}</div>}
-        {loading ? (
-          <div style={styles.center}>Cargando pacientes...</div>
+        {pacienteSeleccionado ? (
+          // El detalle trae su propio disclaimer de alcance (sección 3 del marco).
+          <PacienteDetalle
+            paciente={pacienteSeleccionado}
+            recarga={recargaDetalle}
+            onVolver={() => setPacienteSeleccionadoId(null)}
+          />
         ) : (
-          <PacientesList pacientes={pacientes} />
+          <>
+            <div style={styles.disclaimer}>
+              <Info size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
+              <span>
+                Este sistema monitorea parámetros fisiológicos (frecuencia cardiaca, SpO2 y HRV) asociados
+                a la ansiedad como apoyo al especialista. Los datos fisiológicos son de apoyo: la
+                interpretación y el diagnóstico corresponden al profesional de salud.
+              </span>
+            </div>
+            {loading ? (
+              <div style={styles.center}>Cargando pacientes...</div>
+            ) : (
+              <PacientesList pacientes={pacientes} onSeleccionar={(p) => setPacienteSeleccionadoId(p.id)} />
+            )}
+          </>
         )}
       </main>
     </div>

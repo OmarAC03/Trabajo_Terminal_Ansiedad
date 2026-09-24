@@ -114,13 +114,27 @@ app.get('/api/lecturas', async (req, res) => {
   res.status(200).json(result.rows);
 });
 
+// Autorización para leer datos de UN paciente: el propio paciente, o un
+// especialista al que ese paciente esté vinculado (`usuarios.especialista_id`).
+// Antes bastaba con `rol === 'especialista'`, así que cualquier especialista
+// podía ver a cualquier paciente poniendo su id en la URL.
+async function autorizarLecturaPaciente(req, pacienteId, mensaje) {
+  if (pacienteId === req.uid) return;
+  if (req.rol === 'especialista') {
+    const vinculo = await pool.query(
+      "SELECT 1 FROM usuarios WHERE id = $1 AND rol = 'paciente' AND especialista_id = $2",
+      [pacienteId, req.uid]
+    );
+    if (vinculo.rowCount > 0) return;
+  }
+  throw new AuthError(mensaje, 403);
+}
+
 // --- HISTORIAL DE UN PACIENTE ESPECÍFICO (registros recientes, sin exponer a otros pacientes) ---
 // Usado por la app móvil. GET /api/lecturas/:pacienteId?limite=50
 app.get('/api/lecturas/:pacienteId', async (req, res) => {
   const { pacienteId } = req.params;
-  if (pacienteId !== req.uid && req.rol !== 'especialista') {
-    throw new AuthError('No autorizado para ver las lecturas de este paciente.', 403);
-  }
+  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver las lecturas de este paciente.');
   const limite = parseInt(req.query.limite) || 50;
 
   const query = `
@@ -140,9 +154,7 @@ app.get('/api/lecturas/:pacienteId', async (req, res) => {
 // (tendencias, rachas, etc.) sin tener que hacer una segunda llamada.
 app.get('/api/lecturas/:pacienteId/resumen', async (req, res) => {
   const { pacienteId } = req.params;
-  if (pacienteId !== req.uid && req.rol !== 'especialista') {
-    throw new AuthError('No autorizado para ver el resumen de este paciente.', 403);
-  }
+  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver el resumen de este paciente.');
   const periodo = req.query.periodo === 'mes' ? 'mes' : 'semana';
   const diasPorPeriodo = periodo === 'mes' ? 30 : 7;
   const rangoConsulta = diasPorPeriodo * 2; // periodo actual + periodo anterior
