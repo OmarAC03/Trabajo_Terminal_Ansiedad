@@ -55,8 +55,9 @@ app_ansiedad/lib/
     ├── historial_screen.dart    # REFACTORIZADA con Provider (Incremento 3)
     ├── mensajes_screen.dart     # chat Socket.io (PENDIENTE revisar a fondo)
     ├── perfil_screen.dart       # REFACTORIZADA con Provider (Incremento 4)
-    └── tecnicas_screen.dart     # técnicas de relajación: respiración animada +
-                                  #  voz/música/animación por técnica (ver sección 6)
+    ├── tecnicas_screen.dart     # técnicas de relajación: respiración animada +
+    │                             #  voz/música/animación por técnica (ver sección 6)
+    └── ejercicios_asignados_screen.dart # ejercicios del especialista (Fase 2c, sección 4bis)
 ```
 
 Las 5 pestañas del `main_layout`: **Inicio (Alerta)**, **Historial**, **Mensajes**, **Técnicas**, **Perfil**.
@@ -73,6 +74,9 @@ Las 5 pestañas del `main_layout`: **Inicio (Alerta)**, **Historial**, **Mensaje
 - `GET /api/usuarios/:id` — trae perfil (nombre, email, rol).
 - `PUT /api/usuarios/:id` — edita el nombre.
 - `GET /api/pacientes` — lista de usuarios con `rol='paciente'` (nombre, email, última lectura si tiene); requiere `rol === 'especialista'`. Nuevo en Portal Web Fase 1.
+- `GET /api/mensajes/:pacienteId` — historial del chat (Fase 2b).
+- `POST /api/ejercicios` / `GET /api/ejercicios/:pacienteId` — ejercicios asignados (Fase 2c).
+- `GET /api/pendientes` / `POST /api/pendientes/:seccion/visto` — badges de Mensajes y Ejercicios en la app (Fase 2c).
 
 **Tabla `lecturas_biometricas`:** id (uuid), paciente_id (varchar), bpm (int4), spo2 (int4), hrv (int4), score_ansiedad (numeric), estado_ansiedad (varchar: 'Alta'|'Moderada'|'Baja'), fecha_medicion (timestamptz).
 
@@ -125,6 +129,15 @@ Con el Incremento 6a cerrado (auth Firebase end-to-end), el foco pasó a constru
   - **Portal:** `web_portal/src/ChatPaciente.js` dentro de `PacienteDetalle.js` (historial + tiempo real, token renovado en cada reconexión). Dependencia nueva `socket.io-client`.
   - **App:** `MensajesProvider` verifica vinculación → conecta → carga historial; burbujas por `remitente_id`; errores de envío visibles; aviso + botón "Vincular especialista" si no hay vínculo.
   - **Limitación conocida:** en la app el token del socket se manda solo al conectar; tras ~1 h, una reconexión falla hasta reabrir la pantalla.
+- **Fase 2c — Ejercicios asignados + badges in-app (commiteada y desplegada, ⚠️ pendiente de prueba manual):** validada con `node --check`, `flutter analyze` (sin avisos nuevos) y `npm run build`. **No incluye push notifications (FCM)** — eso es la Fase 2d.
+  - **Migración (aplicada a mano en Supabase ANTES de desplegar el backend y verificada: 7 columnas, 2 marcas en `usuarios`, 2 índices):** tabla `ejercicios_asignados` — id (uuid, `uuid_generate_v4()`), paciente_id y especialista_id (varchar(50), FK a `usuarios.id`, sin `ON DELETE`, igual que `mensajes_chat`), tecnica_id (varchar(50), slug o null), texto_personalizado (text o null), nota (text, opcional), fecha_asignacion (timestamptz, `now()`); `CHECK chk_ejercicio_origen` = exactamente uno de tecnica_id / texto_personalizado; índice `idx_ejercicios_paciente_fecha`; RLS en false como las demás. En `usuarios`: `ultima_apertura_mensajes` y `ultima_apertura_ejercicios` (timestamptz NOT NULL DEFAULT now(), una marca por sección). Índice nuevo `idx_mensajes_paciente_fecha` en `mensajes_chat (paciente_id, fecha_envio DESC)`.
+  - **Slugs de técnicas (IDÉNTICOS en 3 lugares):** `respiracion_478`, `relajacion_muscular`, `grounding_54321`, `visualizacion_guiada` — `Tecnica.id` en `tecnicas_screen.dart`, `TECNICAS_EJERCICIO` en `backend/validation.js` y `web_portal/src/tecnicas.js`. Antes las técnicas solo tenían `titulo` (no había id estable). La lista válida vive en el backend, no como CHECK en la BD (agregar una técnica no requiere migración). No cambiar un slug sin migrar filas.
+  - **Sin columna `leido`:** "visto" se deriva de `fecha_asignacion <= usuarios.ultima_apertura_ejercicios` (una sola fuente de verdad). El portal lo muestra como "Visto por el paciente" / "Aún no lo ve".
+  - **Backend:** `POST /api/ejercicios` (solo especialista, `esPacienteVinculado`, `especialista_id` desde el token; `validarEjercicioAsignado`: slug de la lista XOR texto libre ≤500, nota ≤1000). `GET /api/ejercicios/:pacienteId` (`autorizarLecturaPaciente`; igual que el chat, solo los del especialista vinculado ACTUAL). `GET /api/pendientes` (solo paciente): cuenta mensajes del especialista (`remitente_id` no null y ≠ paciente) y ejercicios posteriores a cada marca, dentro del vínculo actual. `POST /api/pendientes/:seccion/visto` (`mensajes`|`ejercicios`, columna tomada de una lista fija): mueve la marca a `now()` y devuelve la marca **anterior** — la app marca primero y lista después, y resalta como "Nuevo" lo posterior a la marca anterior (sin carrera entre marcar y listar).
+  - **Portal:** `web_portal/src/EjerciciosPaciente.js` en `PacienteDetalle.js` (entre los datos y el chat): select con las 4 técnicas o "Ejercicio personalizado…", nota opcional, disclaimer de apoyo, lista de asignados con estado visto. Recarga con el botón "Actualizar".
+  - **App:** capas `models/ejercicio_asignado.dart`, `models/pendientes.dart` (`SeccionPendiente`), `repositories/ejercicios_repository.dart`, `repositories/pendientes_repository.dart`, `providers/ejercicios_provider.dart`, `providers/pendientes_provider.dart`, `screens/ejercicios_asignados_screen.dart`. La sección vive dentro de la pestaña **Técnicas** (tarjeta "Ejercicios asignados por tu especialista" arriba del catálogo, con contador) — no es una sexta pestaña. Tocar un ejercicio que es técnica de la app la abre directo (`abrirTecnica`/`tecnicaPorId`). Disclaimer `Disclaimers.ejercicios` (herramienta de apoyo, no tratamiento).
+  - **Badges:** `PendientesProvider` vive en `MainLayout` (sondeo cada 45 s en primer plano, se detiene en segundo plano, refresca al volver y al cambiar de pestaña). Badge en la pestaña Mensajes (oculto mientras está abierta; se marca visto al entrar Y al salir, porque lo que llega con el chat abierto ya se vio) y en la pestaña Técnicas + en la tarjeta (se limpia al abrir la pantalla de ejercicios). Limpieza optimista con contador de versión para que una consulta en vuelo no reencienda el badge.
+  - **Limitación conocida:** el badge de mensajes se actualiza por sondeo (hasta ~45 s de retraso), no por socket (aceptado para el esqueleto; mejora futura en "Diferidos").
 
 ---
 
@@ -171,7 +184,7 @@ Referencia: `MARCO_ALCANCE_Y_LENGUAJE.md`. El sistema monitorea parámetros fisi
 ## 5. Deuda técnica / pendientes conocidos
 
 - **Seguridad (Inc. 6a, ✅ CERRADO):** `GET /api/lecturas` y el resto de endpoints ya exigen token Firebase y el portal web ya exige login — verificado end-to-end (ver sección 4). El pendiente menor de confirmar el rol especialista quedó cerrado al verificar la Fase D del sistema de vinculación (sección 4ter).
-- **`withOpacity` deprecado:** avisos de `flutter analyze` (cosmético). Ya migrado en Historial, Perfil y Alerta a `.withValues()`; falta en tecnicas y main_layout. Agendado para Inc. 5.
+- **`withOpacity` deprecado:** avisos de `flutter analyze` (cosmético). Ya migrado en Historial, Perfil, Alerta y main_layout (Fase 2c) a `.withValues()`; falta en tecnicas. Agendado para Inc. 5.
 - **`avoid_print`:** resuelto (Inc. 5) — no quedan `print()` en la app; los providers usan `AppLogger` (`lib/logger.dart`) y el backend usa el logger estructurado (`backend/logger.js`).
 - **Navegaciones manuales redundantes:** login/logout aún navegan a mano aunque el `AuthGate` ya lo maneja; limpiar al migrar esas pantallas a capas.
 - **Migrar a capas:** completo — Historial, Perfil, Alerta y Mensajes ya están refactorizadas (Incremento 4 cerrado).
@@ -214,16 +227,18 @@ Referencia: `MARCO_ALCANCE_Y_LENGUAJE.md`. El sistema monitorea parámetros fisi
 
 ## 8. Siguiente paso sugerido
 
-**Estado al cierre de la última sesión:** re-enfoque de lenguaje (sección 4quater), Portal Web Fase 2a (detalle del paciente) y **Fase 2b (chat especialista–paciente)** construidos y desplegados. La Fase 2b funciona visualmente (el chat se ve y responde) pero **no se considera cerrada** hasta pasar la prueba de aislamiento (punto 1).
+**Estado al cierre de la última sesión:** re-enfoque de lenguaje (sección 4quater), Portal Web Fase 2a (detalle del paciente) y **Fase 2b (chat especialista–paciente)** construidos y desplegados. La Fase 2b funciona visualmente (el chat se ve y responde) pero **no se considera cerrada** hasta pasar la prueba de aislamiento (punto 3, diferida). **Fase 2c (ejercicios asignados + badges)** implementada con la migración ya aplicada en Supabase; commiteada y desplegada; falta la prueba manual (punto 1).
 
 ### Pendientes, EN ORDEN
 
-1. **⚠️ Prueba de aislamiento del chat (Fase 2b) — LO PRIMERO de la próxima sesión.** Con dos pacientes distintos, confirmar que uno NO ve los mensajes del otro (ni en tiempo real ni en el historial al reabrir la pantalla). Hasta pasarla, la Fase 2b sigue abierta.
-2. **Fase 2c — Asignar ejercicios:** que el especialista asigne técnicas de relajación a un paciente y el paciente las vea en la app. Requiere tabla nueva + endpoints + cambios en app y portal. Antes de proponer el DDL, pedir una consulta de solo lectura para verificar el estado real de la base (ver "Reglas permanentes").
-3. **🔴 SEGURIDAD PENDIENTE — `GET/PUT /api/usuarios/:id`:** hoy cualquier especialista puede leer o editar el perfil de cualquier usuario. Cerrar con la misma verificación por vinculación que ya usan lecturas y chat (`esPacienteVinculado` en `server.js`). Programarlo como **bloque de endurecimiento antes de las pruebas finales**.
+1. **Fase 2c — prueba manual (sección 4bis).** Migración verificada, código commiteado y desplegado (backend → portal → app). Probar: asignar técnica y ejercicio personalizado desde el portal; que el paciente los vea con "Nuevo" y que el badge de Técnicas se encienda (≤45 s) y se limpie al abrir la pantalla; que el portal pase a "Visto por el paciente"; badge de Mensajes al recibir un mensaje del especialista con otra pestaña abierta y que se limpie al entrar; que un especialista no vinculado reciba 403 en `POST /api/ejercicios`.
+2. **Fase 2d — Push notifications (FCM):** fuera del alcance de la 2c; aparte.
+3. **⚠️ Prueba de aislamiento del chat (Fase 2b)** — diferida conscientemente para antes de las pruebas finales. Con dos pacientes distintos, confirmar que uno NO ve los mensajes del otro (ni en tiempo real ni en el historial al reabrir la pantalla). Hasta pasarla, la Fase 2b sigue abierta.
+4. **🔴 SEGURIDAD PENDIENTE — `GET/PUT /api/usuarios/:id`:** hoy cualquier especialista puede leer o editar el perfil de cualquier usuario. Cerrar con la misma verificación por vinculación que ya usan lecturas y chat (`esPacienteVinculado` en `server.js`). Programarlo como **bloque de endurecimiento antes de las pruebas finales**.
 
 ### Diferidos (trabajo futuro)
 - **Token del chat en la app:** se manda solo al conectar el socket; tras ~1 h una reconexión falla hasta reabrir la pantalla (el portal ya lo resuelve con `auth` como función).
+- **Badge de Mensajes por socket (Fase 2c):** hoy el badge sale del sondeo cada 45 s; mejora: incrementarlo al recibir `recibir_mensaje` por el socket que ya abre `MensajesProvider`.
 - **Reporte PDF descargable por paciente** (portal).
 - **Bugs visuales del Monitor:** fondo azul estático al hacer scroll y botón "Sincronizar" cortado por el FAB. *Nota:* ya se aplicó un ajuste para ambos en `alerta_screen.dart` (commit `3b4383c`: fondo dentro del scroll + padding inferior de 100 px), pero no se confirmó en el dispositivo — verificar si persisten antes de volver a tocarlo.
 - **Cambio de tema de color azul → menta** (app y portal).

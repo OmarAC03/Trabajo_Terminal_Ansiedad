@@ -3,9 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:provider/provider.dart';
+import '../providers/pendientes_provider.dart';
+import 'ejercicios_asignados_screen.dart';
 
 // --- MODELO DE DATOS ---
 class Tecnica {
+  /// Slug fijo de la técnica. Es lo que guarda `ejercicios_asignados.tecnica_id`
+  /// cuando el especialista asigna una técnica. Debe coincidir EXACTAMENTE con
+  /// TECNICAS_EJERCICIO en backend/validation.js y con web_portal/src/tecnicas.js;
+  /// no cambiarlo sin migrar las filas existentes.
+  final String id;
   final String titulo;
   final String descripcionCorta;
   final IconData icono;
@@ -16,6 +24,7 @@ class Tecnica {
   final String? tipoAnimacion; // 'tension' | 'grounding' | 'visualizacion'
 
   Tecnica({
+    required this.id,
     required this.titulo,
     required this.descripcionCorta,
     required this.icono,
@@ -30,6 +39,7 @@ class Tecnica {
 // --- CATÁLOGO DE TÉCNICAS ---
 final List<Tecnica> _catalogoTecnicas = [
   Tecnica(
+    id: 'respiracion_478',
     titulo: "Respiración 4-7-8",
     descripcionCorta: "Calma tu sistema nervioso en un par de minutos",
     icono: Icons.air,
@@ -37,6 +47,7 @@ final List<Tecnica> _catalogoTecnicas = [
     tipo: 'respiracion',
   ),
   Tecnica(
+    id: 'relajacion_muscular',
     titulo: "Relajación muscular progresiva",
     descripcionCorta: "Libera la tensión física, grupo muscular por grupo",
     icono: Icons.self_improvement,
@@ -59,6 +70,7 @@ final List<Tecnica> _catalogoTecnicas = [
     ],
   ),
   Tecnica(
+    id: 'grounding_54321',
     titulo: "Grounding 5-4-3-2-1",
     descripcionCorta: "Reconecta con el presente a través de tus sentidos",
     icono: Icons.spa,
@@ -76,6 +88,7 @@ final List<Tecnica> _catalogoTecnicas = [
     ],
   ),
   Tecnica(
+    id: 'visualizacion_guiada',
     titulo: "Visualización guiada",
     descripcionCorta: "Imagina un lugar seguro y tranquilo",
     icono: Icons.landscape,
@@ -96,6 +109,25 @@ final List<Tecnica> _catalogoTecnicas = [
   ),
 ];
 
+/// Técnica del catálogo por su slug (`ejercicios_asignados.tecnica_id`), o
+/// null si la app no la conoce (p. ej. una versión vieja de la app).
+Tecnica? tecnicaPorId(String id) {
+  for (final t in _catalogoTecnicas) {
+    if (t.id == id) return t;
+  }
+  return null;
+}
+
+/// Abre la pantalla de ejercicio de una técnica (lista de técnicas y
+/// ejercicios asignados usan la misma navegación).
+void abrirTecnica(BuildContext context, Tecnica t) {
+  if (t.tipo == 'respiracion') {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const RespiracionGuiadaScreen()));
+  } else {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => TecnicaPasosScreen(tecnica: t)));
+  }
+}
+
 // =============================================================
 // PANTALLA PRINCIPAL: lista de técnicas
 // =============================================================
@@ -103,6 +135,67 @@ class TecnicasScreen extends StatelessWidget {
   const TecnicasScreen({super.key});
 
   static const Color headerColor = Color(0xFF1E6AFB);
+
+  /// Las rutas que se abren con Navigator.push quedan fuera del árbol de
+  /// MainLayout, así que el PendientesProvider se le pasa a la pantalla de
+  /// ejercicios de forma explícita.
+  void _abrirEjercicios(BuildContext context) {
+    final pendientes = context.read<PendientesProvider>();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChangeNotifierProvider.value(
+          value: pendientes,
+          child: const EjerciciosAsignadosScreen(),
+        ),
+      ),
+    ).then((_) => pendientes.refrescar());
+  }
+
+  Widget _buildTarjetaEjercicios(BuildContext context) {
+    final nuevos = context.watch<PendientesProvider>().ejercicios;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 24),
+      elevation: 0,
+      color: headerColor.withValues(alpha: 0.06),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: headerColor.withValues(alpha: 0.25)),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(14),
+        leading: Badge(
+          isLabelVisible: nuevos > 0,
+          label: Text('$nuevos'),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: headerColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.assignment_outlined, color: headerColor),
+          ),
+        ),
+        title: const Text("Ejercicios asignados por tu especialista",
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            nuevos > 0
+                ? (nuevos == 1 ? "Tienes 1 ejercicio nuevo" : "Tienes $nuevos ejercicios nuevos")
+                : "Consulta lo que tu especialista te sugirió practicar",
+            style: TextStyle(
+              color: nuevos > 0 ? headerColor : Colors.grey.shade600,
+              fontSize: 12,
+              fontWeight: nuevos > 0 ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ),
+        trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
+        onTap: () => _abrirEjercicios(context),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -116,9 +209,11 @@ class TecnicasScreen extends StatelessWidget {
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(20),
-        itemCount: _catalogoTecnicas.length,
+        // +1: la tarjeta de ejercicios asignados va antes del catálogo.
+        itemCount: _catalogoTecnicas.length + 1,
         itemBuilder: (context, i) {
-          final t = _catalogoTecnicas[i];
+          if (i == 0) return _buildTarjetaEjercicios(context);
+          final t = _catalogoTecnicas[i - 1];
           return Card(
             margin: const EdgeInsets.only(bottom: 16),
             elevation: 0,
@@ -143,15 +238,7 @@ class TecnicasScreen extends StatelessWidget {
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
               ),
               trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
-              onTap: () {
-                if (t.tipo == 'respiracion') {
-                  Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const RespiracionGuiadaScreen()));
-                } else {
-                  Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => TecnicaPasosScreen(tecnica: t)));
-                }
-              },
+              onTap: () => abrirTecnica(context, t),
             ),
           );
         },

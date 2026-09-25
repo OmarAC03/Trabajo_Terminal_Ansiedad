@@ -21,6 +21,9 @@ class AppConfig {
   static String urlUsuario(String id) => '$backendUrl/api/usuarios/$id';
   static String get urlVinculacion => '$backendUrl/api/vinculacion';
   static String urlMensajesPaciente(String pacienteId) => '$backendUrl/api/mensajes/$pacienteId';
+  static String urlEjerciciosPaciente(String pacienteId) => '$backendUrl/api/ejercicios/$pacienteId';
+  static String get urlPendientes => '$backendUrl/api/pendientes';
+  static String urlPendienteVisto(String seccion) => '$backendUrl/api/pendientes/$seccion/visto';
 }
 
 /// Los tres niveles de ansiedad que maneja el sistema.
@@ -122,6 +125,10 @@ class Disclaimers {
       'Esta app monitorea parámetros fisiológicos (frecuencia cardiaca, SpO2 y HRV) '
       'asociados a la ansiedad como apoyo a tu especialista. No emite diagnósticos '
       'ni reemplaza la atención de un profesional de salud.';
+  static const String ejercicios =
+      'Estos ejercicios son una herramienta de apoyo sugerida por tu especialista; '
+      'no son un tratamiento ni sustituyen la atención profesional. Si tienes dudas '
+      'o no te sientes bien, consulta a tu especialista.';
 }
 
 /// Aviso discreto (texto gris con ícono) para acompañar los datos.

@@ -16,6 +16,7 @@ const {
   validarNombre,
   validarCodigoVinculacion,
   validarMensajeChat,
+  validarEjercicioAsignado,
 } = require('./validation');
 
 const app = express();
@@ -225,6 +226,120 @@ app.get('/api/mensajes/:pacienteId', async (req, res) => {
   `;
   const result = await pool.query(query, [pacienteId, especialistaId]);
   res.status(200).json(result.rows);
+});
+
+// --- EJERCICIOS ASIGNADOS (Fase 2c) ---
+// Tabla `ejercicios_asignados`: una técnica de la app (tecnica_id, slug) O un
+// texto libre del especialista (texto_personalizado), más una nota opcional.
+// `visto` no se guarda: se deriva de `usuarios.ultima_apertura_ejercicios`.
+
+// POST /api/ejercicios — solo el especialista, solo a SUS pacientes
+// vinculados. especialista_id lo pone el servidor desde el token.
+app.post('/api/ejercicios', async (req, res) => {
+  if (req.rol !== 'especialista') {
+    throw new AuthError('Solo un especialista puede asignar ejercicios.', 403);
+  }
+  const datos = validarEjercicioAsignado(req.body);
+  if (!(await esPacienteVinculado(datos.paciente_id, req.uid))) {
+    throw new AuthError('Este paciente no está vinculado a tu cuenta.', 403);
+  }
+
+  const query = `
+    INSERT INTO ejercicios_asignados (paciente_id, especialista_id, tecnica_id, texto_personalizado, nota)
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING *, false AS visto;
+  `;
+  const values = [datos.paciente_id, req.uid, datos.tecnica_id, datos.texto_personalizado, datos.nota];
+  const result = await pool.query(query, values);
+
+  logger.info('Ejercicio asignado', { paciente_id: datos.paciente_id, especialista_id: req.uid });
+  res.status(201).json({ mensaje: 'Ejercicio asignado con éxito', data: result.rows[0] });
+});
+
+// GET /api/ejercicios/:pacienteId — el propio paciente o su especialista
+// vinculado. Igual que el chat, solo los del especialista vinculado ACTUAL:
+// si el paciente cambia de especialista, el nuevo no ve las asignaciones del
+// anterior. Más recientes primero.
+app.get('/api/ejercicios/:pacienteId', async (req, res) => {
+  const { pacienteId } = req.params;
+  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver los ejercicios de este paciente.');
+
+  const especialistaId = await especialistaDePaciente(pacienteId);
+  if (!especialistaId) {
+    return res.status(200).json([]);
+  }
+
+  const query = `
+    SELECT e.*, (e.fecha_asignacion <= u.ultima_apertura_ejercicios) AS visto
+    FROM ejercicios_asignados e
+    JOIN usuarios u ON u.id = e.paciente_id
+    WHERE e.paciente_id = $1 AND e.especialista_id = $2
+    ORDER BY e.fecha_asignacion DESC
+    LIMIT 200;
+  `;
+  const result = await pool.query(query, [pacienteId, especialistaId]);
+  res.status(200).json(result.rows);
+});
+
+// --- INDICADORES DE PENDIENTE (badges de la app, Fase 2c) ---
+// Una marca de "última apertura" por sección en `usuarios`. Pendiente =
+// lo que llegó después de esa marca, siempre dentro de la conversación con el
+// especialista vinculado ACTUAL (mismo criterio que GET /api/mensajes).
+const SECCIONES_PENDIENTES = {
+  mensajes: 'ultima_apertura_mensajes',
+  ejercicios: 'ultima_apertura_ejercicios',
+};
+
+// GET /api/pendientes — conteo para el paciente autenticado. Los mensajes
+// cuentan solo si los escribió el especialista (remitente_id distinto del
+// paciente; los antiguos con remitente_id null eran del paciente).
+app.get('/api/pendientes', async (req, res) => {
+  if (req.rol !== 'paciente') {
+    throw new AuthError('Solo un paciente tiene indicadores de pendiente.', 403);
+  }
+
+  const query = `
+    SELECT
+      (SELECT COUNT(*) FROM mensajes_chat m
+        WHERE m.paciente_id = u.id
+          AND m.especialista_id = u.especialista_id
+          AND m.remitente_id IS NOT NULL AND m.remitente_id <> u.id
+          AND m.fecha_envio > u.ultima_apertura_mensajes)::int AS mensajes,
+      (SELECT COUNT(*) FROM ejercicios_asignados e
+        WHERE e.paciente_id = u.id
+          AND e.especialista_id = u.especialista_id
+          AND e.fecha_asignacion > u.ultima_apertura_ejercicios)::int AS ejercicios
+    FROM usuarios u
+    WHERE u.id = $1;
+  `;
+  const result = await pool.query(query, [req.uid]);
+  res.status(200).json(result.rows[0] ?? { mensajes: 0, ejercicios: 0 });
+});
+
+// POST /api/pendientes/:seccion/visto — el paciente abrió la sección: mueve
+// su marca a "ahora" y devuelve la marca ANTERIOR, para que la app resalte
+// como "nuevo" lo que llegó desde entonces sin carrera entre marcar y listar.
+app.post('/api/pendientes/:seccion/visto', async (req, res) => {
+  if (req.rol !== 'paciente') {
+    throw new AuthError('Solo un paciente tiene indicadores de pendiente.', 403);
+  }
+  // El nombre de columna sale de la lista fija de arriba, nunca del cliente.
+  const columna = SECCIONES_PENDIENTES[req.params.seccion];
+  if (!columna) {
+    throw new ValidationError(`Sección inválida. Debe ser una de: ${Object.keys(SECCIONES_PENDIENTES).join(', ')}.`);
+  }
+
+  const query = `
+    UPDATE usuarios u SET ${columna} = now()
+    FROM (SELECT ${columna} AS anterior FROM usuarios WHERE id = $1) previo
+    WHERE u.id = $1
+    RETURNING previo.anterior, u.${columna} AS actual;
+  `;
+  const result = await pool.query(query, [req.uid]);
+  if (result.rows.length === 0) {
+    return res.status(404).json({ error: 'Usuario no encontrado' });
+  }
+  res.status(200).json(result.rows[0]);
 });
 
 // Ruta para registrar un nuevo usuario en Supabase (después de Firebase)

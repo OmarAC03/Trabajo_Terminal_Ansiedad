@@ -5,6 +5,7 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend, Ca
 import { auth } from './firebase';
 import { getStatusColor, getStatusLabel } from './semaforo';
 import ChatPaciente from './ChatPaciente';
+import EjerciciosPaciente from './EjerciciosPaciente';
 
 const LECTURAS_URL = "https://tt-ansiedad-backend.onrender.com/api/lecturas";
 
@@ -140,6 +141,8 @@ function PacienteDetalle({ paciente, onVolver, recarga }) {
       ) : (
         <VistaAgregada dias={dias} paciente={paciente} periodo={periodo} />
       )}
+
+      <EjerciciosPaciente paciente={paciente} recarga={recarga} />
 
       <ChatPaciente paciente={paciente} />
     </div>
