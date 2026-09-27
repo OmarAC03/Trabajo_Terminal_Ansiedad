@@ -484,14 +484,22 @@ app.get('/api/vinculacion', async (req, res) => {
   });
 });
 
-// Obtener el perfil de un usuario (usado por PerfilScreen en la app y por el
-// Portal Web para leer su propio codigo_vinculacion; en pacientes ese campo
+// El perfil (GET/PUT /api/usuarios/:id) solo lo lee o edita su dueño. Antes
+// bastaba con `rol === 'especialista'` para leer o editar CUALQUIER perfil
+// (Fase 2e). Ninguna pantalla lee perfiles ajenos por aquí: el especialista
+// obtiene los datos de sus pacientes de GET /api/pacientes.
+function autorizarPerfilPropio(req, id, mensaje) {
+  if (id !== req.uid) {
+    throw new AuthError(mensaje, 403);
+  }
+}
+
+// Obtener el perfil propio (usado por PerfilScreen en la app y por el Portal
+// Web para su perfil y su codigo_vinculacion; en pacientes ese campo
 // simplemente viene null).
 app.get('/api/usuarios/:id', async (req, res) => {
   const { id } = req.params;
-  if (id !== req.uid && req.rol !== 'especialista') {
-    throw new AuthError('No autorizado para ver este perfil.', 403);
-  }
+  autorizarPerfilPropio(req, id, 'No autorizado para ver este perfil.');
   const result = await pool.query('SELECT id, nombre, email, rol, codigo_vinculacion FROM usuarios WHERE id = $1', [id]);
 
   if (result.rows.length === 0) {
@@ -529,17 +537,15 @@ app.get('/api/pacientes', async (req, res) => {
   res.status(200).json(result.rows);
 });
 
-// Editar el nombre del perfil (único campo que el paciente puede cambiar
-// desde la app; email/rol quedan fuera por ahora para no complicar Firebase)
+// Editar el nombre del perfil propio (único campo editable desde la app y el
+// portal; email/rol quedan fuera por ahora para no complicar Firebase)
 app.put('/api/usuarios/:id', async (req, res) => {
   const { id } = req.params;
-  if (id !== req.uid && req.rol !== 'especialista') {
-    throw new AuthError('No autorizado para editar este perfil.', 403);
-  }
+  autorizarPerfilPropio(req, id, 'No autorizado para editar este perfil.');
   const nombre = validarNombre(req.body);
 
   const result = await pool.query(
-    'UPDATE usuarios SET nombre = $1 WHERE id = $2 RETURNING id, nombre, email, rol',
+    'UPDATE usuarios SET nombre = $1 WHERE id = $2 RETURNING id, nombre, email, rol, codigo_vinculacion',
     [nombre, id]
   );
 
