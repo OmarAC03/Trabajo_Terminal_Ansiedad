@@ -1,39 +1,42 @@
 /*
- * Tokens de diseño del Portal Clínico TT (Fase 2e).
+ * Tokens de diseño del Portal Clínico TT (Fase 2e; valores ajustados en la
+ * Fase A a GUIA_ESTILO_PORTAL.md).
  * Fuente única de colores, tipografía, radios y sombras. Todas las pantallas
  * nuevas (y las existentes cuando se rediseñen) deben usar estas variables
  * en vez de valores sueltos.
  *
  * Semáforo de indicadores fisiológicos (ver MARCO_ALCANCE_Y_LENGUAJE.md):
- * Normal = verde, Elevados = ámbar, Altos = rojo. Nunca etiquetas de
- * diagnóstico.
+ * Normal = verde, Elevados = ámbar, Altos = rojo, Sin lecturas = gris.
+ * Nunca etiquetas de diagnóstico.
  */
 :root {
   /* Superficies */
-  --color-bg: #f6f8fb;
+  --color-bg: #f8fafc;
   --color-surface: #ffffff;
-  --color-surface-muted: #f8fafc;
-  --color-border: #e5eaf1;
-  --color-border-strong: #d5dce6;
+  --color-surface-muted: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-border-strong: #cbd5e1;
 
   /* Texto */
-  --color-text: #0f172a;
+  --color-text: #1e293b;
   --color-text-secondary: #475569;
   --color-text-muted: #94a3b8;
 
   /* Primario */
-  --color-primary: #1e6afb;
-  --color-primary-hover: #1557d6;
-  --color-primary-soft: #eef4ff;
-  --color-primary-border: #d6e4ff;
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-soft: #eff6ff;
+  --color-primary-border: #dbeafe;
 
   /* Semáforo de indicadores fisiológicos */
   --color-normal: #16a34a;
-  --color-normal-soft: #ecfdf3;
+  --color-normal-soft: #f0fdf4;
   --color-elevados: #d97706;
   --color-elevados-soft: #fffbeb;
   --color-altos: #dc2626;
   --color-altos-soft: #fef2f2;
+  --color-sin-datos: #94a3b8;
+  --color-sin-datos-soft: #f1f5f9;
 
   /* Tipografía */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -43,15 +46,15 @@
   --text-md: 14px;
   --text-lg: 16px;
   --text-xl: 20px;
-  --text-2xl: 28px;
-  --text-kpi: 32px;
+  --text-2xl: 30px;
+  --text-kpi: 36px;
 
   /* Forma */
   --radius-sm: 8px;
   --radius-md: 10px;
-  --radius-lg: 14px;
-  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.04);
-  --shadow-focus: 0 0 0 3px rgba(30, 106, 251, 0.18);
+  --radius-lg: 12px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-focus: 0 0 0 3px rgba(37, 99, 235, 0.18);
 
   /* Layout */
   --sidebar-width: 240px;

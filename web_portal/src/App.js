@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { RefreshCw, LogOut, Info, Users, UserRound } from 'lucide-react';
+import { RefreshCw, LogOut, Info, Users, UserRound, LayoutDashboard } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import Login from './Login';
@@ -9,6 +9,7 @@ import PacientesList from './PacientesList';
 import PacienteDetalle from './PacienteDetalle';
 import CodigoVinculacion from './CodigoVinculacion';
 import PerfilEspecialista from './PerfilEspecialista';
+import Dashboard from './Dashboard';
 import Layout from './ui/Layout';
 
 const API_URL = "https://tt-ansiedad-backend.onrender.com/api/pacientes";
@@ -22,8 +23,8 @@ function App() {
   const [errorAcceso, setErrorAcceso] = useState('');
   // Perfil propio (nombre, email, codigo_vinculacion) de GET /api/usuarios/:uid.
   const [perfil, setPerfil] = useState(null);
-  // Sección elegida en el sidebar (Fase 2e): 'pacientes' | 'perfil'.
-  const [seccion, setSeccion] = useState('pacientes');
+  // Sección elegida en el sidebar: 'dashboard' | 'pacientes' | 'perfil'.
+  const [seccion, setSeccion] = useState('dashboard');
   // 'login' | 'registro'. Mientras es 'registro' no se carga el dashboard:
   // Firebase abre sesión al crear la cuenta, pero la fila en `usuarios` aún
   // no existe hasta que el backend termina el registro.
@@ -107,13 +108,24 @@ function App() {
 
   const cerrarSesion = () => {
     setPacienteSeleccionadoId(null);
-    setSeccion('pacientes');
+    setSeccion('dashboard');
     setPerfil(null);
     signOut(auth);
   };
 
+  const actualizar = () => {
+    fetchData();
+    setRecargaDetalle((n) => n + 1);
+  };
+
   const secciones = [
-    { titulo: 'Principal', items: [{ id: 'pacientes', label: 'Pacientes', icon: Users }] },
+    {
+      titulo: 'Principal',
+      items: [
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'pacientes', label: 'Pacientes', icon: Users },
+      ],
+    },
     {
       titulo: 'Cuenta',
       items: [
@@ -124,8 +136,8 @@ function App() {
   ];
 
   const navegar = (id) => {
-    // "Pacientes" en el sidebar siempre regresa a la lista.
-    if (id === 'pacientes') setPacienteSeleccionadoId(null);
+    // "Dashboard" y "Pacientes" en el sidebar siempre cierran el detalle.
+    if (id === 'dashboard' || id === 'pacientes') setPacienteSeleccionadoId(null);
     setSeccion(id);
   };
 
@@ -139,16 +151,23 @@ function App() {
     >
       {seccion === 'perfil' ? (
         <PerfilEspecialista perfil={perfil} onPerfilActualizado={setPerfil} />
+      ) : seccion === 'dashboard' && !pacienteSeleccionado ? (
+        <Dashboard
+          pacientes={pacientes}
+          loading={loading}
+          perfil={perfil}
+          errorAcceso={errorAcceso}
+          onSeleccionar={(p) => setPacienteSeleccionadoId(p.id)}
+          onActualizar={actualizar}
+        />
       ) : (
-        // Lista y detalle se muestran tal cual; su rediseño es la fase siguiente.
+        // Lista y detalle aún con sus estilos viejos (pasos 2 y 3 de la Fase A).
+        // El detalle se abre desde el Dashboard o desde la lista.
         <>
           <div style={styles.toolbar}>
             <CodigoVinculacion codigo={perfil?.codigo_vinculacion || null} />
             <button
-              onClick={() => {
-                fetchData();
-                setRecargaDetalle((n) => n + 1);
-              }}
+              onClick={actualizar}
               style={styles.refreshBtn}
             >
               <RefreshCw size={20} /> Actualizar
@@ -192,7 +211,7 @@ function App() {
 // de src/ui/ (tokens.css + components.js); estos quedan hasta el rediseño.
 const styles = {
   // Fila con el código de vinculación y "Actualizar" (antes vivían en el header).
-  toolbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '20px 40px 0 0' },
+  toolbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '20px 40px 0' },
   refreshBtn: { display: 'flex', gap: '8px', marginLeft: 'auto', padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#1E6AFB', color: '#fff', cursor: 'pointer' },
   errorBanner: { backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '12px 20px', borderRadius: '10px', marginBottom: '20px' },
   disclaimer: { display: 'flex', gap: '8px', alignItems: 'flex-start', backgroundColor: '#f1f5f9', color: '#64748b', fontSize: '13px', lineHeight: 1.4, padding: '10px 16px', borderRadius: '10px', marginBottom: '20px' },

@@ -73,7 +73,7 @@ Las 5 pestañas del `main_layout`: **Inicio (Alerta)**, **Historial**, **Mensaje
 - `POST /api/usuarios` — registra usuario tras crear cuenta en Firebase.
 - `GET /api/usuarios/:id` — trae perfil (nombre, email, rol, codigo_vinculacion). **Solo el propio perfil** (403 si `:id` ≠ uid del token) desde la Fase 2e.
 - `PUT /api/usuarios/:id` — edita el nombre (devuelve también `codigo_vinculacion`). **Solo el propio perfil** desde la Fase 2e.
-- `GET /api/pacientes` — lista de usuarios con `rol='paciente'` (nombre, email, última lectura si tiene); requiere `rol === 'especialista'`. Nuevo en Portal Web Fase 1.
+- `GET /api/pacientes` — lista de usuarios con `rol='paciente'` (nombre, email, última lectura si tiene: `ultimo_estado`, `ultima_lectura` y, desde la Fase A, `ultimo_bpm`/`ultimo_spo2`/`ultimo_hrv`); requiere `rol === 'especialista'`. Nuevo en Portal Web Fase 1.
 - `GET /api/mensajes/:pacienteId` — historial del chat (Fase 2b).
 - `POST /api/ejercicios` / `GET /api/ejercicios/:pacienteId` — ejercicios asignados (Fase 2c).
 - `GET /api/pendientes` / `POST /api/pendientes/:seccion/visto` — badges de Mensajes y Ejercicios en la app (Fase 2c).

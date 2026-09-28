@@ -521,10 +521,11 @@ app.get('/api/pacientes', async (req, res) => {
     SELECT
       u.id, u.nombre, u.email,
       lu.estado_ansiedad AS ultimo_estado,
-      lu.fecha_medicion AS ultima_lectura
+      lu.fecha_medicion AS ultima_lectura,
+      lu.bpm AS ultimo_bpm, lu.spo2 AS ultimo_spo2, lu.hrv AS ultimo_hrv
     FROM usuarios u
     LEFT JOIN LATERAL (
-      SELECT estado_ansiedad, fecha_medicion
+      SELECT estado_ansiedad, fecha_medicion, bpm, spo2, hrv
       FROM lecturas_biometricas l
       WHERE l.paciente_id = u.id
       ORDER BY fecha_medicion DESC

@@ -93,9 +93,13 @@ export function iniciales(nombre) {
     .join('');
 }
 
-export function Avatar({ nombre, size = 36 }) {
+// `tone` opcional para teñirlo con el color de un estado (tabla de pacientes).
+export function Avatar({ nombre, size = 36, tone }) {
   return (
-    <span className="ui-avatar" style={{ width: size, height: size, fontSize: size * 0.38 }}>
+    <span
+      className={clases('ui-avatar', tone && `tone-${tone}`)}
+      style={{ width: size, height: size, fontSize: size * 0.38 }}
+    >
       {iniciales(nombre)}
     </span>
   );
