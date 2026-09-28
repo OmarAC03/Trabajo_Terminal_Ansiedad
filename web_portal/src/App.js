@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Activity, RefreshCw, LogOut, Info } from 'lucide-react';
+import { RefreshCw, LogOut, Info, Users, UserRound } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import Login from './Login';
@@ -8,6 +8,8 @@ import RegistroEspecialista from './RegistroEspecialista';
 import PacientesList from './PacientesList';
 import PacienteDetalle from './PacienteDetalle';
 import CodigoVinculacion from './CodigoVinculacion';
+import PerfilEspecialista from './PerfilEspecialista';
+import Layout from './ui/Layout';
 
 const API_URL = "https://tt-ansiedad-backend.onrender.com/api/pacientes";
 const USUARIOS_URL = "https://tt-ansiedad-backend.onrender.com/api/usuarios";
@@ -18,7 +20,10 @@ function App() {
   const [pacientes, setPacientes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorAcceso, setErrorAcceso] = useState('');
-  const [codigoVinculacion, setCodigoVinculacion] = useState(null);
+  // Perfil propio (nombre, email, codigo_vinculacion) de GET /api/usuarios/:uid.
+  const [perfil, setPerfil] = useState(null);
+  // Sección elegida en el sidebar (Fase 2e): 'pacientes' | 'perfil'.
+  const [seccion, setSeccion] = useState('pacientes');
   // 'login' | 'registro'. Mientras es 'registro' no se carga el dashboard:
   // Firebase abre sesión al crear la cuenta, pero la fila en `usuarios` aún
   // no existe hasta que el backend termina el registro.
@@ -33,7 +38,7 @@ function App() {
 
   useEffect(() => onAuthStateChanged(auth, setUsuario), []);
 
-  // Pide la lista de pacientes y el perfil propio (para el codigo_vinculacion)
+  // Pide la lista de pacientes y el perfil propio (nombre y codigo_vinculacion)
   // en cada vuelta del polling. Antes el perfil se pedía una sola vez al
   // entrar; si esa única petición fallaba (p. ej. el cold start de Render,
   // ver sección 7 de CONTEXTO_PROYECTO.md) el código no se volvía a intentar
@@ -69,9 +74,9 @@ function App() {
     }
 
     if (perfilResultado.status === 'fulfilled') {
-      setCodigoVinculacion(perfilResultado.value.data.codigo_vinculacion || null);
+      setPerfil(perfilResultado.value.data);
     } else {
-      console.error("Error al obtener el código de vinculación:", perfilResultado.reason);
+      console.error("Error al obtener el perfil:", perfilResultado.reason);
     }
 
     setLoading(false);
@@ -100,78 +105,97 @@ function App() {
     return <Login onIrARegistro={() => setVista('registro')} />;
   }
 
+  const cerrarSesion = () => {
+    setPacienteSeleccionadoId(null);
+    setSeccion('pacientes');
+    setPerfil(null);
+    signOut(auth);
+  };
+
+  const secciones = [
+    { titulo: 'Principal', items: [{ id: 'pacientes', label: 'Pacientes', icon: Users }] },
+    {
+      titulo: 'Cuenta',
+      items: [
+        { id: 'perfil', label: 'Mi perfil', icon: UserRound },
+        { id: 'salir', label: 'Salir', icon: LogOut, onClick: cerrarSesion },
+      ],
+    },
+  ];
+
+  const navegar = (id) => {
+    // "Pacientes" en el sidebar siempre regresa a la lista.
+    if (id === 'pacientes') setPacienteSeleccionadoId(null);
+    setSeccion(id);
+  };
+
   return (
-    <div style={styles.container}>
-      <header style={styles.header}>
-        <h1 style={styles.title}><Activity color="#1E6AFB" size={32} /> Portal Clínico TT</h1>
-        <div style={styles.headerActions}>
-          <button
-            onClick={() => {
-              fetchData();
-              setRecargaDetalle((n) => n + 1);
-            }}
-            style={styles.refreshBtn}
-          >
-            <RefreshCw size={20} /> Actualizar
-          </button>
-          <button
-            onClick={() => {
-              setPacienteSeleccionadoId(null);
-              signOut(auth);
-            }}
-            style={styles.logoutBtn}
-          >
-            <LogOut size={20} /> Salir
-          </button>
-        </div>
-      </header>
+    <Layout
+      secciones={secciones}
+      activa={seccion}
+      onNavegar={navegar}
+      usuarioNombre={perfil?.nombre}
+      usuarioRol="Especialista"
+    >
+      {seccion === 'perfil' ? (
+        <PerfilEspecialista perfil={perfil} onPerfilActualizado={setPerfil} />
+      ) : (
+        // Lista y detalle se muestran tal cual; su rediseño es la fase siguiente.
+        <>
+          <div style={styles.toolbar}>
+            <CodigoVinculacion codigo={perfil?.codigo_vinculacion || null} />
+            <button
+              onClick={() => {
+                fetchData();
+                setRecargaDetalle((n) => n + 1);
+              }}
+              style={styles.refreshBtn}
+            >
+              <RefreshCw size={20} /> Actualizar
+            </button>
+          </div>
 
-      <div style={styles.codigoBar}>
-        <CodigoVinculacion codigo={codigoVinculacion} />
-      </div>
-
-      <main style={styles.main}>
-        {errorAcceso && <div style={styles.errorBanner}>{errorAcceso}</div>}
-        {pacienteSeleccionado ? (
-          // El detalle trae su propio disclaimer de alcance (sección 3 del marco).
-          <PacienteDetalle
-            paciente={pacienteSeleccionado}
-            recarga={recargaDetalle}
-            onVolver={() => setPacienteSeleccionadoId(null)}
-          />
-        ) : (
-          <>
-            <div style={styles.disclaimer}>
-              <Info size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
-              <span>
-                Este sistema monitorea parámetros fisiológicos (frecuencia cardiaca, SpO2 y HRV) asociados
-                a la ansiedad como apoyo al especialista. Los datos fisiológicos son de apoyo: la
-                interpretación y el diagnóstico corresponden al profesional de salud.
-              </span>
-            </div>
-            {loading ? (
-              <div style={styles.center}>Cargando pacientes...</div>
+          <div style={styles.main}>
+            {errorAcceso && <div style={styles.errorBanner}>{errorAcceso}</div>}
+            {pacienteSeleccionado ? (
+              // El detalle trae su propio disclaimer de alcance (sección 3 del marco).
+              <PacienteDetalle
+                paciente={pacienteSeleccionado}
+                recarga={recargaDetalle}
+                onVolver={() => setPacienteSeleccionadoId(null)}
+              />
             ) : (
-              <PacientesList pacientes={pacientes} onSeleccionar={(p) => setPacienteSeleccionadoId(p.id)} />
+              <>
+                <div style={styles.disclaimer}>
+                  <Info size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
+                  <span>
+                    Este sistema monitorea parámetros fisiológicos (frecuencia cardiaca, SpO2 y HRV) asociados
+                    a la ansiedad como apoyo al especialista. Los datos fisiológicos son de apoyo: la
+                    interpretación y el diagnóstico corresponden al profesional de salud.
+                  </span>
+                </div>
+                {loading ? (
+                  <div style={styles.center}>Cargando pacientes...</div>
+                ) : (
+                  <PacientesList pacientes={pacientes} onSeleccionar={(p) => setPacienteSeleccionadoId(p.id)} />
+                )}
+              </>
             )}
-          </>
-        )}
-      </main>
-    </div>
+          </div>
+        </>
+      )}
+    </Layout>
   );
 }
 
-// Estilos básicos (CSS-in-JS para rapidez)
+// Estilos básicos (CSS-in-JS para rapidez). Las pantallas nuevas usan la base
+// de src/ui/ (tokens.css + components.js); estos quedan hasta el rediseño.
 const styles = {
-  container: { backgroundColor: '#f6f8fb', minHeight: '100vh', fontFamily: 'Segoe UI, sans-serif' },
-  header: { backgroundColor: '#fff', padding: '20px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' },
-  title: { display: 'flex', alignItems: 'center', gap: '12px', margin: 0, color: '#1a1a1a' },
-  headerActions: { display: 'flex', gap: '12px' },
-  refreshBtn: { display: 'flex', gap: '8px', padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#1E6AFB', color: '#fff', cursor: 'pointer' },
-  logoutBtn: { display: 'flex', gap: '8px', padding: '10px 20px', borderRadius: '8px', border: '1px solid #ddd', backgroundColor: '#fff', color: '#444', cursor: 'pointer' },
+  // Fila con el código de vinculación y "Actualizar" (antes vivían en el header).
+  toolbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '20px 40px 0 0' },
+  refreshBtn: { display: 'flex', gap: '8px', marginLeft: 'auto', padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#1E6AFB', color: '#fff', cursor: 'pointer' },
   errorBanner: { backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '12px 20px', borderRadius: '10px', marginBottom: '20px' },
   disclaimer: { display: 'flex', gap: '8px', alignItems: 'flex-start', backgroundColor: '#f1f5f9', color: '#64748b', fontSize: '13px', lineHeight: 1.4, padding: '10px 16px', borderRadius: '10px', marginBottom: '20px' },
-  codigoBar: { paddingTop: '20px' },
   main: { padding: '40px' },
   center: { textAlign: 'center', marginTop: '50px', color: '#666' }
 };

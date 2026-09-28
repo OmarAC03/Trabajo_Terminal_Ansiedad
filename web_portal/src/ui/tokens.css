@@ -1,0 +1,59 @@
+/*
+ * Tokens de diseño del Portal Clínico TT (Fase 2e).
+ * Fuente única de colores, tipografía, radios y sombras. Todas las pantallas
+ * nuevas (y las existentes cuando se rediseñen) deben usar estas variables
+ * en vez de valores sueltos.
+ *
+ * Semáforo de indicadores fisiológicos (ver MARCO_ALCANCE_Y_LENGUAJE.md):
+ * Normal = verde, Elevados = ámbar, Altos = rojo. Nunca etiquetas de
+ * diagnóstico.
+ */
+:root {
+  /* Superficies */
+  --color-bg: #f6f8fb;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f8fafc;
+  --color-border: #e5eaf1;
+  --color-border-strong: #d5dce6;
+
+  /* Texto */
+  --color-text: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+
+  /* Primario */
+  --color-primary: #1e6afb;
+  --color-primary-hover: #1557d6;
+  --color-primary-soft: #eef4ff;
+  --color-primary-border: #d6e4ff;
+
+  /* Semáforo de indicadores fisiológicos */
+  --color-normal: #16a34a;
+  --color-normal-soft: #ecfdf3;
+  --color-elevados: #d97706;
+  --color-elevados-soft: #fffbeb;
+  --color-altos: #dc2626;
+  --color-altos-soft: #fef2f2;
+
+  /* Tipografía */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SFMono-Regular', Menlo, Consolas, 'Courier New', monospace;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 28px;
+  --text-kpi: 32px;
+
+  /* Forma */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --shadow-focus: 0 0 0 3px rgba(30, 106, 251, 0.18);
+
+  /* Layout */
+  --sidebar-width: 240px;
+  --topbar-height: 64px;
+}
