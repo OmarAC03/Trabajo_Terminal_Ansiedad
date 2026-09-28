@@ -803,3 +803,69 @@
   width: 8px;
   height: 8px;
 }
+
+/* ---------- Detalle del paciente ---------- */
+.ui-detail-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.ui-detail-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 6px;
+  font-size: var(--text-sm);
+}
+
+.ui-detail-email {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-secondary);
+}
+
+.ui-detail-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Datos + ejercicios a la izquierda, chat a la derecha (fijo al hacer
+   scroll). Por debajo de 1180px se apilan: datos, ejercicios, chat. */
+.ui-detail-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: 20px;
+  align-items: start;
+}
+
+.ui-detail-side {
+  position: sticky;
+  top: 20px;
+}
+
+/* El chat aún trae su margen superior en línea (se rediseña en el paso 5);
+   en la columna derecha debe alinearse con el primer bloque de la izquierda. */
+.ui-detail-side > :first-child {
+  margin-top: 0 !important;
+}
+
+@media (max-width: 1180px) {
+  .ui-detail-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ui-detail-side {
+    position: static;
+  }
+
+  .ui-detail-side > :first-child {
+    margin-top: 20px !important;
+  }
+}

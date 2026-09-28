@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { ArrowLeft, Heart, Timer, AlertTriangle, Clock, Info, Mail } from 'lucide-react';
+import {
+  ArrowLeft, Heart, Timer, TriangleAlert, Clock, Info, Mail, RefreshCw, CircleAlert, Activity, List,
+} from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 import { auth } from './firebase';
-import { getStatusColor, getStatusLabel } from './semaforo';
+import { getStatusLabel, getStatusTone } from './semaforo';
+import { Card, KpiCard, Button, Badge, Avatar, Alert, Disclaimer } from './ui/components';
+import { haceTiempo } from './PacientesComun';
 import ChatPaciente from './ChatPaciente';
 import EjerciciosPaciente from './EjerciciosPaciente';
 
@@ -51,7 +55,7 @@ const estadoDelDia = (d) => {
 
 // Detalle de un paciente (Portal Web Fase 2a). Muestra indicadores
 // fisiológicos de apoyo — NO un diagnóstico (MARCO_ALCANCE_Y_LENGUAJE.md).
-function PacienteDetalle({ paciente, onVolver, recarga }) {
+function PacienteDetalle({ paciente, onVolver, recarga, onActualizar, errorAcceso }) {
   const [periodo, setPeriodo] = useState('dia');
   const [lecturas, setLecturas] = useState([]); // vista Día
   const [dias, setDias] = useState([]); // vista Semana/Mes (periodo actual)
@@ -104,58 +108,87 @@ function PacienteDetalle({ paciente, onVolver, recarga }) {
   }, [paciente.id, periodo, recarga]);
 
   return (
-    <div>
-      <button onClick={onVolver} style={styles.volverBtn}>
-        <ArrowLeft size={18} /> Volver a la lista
-      </button>
+    <div className="ui-page ui-page-wide">
+      <div style={{ marginBottom: 16 }}>
+        <Button variant="secondary" size="sm" icon={ArrowLeft} onClick={onVolver}>Volver</Button>
+      </div>
 
-      <div style={styles.encabezado}>
+      <Card>
+        <div className="ui-detail-header-row">
+          <div className="ui-person">
+            <Avatar nombre={paciente.nombre} size={56} tone={getStatusTone(paciente.ultimo_estado)} />
+            <div style={{ minWidth: 0 }}>
+              <h1 className="ui-page-title" style={{ fontSize: 'var(--text-xl)' }}>{paciente.nombre}</h1>
+              <div className="ui-detail-meta">
+                <span className="ui-detail-email"><Mail size={14} /> {paciente.email}</span>
+                <Badge tone={getStatusTone(paciente.ultimo_estado)}>{getStatusLabel(paciente.ultimo_estado)}</Badge>
+                <span className="ui-muted">
+                  {paciente.ultima_lectura ? `Última lectura ${haceTiempo(paciente.ultima_lectura)}` : 'Sin lecturas registradas'}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="ui-detail-actions">
+            <div className="ui-segmented" role="group" aria-label="Periodo">
+              {PERIODOS.map((p) => (
+                <button
+                  key={p.valor}
+                  type="button"
+                  className={`ui-segmented-item${periodo === p.valor ? ' is-active' : ''}`}
+                  aria-pressed={periodo === p.valor}
+                  onClick={() => setPeriodo(p.valor)}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <Button icon={RefreshCw} onClick={onActualizar}>Actualizar</Button>
+          </div>
+        </div>
+      </Card>
+
+      <div className="ui-stack" style={{ gap: 12, margin: '20px 0' }}>
+        {errorAcceso && <Alert tone="altos" icon={CircleAlert}>{errorAcceso}</Alert>}
+        <Disclaimer icon={Info}>
+          Datos fisiológicos de apoyo. La interpretación y el diagnóstico corresponden al profesional de salud.
+        </Disclaimer>
+      </div>
+
+      {/* Dos columnas en pantalla ancha: datos + ejercicios | chat. Es solo
+          CSS: el chat queda montado siempre en el mismo lugar del árbol, así
+          que cambiar de periodo o de ancho de ventana no reconecta el socket. */}
+      <div className="ui-detail-cols">
         <div>
-          <h2 style={styles.nombre}>{paciente.nombre}</h2>
-          <div style={styles.email}><Mail size={14} /> {paciente.email}</div>
+          {error ? (
+            <Alert tone="altos" icon={CircleAlert}>{error}</Alert>
+          ) : cargando ? (
+            <Card><div className="ui-empty">Cargando datos del paciente…</div></Card>
+          ) : periodo === 'dia' ? (
+            <VistaDia lecturas={lecturas} paciente={paciente} />
+          ) : (
+            <VistaAgregada dias={dias} paciente={paciente} periodo={periodo} />
+          )}
+
+          <EjerciciosPaciente paciente={paciente} recarga={recarga} />
         </div>
-        <div style={styles.selector}>
-          {PERIODOS.map((p) => (
-            <button
-              key={p.valor}
-              onClick={() => setPeriodo(p.valor)}
-              style={{ ...styles.chip, ...(periodo === p.valor ? styles.chipActivo : {}) }}
-            >
-              {p.label}
-            </button>
-          ))}
+
+        <div className="ui-detail-side">
+          <ChatPaciente paciente={paciente} />
         </div>
       </div>
-
-      <div style={styles.disclaimer}>
-        <Info size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
-        <span>Datos fisiológicos de apoyo. La interpretación y el diagnóstico corresponden al profesional de salud.</span>
-      </div>
-
-      {error ? (
-        <div style={styles.errorBanner}>{error}</div>
-      ) : cargando ? (
-        <div style={styles.centro}>Cargando datos del paciente...</div>
-      ) : periodo === 'dia' ? (
-        <VistaDia lecturas={lecturas} paciente={paciente} />
-      ) : (
-        <VistaAgregada dias={dias} paciente={paciente} periodo={periodo} />
-      )}
-
-      <EjerciciosPaciente paciente={paciente} recarga={recarga} />
-
-      <ChatPaciente paciente={paciente} />
     </div>
   );
 }
 
+const SUBTITULO_PERIODO = { dia: 'Promedio de hoy', semana: 'Promedio de 7 días', mes: 'Promedio de 30 días' };
+
 function VistaDia({ lecturas, paciente }) {
   if (lecturas.length === 0) {
     return (
-      <>
-        <Kpis bpm={null} hrv={null} altas={0} paciente={paciente} />
-        <div style={styles.vacio}>Sin lecturas hoy. Cambia a Semana o Mes para ver días anteriores.</div>
-      </>
+      <div className="ui-stack">
+        <Kpis bpm={null} hrv={null} altas={0} paciente={paciente} periodo="dia" />
+        <Card><div className="ui-empty">Sin lecturas hoy. Cambia a Semana o Mes para ver días anteriores.</div></Card>
+      </div>
     );
   }
 
@@ -164,33 +197,37 @@ function VistaDia({ lecturas, paciente }) {
   const datosGrafica = lecturas.map((l) => ({ x: hora(l.fecha_medicion), bpm: l.bpm, spo2: l.spo2, hrv: l.hrv }));
 
   return (
-    <>
-      <Kpis bpm={promedio('bpm')} hrv={promedio('hrv')} altas={altas} paciente={paciente} />
-      <Grafica titulo="Tendencia de indicadores fisiológicos (hoy)" datos={datosGrafica} />
-      <h3 style={styles.subtitulo}>Lecturas de hoy</h3>
-      <div style={styles.lista}>
-        {[...lecturas].reverse().map((l) => (
-          <FilaLectura
-            key={l.id}
-            titulo={hora(l.fecha_medicion)}
-            estado={l.estado_ansiedad}
-            datos={[['BPM', l.bpm], ['SpO2', `${l.spo2}%`], ['HRV', `${l.hrv} ms`]]}
-          />
-        ))}
-      </div>
-    </>
+    <div className="ui-stack">
+      <Kpis bpm={promedio('bpm')} hrv={promedio('hrv')} altas={altas} paciente={paciente} periodo="dia" />
+      <Grafica titulo="Tendencia de indicadores fisiológicos" subtitulo="Lecturas de hoy" datos={datosGrafica} />
+      <TablaLecturas
+        titulo="Lecturas de hoy"
+        subtitulo={`${lecturas.length} ${lecturas.length === 1 ? 'lectura' : 'lecturas'}, la más reciente primero`}
+        columnas={['Hora']}
+        filas={[...lecturas].reverse().map((l) => ({
+          key: l.id,
+          celdas: [hora(l.fecha_medicion)],
+          bpm: l.bpm,
+          spo2: l.spo2,
+          hrv: l.hrv,
+          estado: l.estado_ansiedad,
+        }))}
+      />
+    </div>
   );
 }
 
 function VistaAgregada({ dias, paciente, periodo }) {
   if (dias.length === 0) {
     return (
-      <>
-        <Kpis bpm={null} hrv={null} altas={0} paciente={paciente} />
-        <div style={styles.vacio}>
-          {periodo === 'semana' ? 'Sin lecturas en los últimos 7 días.' : 'Sin lecturas en los últimos 30 días.'}
-        </div>
-      </>
+      <div className="ui-stack">
+        <Kpis bpm={null} hrv={null} altas={0} paciente={paciente} periodo={periodo} />
+        <Card>
+          <div className="ui-empty">
+            {periodo === 'semana' ? 'Sin lecturas en los últimos 7 días.' : 'Sin lecturas en los últimos 30 días.'}
+          </div>
+        </Card>
+      </div>
     );
   }
 
@@ -203,133 +240,132 @@ function VistaAgregada({ dias, paciente, periodo }) {
   }));
 
   return (
-    <>
+    <div className="ui-stack">
       <Kpis
         bpm={promedioPonderado(dias, 'bpm_promedio')}
         hrv={promedioPonderado(dias, 'hrv_promedio')}
         altas={altas}
         paciente={paciente}
+        periodo={periodo}
       />
-      <Grafica titulo="Tendencia de indicadores fisiológicos (promedio por día)" datos={datosGrafica} />
-      <h3 style={styles.subtitulo}>Resumen por día</h3>
-      <div style={styles.lista}>
-        {[...dias].reverse().map((d) => (
-          <FilaLectura
-            key={d.dia}
-            titulo={etiquetaDia(d.dia)}
-            detalle={`${d.total_registros} lecturas · ${d.episodios_altos} altas`}
-            estado={estadoDelDia(d)}
-            datos={[['BPM', d.bpm_promedio], ['SpO2', `${d.spo2_promedio}%`], ['HRV', `${d.hrv_promedio} ms`]]}
-          />
-        ))}
-      </div>
-    </>
-  );
-}
-
-function Kpis({ bpm, hrv, altas, paciente }) {
-  const redondear = (v) => (v == null ? '--' : Math.round(v));
-  const ultima = paciente.ultima_lectura ? new Date(paciente.ultima_lectura).toLocaleString() : 'Sin lecturas';
-  return (
-    <div style={styles.kpis}>
-      <Kpi icono={<Heart size={20} color="#3b82f6" />} valor={redondear(bpm)} unidad="BPM" label="BPM promedio" />
-      <Kpi icono={<Timer size={20} color="#f59e0b" />} valor={redondear(hrv)} unidad="ms" label="HRV promedio" />
-      <Kpi icono={<AlertTriangle size={20} color="#ef4444" />} valor={altas} label="Lecturas altas" />
-      <Kpi
-        icono={<Clock size={20} color={getStatusColor(paciente.ultimo_estado)} />}
-        valor={<span style={styles.kpiValorChico}>{ultima}</span>}
-        label={`Última lectura · ${getStatusLabel(paciente.ultimo_estado)}`}
+      <Grafica
+        titulo="Tendencia de indicadores fisiológicos"
+        subtitulo={periodo === 'semana' ? 'Promedio por día, últimos 7 días' : 'Promedio por día, últimos 30 días'}
+        datos={datosGrafica}
+      />
+      <TablaLecturas
+        titulo="Resumen por día"
+        subtitulo="Promedios diarios, el día más reciente primero"
+        columnas={['Día', 'Lecturas', 'Altas']}
+        filas={[...dias].reverse().map((d) => ({
+          key: d.dia,
+          celdas: [etiquetaDia(d.dia), d.total_registros, d.episodios_altos],
+          bpm: d.bpm_promedio,
+          spo2: d.spo2_promedio,
+          hrv: d.hrv_promedio,
+          estado: estadoDelDia(d),
+        }))}
       />
     </div>
   );
 }
 
-function Kpi({ icono, valor, unidad, label }) {
+function Kpis({ bpm, hrv, altas, paciente, periodo }) {
+  const conUnidad = (v, unidad) =>
+    v == null ? '--' : (
+      <>
+        {Math.round(v)}
+        <span className="ui-unit" style={{ fontSize: 'var(--text-md)' }}>{unidad}</span>
+      </>
+    );
+  const tonoUltima = getStatusTone(paciente.ultimo_estado);
   return (
-    <div style={styles.kpi}>
-      {icono}
-      <div style={styles.kpiValor}>
-        {valor}
-        {unidad && <span style={styles.kpiUnidad}> {unidad}</span>}
-      </div>
-      <div style={styles.kpiLabel}>{label}</div>
+    <div className="ui-grid ui-grid-kpi">
+      <KpiCard label="BPM promedio" value={conUnidad(bpm, 'BPM')} hint={SUBTITULO_PERIODO[periodo]} icon={Heart} tone="primary" />
+      <KpiCard label="HRV promedio" value={conUnidad(hrv, 'ms')} hint={SUBTITULO_PERIODO[periodo]} icon={Timer} tone="primary" />
+      <KpiCard
+        label="Lecturas altas"
+        value={altas}
+        hint="Con indicadores Altos"
+        hintTone={altas > 0 ? 'altos' : undefined}
+        icon={TriangleAlert}
+        tone="altos"
+      />
+      <KpiCard
+        label="Última lectura"
+        value={
+          <span style={{ fontSize: 'var(--text-xl)' }}>
+            {paciente.ultima_lectura ? haceTiempo(paciente.ultima_lectura) : 'Sin lecturas'}
+          </span>
+        }
+        hint={getStatusLabel(paciente.ultimo_estado)}
+        hintTone={tonoUltima}
+        icon={Clock}
+        tone={tonoUltima}
+      />
     </div>
   );
 }
 
-function Grafica({ titulo, datos }) {
+// Colores de gráfica de GUIA_ESTILO_PORTAL.md (chart-1/2/3).
+const COLORES_GRAFICA = { bpm: '#2563eb', spo2: '#16a34a', hrv: '#d97706' };
+const EJE = { fontSize: 11, fill: '#94a3b8' };
+
+function Grafica({ titulo, subtitulo, datos }) {
   return (
-    <div style={styles.tarjeta}>
-      <div style={styles.tarjetaTitulo}>{titulo}</div>
+    <Card title={titulo} subtitle={subtitulo} icon={Activity}>
       <div style={{ width: '100%', height: 280 }}>
         <ResponsiveContainer>
           <LineChart data={datos} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-            <CartesianGrid stroke="#f0f0f0" vertical={false} />
-            <XAxis dataKey="x" tick={{ fontSize: 11, fill: '#999' }} />
-            <YAxis tick={{ fontSize: 11, fill: '#999' }} />
-            <Tooltip />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Line type="monotone" dataKey="bpm" name="BPM" stroke="#3b82f6" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="spo2" name="SpO2 (%)" stroke="#10b981" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="hrv" name="HRV (ms)" stroke="#f59e0b" strokeWidth={2} dot={false} />
+            <CartesianGrid stroke="#e2e8f0" vertical={false} />
+            <XAxis dataKey="x" tick={EJE} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
+            <YAxis tick={EJE} axisLine={false} tickLine={false} />
+            <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13 }} />
+            <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
+            <Line type="monotone" dataKey="bpm" name="BPM" stroke={COLORES_GRAFICA.bpm} strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="spo2" name="SpO2 (%)" stroke={COLORES_GRAFICA.spo2} strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="hrv" name="HRV (ms)" stroke={COLORES_GRAFICA.hrv} strokeWidth={2} dot={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </Card>
   );
 }
 
-function FilaLectura({ titulo, detalle, estado, datos }) {
-  const color = getStatusColor(estado);
+// Lecturas del día o resumen por día. `columnas` son las primeras columnas
+// propias de cada vista (sus valores van en `celdas`, en el mismo orden);
+// BPM, SpO2, HRV y el estado son comunes.
+function TablaLecturas({ titulo, subtitulo, columnas, filas }) {
   return (
-    <div style={styles.fila}>
-      <div style={{ ...styles.filaBarra, backgroundColor: color }} />
-      <div style={styles.filaTitulo}>
-        <div style={styles.filaHora}>{titulo}</div>
-        {detalle && <div style={styles.filaDetalle}>{detalle}</div>}
+    <Card className="ui-card-flush" title={titulo} subtitle={subtitulo} icon={List}>
+      <div className="ui-table-wrap">
+        <table className="ui-table">
+          <thead>
+            <tr>
+              {columnas.map((c) => <th key={c}>{c}</th>)}
+              <th>BPM</th>
+              <th>SpO2</th>
+              <th>HRV</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map((f) => (
+              <tr key={f.key}>
+                {f.celdas.map((celda, i) => (
+                  <td key={columnas[i]} className={i === 0 ? 'ui-person-name' : 'ui-num'}>{celda}</td>
+                ))}
+                <td><span className="ui-num">{f.bpm}</span></td>
+                <td><span className="ui-num">{f.spo2}</span><span className="ui-unit">%</span></td>
+                <td><span className="ui-num">{f.hrv}</span><span className="ui-unit">ms</span></td>
+                <td><Badge tone={getStatusTone(f.estado)}>{getStatusLabel(f.estado)}</Badge></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      {datos.map(([label, valor]) => (
-        <div key={label} style={styles.miniDato}>
-          <div style={styles.miniValor}>{valor}</div>
-          <div style={styles.miniLabel}>{label}</div>
-        </div>
-      ))}
-      <span style={{ ...styles.badge, color, backgroundColor: `${color}1a` }}>{getStatusLabel(estado)}</span>
-    </div>
+    </Card>
   );
 }
-
-const styles = {
-  volverBtn: { display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: '#1E6AFB', cursor: 'pointer', fontSize: '14px', padding: 0, marginBottom: '16px' },
-  encabezado: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px', marginBottom: '16px' },
-  nombre: { margin: 0, fontSize: '24px', color: '#1a1a1a' },
-  email: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: '#666', marginTop: '4px' },
-  selector: { display: 'flex', gap: '8px' },
-  chip: { padding: '8px 18px', borderRadius: '12px', border: '1px solid #ddd', backgroundColor: '#fff', color: '#555', fontWeight: 'bold', cursor: 'pointer' },
-  chipActivo: { backgroundColor: '#1E6AFB', borderColor: '#1E6AFB', color: '#fff' },
-  disclaimer: { display: 'flex', gap: '8px', alignItems: 'flex-start', backgroundColor: '#f1f5f9', color: '#64748b', fontSize: '13px', lineHeight: 1.4, padding: '10px 16px', borderRadius: '10px', marginBottom: '20px' },
-  errorBanner: { backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '12px 20px', borderRadius: '10px' },
-  centro: { textAlign: 'center', marginTop: '40px', color: '#666' },
-  vacio: { textAlign: 'center', color: '#999', padding: '40px 0' },
-  kpis: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '20px' },
-  kpi: { backgroundColor: '#fff', border: '1px solid #eee', borderRadius: '15px', padding: '16px' },
-  kpiValor: { fontSize: '24px', fontWeight: 'bold', color: '#1a1a1a', marginTop: '8px' },
-  kpiValorChico: { fontSize: '14px' },
-  kpiUnidad: { fontSize: '12px', color: '#999', fontWeight: 'normal' },
-  kpiLabel: { fontSize: '12px', color: '#777', marginTop: '2px' },
-  tarjeta: { backgroundColor: '#fff', border: '1px solid #eee', borderRadius: '15px', padding: '16px', marginBottom: '20px' },
-  tarjetaTitulo: { fontSize: '14px', fontWeight: 'bold', color: '#555', marginBottom: '12px' },
-  subtitulo: { fontSize: '15px', color: '#555', margin: '0 0 12px' },
-  lista: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  fila: { display: 'flex', alignItems: 'center', gap: '16px', backgroundColor: '#fff', border: '1px solid #eee', borderRadius: '12px', padding: '12px 16px', flexWrap: 'wrap' },
-  filaBarra: { width: '6px', height: '36px', borderRadius: '4px' },
-  filaTitulo: { flex: 1, minWidth: '100px' },
-  filaHora: { fontWeight: 'bold', fontSize: '14px', color: '#333' },
-  filaDetalle: { fontSize: '12px', color: '#888' },
-  miniDato: { textAlign: 'center', minWidth: '56px' },
-  miniValor: { fontWeight: 'bold', fontSize: '14px', color: '#1a1a1a' },
-  miniLabel: { fontSize: '10px', color: '#999', fontWeight: 600 },
-  badge: { padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' },
-};
 
 export default PacienteDetalle;

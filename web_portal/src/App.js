@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { RefreshCw, LogOut, Users, UserRound, LayoutDashboard } from 'lucide-react';
+import { LogOut, Users, UserRound, LayoutDashboard } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import Login from './Login';
 import RegistroEspecialista from './RegistroEspecialista';
 import PacientesList from './PacientesList';
 import PacienteDetalle from './PacienteDetalle';
-import CodigoVinculacion from './CodigoVinculacion';
 import PerfilEspecialista from './PerfilEspecialista';
 import Dashboard from './Dashboard';
 import Layout from './ui/Layout';
@@ -152,29 +151,15 @@ function App() {
       {seccion === 'perfil' ? (
         <PerfilEspecialista perfil={perfil} onPerfilActualizado={setPerfil} />
       ) : pacienteSeleccionado ? (
-        // Detalle aún con sus estilos viejos (paso 3 de la Fase A). Se abre
-        // desde el Dashboard o desde Pacientes y "Volver" regresa a esa sección.
-        <>
-          <div style={styles.toolbar}>
-            <CodigoVinculacion codigo={perfil?.codigo_vinculacion || null} />
-            <button
-              onClick={actualizar}
-              style={styles.refreshBtn}
-            >
-              <RefreshCw size={20} /> Actualizar
-            </button>
-          </div>
-
-          <div style={styles.main}>
-            {errorAcceso && <div style={styles.errorBanner}>{errorAcceso}</div>}
-            {/* El detalle trae su propio disclaimer de alcance (sección 3 del marco). */}
-            <PacienteDetalle
-              paciente={pacienteSeleccionado}
-              recarga={recargaDetalle}
-              onVolver={() => setPacienteSeleccionadoId(null)}
-            />
-          </div>
-        </>
+        // Se abre desde el Dashboard o desde Pacientes; "Volver" regresa a esa
+        // sección. Trae su propio disclaimer de alcance (sección 3 del marco).
+        <PacienteDetalle
+          paciente={pacienteSeleccionado}
+          recarga={recargaDetalle}
+          onVolver={() => setPacienteSeleccionadoId(null)}
+          onActualizar={actualizar}
+          errorAcceso={errorAcceso}
+        />
       ) : seccion === 'pacientes' ? (
         <PacientesList
           pacientes={pacientes}
@@ -201,11 +186,6 @@ function App() {
 // Estilos básicos (CSS-in-JS para rapidez). Las pantallas nuevas usan la base
 // de src/ui/ (tokens.css + components.js); estos quedan hasta el rediseño.
 const styles = {
-  // Fila con el código de vinculación y "Actualizar" (antes vivían en el header).
-  toolbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '20px 40px 0' },
-  refreshBtn: { display: 'flex', gap: '8px', marginLeft: 'auto', padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#1E6AFB', color: '#fff', cursor: 'pointer' },
-  errorBanner: { backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '12px 20px', borderRadius: '10px', marginBottom: '20px' },
-  main: { padding: '40px' },
   center: { textAlign: 'center', marginTop: '50px', color: '#666' }
 };
 
