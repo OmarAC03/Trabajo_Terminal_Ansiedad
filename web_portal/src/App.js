@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { RefreshCw, LogOut, Info, Users, UserRound, LayoutDashboard } from 'lucide-react';
+import { RefreshCw, LogOut, Users, UserRound, LayoutDashboard } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import Login from './Login';
@@ -151,18 +151,9 @@ function App() {
     >
       {seccion === 'perfil' ? (
         <PerfilEspecialista perfil={perfil} onPerfilActualizado={setPerfil} />
-      ) : seccion === 'dashboard' && !pacienteSeleccionado ? (
-        <Dashboard
-          pacientes={pacientes}
-          loading={loading}
-          perfil={perfil}
-          errorAcceso={errorAcceso}
-          onSeleccionar={(p) => setPacienteSeleccionadoId(p.id)}
-          onActualizar={actualizar}
-        />
-      ) : (
-        // Lista y detalle aún con sus estilos viejos (pasos 2 y 3 de la Fase A).
-        // El detalle se abre desde el Dashboard o desde la lista.
+      ) : pacienteSeleccionado ? (
+        // Detalle aún con sus estilos viejos (paso 3 de la Fase A). Se abre
+        // desde el Dashboard o desde Pacientes y "Volver" regresa a esa sección.
         <>
           <div style={styles.toolbar}>
             <CodigoVinculacion codigo={perfil?.codigo_vinculacion || null} />
@@ -176,32 +167,32 @@ function App() {
 
           <div style={styles.main}>
             {errorAcceso && <div style={styles.errorBanner}>{errorAcceso}</div>}
-            {pacienteSeleccionado ? (
-              // El detalle trae su propio disclaimer de alcance (sección 3 del marco).
-              <PacienteDetalle
-                paciente={pacienteSeleccionado}
-                recarga={recargaDetalle}
-                onVolver={() => setPacienteSeleccionadoId(null)}
-              />
-            ) : (
-              <>
-                <div style={styles.disclaimer}>
-                  <Info size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
-                  <span>
-                    Este sistema monitorea parámetros fisiológicos (frecuencia cardiaca, SpO2 y HRV) asociados
-                    a la ansiedad como apoyo al especialista. Los datos fisiológicos son de apoyo: la
-                    interpretación y el diagnóstico corresponden al profesional de salud.
-                  </span>
-                </div>
-                {loading ? (
-                  <div style={styles.center}>Cargando pacientes...</div>
-                ) : (
-                  <PacientesList pacientes={pacientes} onSeleccionar={(p) => setPacienteSeleccionadoId(p.id)} />
-                )}
-              </>
-            )}
+            {/* El detalle trae su propio disclaimer de alcance (sección 3 del marco). */}
+            <PacienteDetalle
+              paciente={pacienteSeleccionado}
+              recarga={recargaDetalle}
+              onVolver={() => setPacienteSeleccionadoId(null)}
+            />
           </div>
         </>
+      ) : seccion === 'pacientes' ? (
+        <PacientesList
+          pacientes={pacientes}
+          loading={loading}
+          perfil={perfil}
+          errorAcceso={errorAcceso}
+          onSeleccionar={(p) => setPacienteSeleccionadoId(p.id)}
+          onActualizar={actualizar}
+        />
+      ) : (
+        <Dashboard
+          pacientes={pacientes}
+          loading={loading}
+          perfil={perfil}
+          errorAcceso={errorAcceso}
+          onSeleccionar={(p) => setPacienteSeleccionadoId(p.id)}
+          onActualizar={actualizar}
+        />
       )}
     </Layout>
   );
@@ -214,7 +205,6 @@ const styles = {
   toolbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '20px 40px 0' },
   refreshBtn: { display: 'flex', gap: '8px', marginLeft: 'auto', padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#1E6AFB', color: '#fff', cursor: 'pointer' },
   errorBanner: { backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '12px 20px', borderRadius: '10px', marginBottom: '20px' },
-  disclaimer: { display: 'flex', gap: '8px', alignItems: 'flex-start', backgroundColor: '#f1f5f9', color: '#64748b', fontSize: '13px', lineHeight: 1.4, padding: '10px 16px', borderRadius: '10px', marginBottom: '20px' },
   main: { padding: '40px' },
   center: { textAlign: 'center', marginTop: '50px', color: '#666' }
 };

@@ -1,10 +1,10 @@
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
+import { Users, CircleCheck, TriangleAlert, CircleAlert, HeartPulse, ChartPie, ChevronRight } from 'lucide-react';
+import { PageHeader, Card, KpiCard } from './ui/components';
+import { getStatusColor, getStatusLabel, getStatusTone } from './semaforo';
 import {
-  RefreshCw, Info, Users, CircleCheck, TriangleAlert, CircleAlert, HeartPulse, ChartPie, ChevronRight,
-} from 'lucide-react';
-import { PageHeader, Card, KpiCard, Button, Badge, Avatar, Alert, Disclaimer } from './ui/components';
-import { getStatusColor, getStatusLabel, getStatusTone, getStatusOrden } from './semaforo';
-import CodigoVinculacion from './CodigoVinculacion';
+  haceTiempo, plural, ordenarPorEstado, AccionesEncabezado, AvisosPacientes, TablaPacientes,
+} from './PacientesComun';
 
 // Dashboard de monitoreo (Fase A). Solo presenta lo que App.js ya trae de
 // GET /api/pacientes (una fila por paciente vinculado, con su última lectura):
@@ -25,30 +25,7 @@ const fechaDeHoy = () => {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 };
 
-const haceTiempo = (fecha) => {
-  const minutos = Math.floor((Date.now() - new Date(fecha).getTime()) / 60000);
-  if (minutos < 1) return 'hace un momento';
-  if (minutos < 60) return `hace ${minutos} min`;
-  const horas = Math.floor(minutos / 60);
-  if (horas < 24) return `hace ${horas} h`;
-  const dias = Math.floor(horas / 24);
-  if (dias < 7) return dias === 1 ? 'hace 1 día' : `hace ${dias} días`;
-  return new Date(fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
-};
-
 const porcentaje = (n, total) => (total === 0 ? 0 : Math.round((n / total) * 100));
-
-const plural = (n, singular, pluralTexto) => `${n} ${n === 1 ? singular : pluralTexto}`;
-
-// Altos → Elevados → Normal → Sin lecturas; dentro de cada estado, la
-// lectura más reciente primero.
-const ordenarPorEstado = (pacientes) =>
-  [...pacientes].sort(
-    (a, b) =>
-      getStatusOrden(a.ultimo_estado) - getStatusOrden(b.ultimo_estado) ||
-      new Date(b.ultima_lectura || 0) - new Date(a.ultima_lectura || 0) ||
-      a.nombre.localeCompare(b.nombre)
-  );
 
 // "BPM 91 · HRV 24 ms · SpO2 97%" con los valores que existan.
 const resumenLectura = (p) =>
@@ -73,22 +50,10 @@ function Dashboard({ pacientes, loading, perfil, errorAcceso, onSeleccionar, onA
       <PageHeader
         title="Dashboard de monitoreo"
         subtitle={`${fechaDeHoy()} · ${plural(total, 'paciente vinculado', 'pacientes vinculados')}`}
-        actions={
-          <>
-            <CodigoVinculacion codigo={perfil?.codigo_vinculacion || null} />
-            <Button icon={RefreshCw} onClick={onActualizar}>Actualizar</Button>
-          </>
-        }
+        actions={<AccionesEncabezado perfil={perfil} onActualizar={onActualizar} />}
       />
 
-      <div className="ui-stack" style={{ gap: 12, marginBottom: 20 }}>
-        {errorAcceso && <Alert tone="altos" icon={CircleAlert}>{errorAcceso}</Alert>}
-        <Disclaimer icon={Info}>
-          Este sistema monitorea parámetros fisiológicos (frecuencia cardiaca, SpO2 y HRV) asociados a la
-          ansiedad como apoyo al especialista. Los datos fisiológicos son de apoyo: la interpretación y el
-          diagnóstico corresponden al profesional de salud.
-        </Disclaimer>
-      </div>
+      <AvisosPacientes errorAcceso={errorAcceso} />
 
       {loading ? (
         <Card><div className="ui-empty">Cargando pacientes…</div></Card>
@@ -130,7 +95,12 @@ function Dashboard({ pacientes, loading, perfil, errorAcceso, onSeleccionar, onA
           <p className="ui-caption">Conteos según los indicadores fisiológicos de la última lectura de cada paciente.</p>
 
           <div className="ui-dashboard-cols">
-            <TablaPacientes pacientes={pacientes} onSeleccionar={onSeleccionar} />
+            <TablaPacientes
+              pacientes={ordenarPorEstado(pacientes)}
+              onSeleccionar={onSeleccionar}
+              subtitle="Ordenados por indicadores de la última lectura · se actualiza cada 15 s"
+              vacio="Todavía no tienes pacientes vinculados. Comparte tu código para que se vinculen desde la app."
+            />
             <div className="ui-stack">
               <LecturasAltas pacientes={pacientes} onSeleccionar={onSeleccionar} />
               <Distribucion pacientes={pacientes} total={total} />
@@ -139,83 +109,6 @@ function Dashboard({ pacientes, loading, perfil, errorAcceso, onSeleccionar, onA
         </>
       )}
     </div>
-  );
-}
-
-function TablaPacientes({ pacientes, onSeleccionar }) {
-  return (
-    <Card
-      className="ui-card-flush"
-      title="Pacientes"
-      icon={Users}
-      subtitle="Ordenados por indicadores de la última lectura · se actualiza cada 15 s"
-    >
-      {pacientes.length === 0 ? (
-        <div className="ui-empty">
-          Todavía no tienes pacientes vinculados. Comparte tu código para que se vinculen desde la app.
-        </div>
-      ) : (
-        <div className="ui-table-wrap">
-          <table className="ui-table">
-            <thead>
-              <tr>
-                <th>Paciente</th>
-                <th>BPM</th>
-                <th>SpO2</th>
-                <th>HRV</th>
-                <th>Estado</th>
-                <th>Última lectura</th>
-                <th><span className="sr-only">Acción</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {ordenarPorEstado(pacientes).map((p) => (
-                <tr key={p.id} className="ui-table-row-link" onClick={() => onSeleccionar(p)}>
-                  <td>
-                    <div className="ui-person">
-                      <Avatar nombre={p.nombre} size={38} tone={getStatusTone(p.ultimo_estado)} />
-                      <div>
-                        <div className="ui-person-name">{p.nombre}</div>
-                        <div className="ui-person-sub">{p.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td><Valor valor={p.ultimo_bpm} /></td>
-                  <td><Valor valor={p.ultimo_spo2} unidad="%" /></td>
-                  <td><Valor valor={p.ultimo_hrv} unidad="ms" /></td>
-                  <td>
-                    <Badge tone={getStatusTone(p.ultimo_estado)}>{getStatusLabel(p.ultimo_estado)}</Badge>
-                  </td>
-                  <td className="ui-muted">{p.ultima_lectura ? haceTiempo(p.ultima_lectura) : '—'}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <Button
-                      variant="soft"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation(); // la fila ya abre el detalle
-                        onSeleccionar(p);
-                      }}
-                    >
-                      Ver detalle
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Card>
-  );
-}
-
-function Valor({ valor, unidad }) {
-  if (valor == null) return <span className="ui-muted">—</span>;
-  return (
-    <span className="ui-num">
-      {valor}
-      {unidad && <span className="ui-unit">{unidad}</span>}
-    </span>
   );
 }
 

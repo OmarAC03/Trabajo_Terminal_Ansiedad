@@ -727,3 +727,79 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* ---------- Búsqueda y filtros sobre una tabla (sección Pacientes) ---------- */
+.ui-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 0 20px 16px;
+}
+
+.ui-search {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+  max-width: 380px;
+}
+
+.ui-search > svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.ui-search .ui-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding-left: 36px;
+}
+
+.ui-segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+
+.ui-segmented-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ui-segmented-item:hover {
+  color: var(--color-text);
+}
+
+.ui-segmented-item.is-active {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-card);
+}
+
+.ui-segmented-item:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.ui-segmented-item .ui-legend-dot {
+  width: 8px;
+  height: 8px;
+}
