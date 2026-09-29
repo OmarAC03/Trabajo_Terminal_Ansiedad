@@ -2,7 +2,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import {
-  UserRound, KeyRound, Lock, Pencil, Copy, Check, Save, X, CheckCircle2, AlertCircle, Info,
+  UserRound, KeyRound, Lock, Pencil, Copy, Check, Save, X, CheckCircle2, CircleAlert, Info,
 } from 'lucide-react';
 import { auth } from './firebase';
 import { PageHeader, Card, Button, Badge, Avatar, Field, Alert, Disclaimer } from './ui/components';
@@ -36,21 +36,26 @@ function mensajeErrorPassword(error) {
 function PerfilEspecialista({ perfil, onPerfilActualizado }) {
   if (!perfil) {
     return (
-      <div className="ui-page">
-        <PageHeader title="Mi perfil" subtitle="Cargando tus datos…" />
+      <div className="ui-page ui-page-wide">
+        <PageHeader title="Mi perfil" subtitle="Datos de tu cuenta de especialista" />
+        <Card><div className="ui-empty">Cargando tus datos…</div></Card>
       </div>
     );
   }
 
   return (
-    <div className="ui-page">
+    <div className="ui-page ui-page-wide">
       <PageHeader title="Mi perfil" subtitle="Datos de tu cuenta de especialista" />
-      <div className="ui-grid ui-grid-2">
-        <DatosCuenta perfil={perfil} onPerfilActualizado={onPerfilActualizado} />
-        <CodigoCard codigo={perfil.codigo_vinculacion} />
+      {/* Cuenta + código a la izquierda, contraseña a la derecha (antes eran
+          3 tarjetas en una rejilla de 2 y la tercera quedaba sola). */}
+      <div className="ui-profile-cols">
+        <div className="ui-stack">
+          <DatosCuenta perfil={perfil} onPerfilActualizado={onPerfilActualizado} />
+          <CodigoCard codigo={perfil.codigo_vinculacion} />
+        </div>
         <CambiarPassword />
       </div>
-      <div style={{ marginTop: 24 }}>
+      <div style={{ marginTop: 20 }}>
         <Disclaimer icon={Info}>
           Acerca del sistema: el Portal Clínico TT muestra parámetros fisiológicos (frecuencia cardiaca,
           SpO2 y HRV) asociados a la ansiedad como apoyo al especialista. No emite diagnósticos: la
@@ -110,10 +115,10 @@ function DatosCuenta({ perfil, onPerfilActualizado }) {
       icon={UserRound}
       actions={!editando && <Button variant="soft" size="sm" icon={Pencil} onClick={empezarEdicion}>Editar nombre</Button>}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+      <div className="ui-profile-identity">
         <Avatar nombre={perfil.nombre} size={56} />
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 'var(--text-xl)', fontWeight: 700, overflowWrap: 'anywhere' }}>{perfil.nombre}</div>
+          <div className="ui-profile-name">{perfil.nombre}</div>
           <div style={{ marginTop: 6 }}><Badge tone="primary" dot={false}>Especialista</Badge></div>
         </div>
       </div>
@@ -141,7 +146,7 @@ function DatosCuenta({ perfil, onPerfilActualizado }) {
           help="El correo no se puede cambiar desde el portal." />
       )}
 
-      {aviso && <Alert tone={aviso.tone} icon={aviso.tone === 'altos' ? AlertCircle : CheckCircle2}>{aviso.texto}</Alert>}
+      {aviso && <Alert tone={aviso.tone} icon={aviso.tone === 'altos' ? CircleAlert : CheckCircle2}>{aviso.texto}</Alert>}
     </Card>
   );
 }
@@ -162,14 +167,8 @@ function CodigoCard({ codigo }) {
   return (
     <Card title="Código de vinculación" icon={KeyRound} subtitle="Compártelo con tus pacientes para que se vinculen desde la app.">
       {codigo ? (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
-          padding: '16px 20px', borderRadius: 'var(--radius-md)',
-          background: 'var(--color-primary-soft)', border: '1px solid var(--color-primary-border)',
-        }}>
-          <span className="ui-mono" style={{ fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--color-primary)' }}>
-            {codigo}
-          </span>
+        <div className="ui-code-box">
+          <span className="ui-mono ui-code-value">{codigo}</span>
           <Button variant="secondary" size="sm" icon={copiado ? Check : Copy} onClick={copiar}>
             {copiado ? 'Copiado' : 'Copiar'}
           </Button>
@@ -177,7 +176,7 @@ function CodigoCard({ codigo }) {
       ) : (
         <p className="ui-muted" style={{ margin: 0 }}>Tu cuenta aún no tiene código de vinculación.</p>
       )}
-      <p className="ui-help" style={{ marginBottom: 0 }}>
+      <p className="ui-caption" style={{ marginTop: 12 }}>
         Cada paciente puede estar vinculado a un solo especialista. Solo verás los indicadores fisiológicos
         de los pacientes vinculados a ti.
       </p>
@@ -249,7 +248,7 @@ function CambiarPassword() {
       </form>
       {aviso && (
         <div style={{ marginTop: 16 }}>
-          <Alert tone={aviso.tone} icon={aviso.tone === 'altos' ? AlertCircle : CheckCircle2}>{aviso.texto}</Alert>
+          <Alert tone={aviso.tone} icon={aviso.tone === 'altos' ? CircleAlert : CheckCircle2}>{aviso.texto}</Alert>
         </div>
       )}
     </Card>

@@ -851,6 +851,51 @@
   gap: 12px;
 }
 
+/* ---------- Mi perfil ---------- */
+.ui-profile-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+.ui-profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.ui-profile-name {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.ui-code-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 20px;
+  border: 1px solid var(--color-primary-border);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+}
+
+.ui-code-value {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+@media (max-width: 960px) {
+  .ui-profile-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* ---------- Ejercicios asignados (detalle del paciente) ---------- */
 .ui-section-gap {
   margin-top: 20px;
