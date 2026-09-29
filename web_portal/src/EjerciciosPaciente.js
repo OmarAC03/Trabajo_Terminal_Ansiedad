@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { ClipboardList, Eye, EyeOff, Info, Send } from 'lucide-react';
+import { CircleAlert, ClipboardList, Eye, EyeOff, Info, Send } from 'lucide-react';
 import { auth } from './firebase';
 import { TECNICAS, tituloTecnica } from './tecnicas';
+import { Alert, Badge, Button, Card, Disclaimer, Select, Textarea } from './ui/components';
 
 const EJERCICIOS_URL = "https://tt-ansiedad-backend.onrender.com/api/ejercicios";
 
@@ -89,113 +90,89 @@ function EjerciciosPaciente({ paciente, recarga }) {
   };
 
   return (
-    <div style={styles.tarjeta}>
-      <div style={styles.titulo}>
-        <ClipboardList size={18} color="#1E6AFB" /> Asignar ejercicio
-      </div>
+    <Card
+      className="ui-section-gap"
+      title="Asignar ejercicio"
+      subtitle="Técnicas de la app o un ejercicio personalizado para este paciente"
+      icon={ClipboardList}
+    >
+      <Disclaimer icon={Info}>
+        Los ejercicios son una herramienta de apoyo complementaria; no sustituyen el tratamiento ni el criterio clínico.
+      </Disclaimer>
 
-      <div style={styles.disclaimer}>
-        <Info size={14} style={{ flexShrink: 0, marginTop: '1px' }} />
-        <span>
-          Los ejercicios son una herramienta de apoyo complementaria; no sustituyen el tratamiento ni el criterio clínico.
-        </span>
-      </div>
-
-      <form onSubmit={asignar} style={styles.form}>
-        <label style={styles.label}>
-          Ejercicio
-          <select value={opcion} onChange={(e) => setOpcion(e.target.value)} style={styles.input}>
-            {TECNICAS.map((t) => (
-              <option key={t.id} value={t.id}>{t.titulo}</option>
-            ))}
-            <option value={PERSONALIZADO}>Ejercicio personalizado…</option>
-          </select>
-        </label>
+      <form onSubmit={asignar} style={{ marginTop: 16 }}>
+        <Select id="ejercicio-opcion" label="Ejercicio" value={opcion} onChange={(e) => setOpcion(e.target.value)}>
+          {TECNICAS.map((t) => (
+            <option key={t.id} value={t.id}>{t.titulo}</option>
+          ))}
+          <option value={PERSONALIZADO}>Ejercicio personalizado…</option>
+        </Select>
 
         {esPersonalizado && (
-          <label style={styles.label}>
-            Describe el ejercicio
-            <textarea
-              value={textoPersonalizado}
-              onChange={(e) => setTextoPersonalizado(e.target.value)}
-              placeholder="Ej. Caminar 15 minutos al aire libre después de comer."
-              maxLength={500}
-              rows={3}
-              style={{ ...styles.input, resize: 'vertical' }}
-            />
-          </label>
+          <Textarea
+            id="ejercicio-texto"
+            label="Describe el ejercicio"
+            value={textoPersonalizado}
+            onChange={(e) => setTextoPersonalizado(e.target.value)}
+            placeholder="Ej. Caminar 15 minutos al aire libre después de comer."
+            maxLength={500}
+            rows={3}
+            help={`${textoPersonalizado.length}/500`}
+          />
         )}
 
-        <label style={styles.label}>
-          Nota para el paciente (opcional)
-          <textarea
-            value={nota}
-            onChange={(e) => setNota(e.target.value)}
-            placeholder="Ej. Practícalo por la noche antes de dormir."
-            maxLength={1000}
-            rows={2}
-            style={{ ...styles.input, resize: 'vertical' }}
-          />
-        </label>
+        <Textarea
+          id="ejercicio-nota"
+          label="Nota para el paciente (opcional)"
+          value={nota}
+          onChange={(e) => setNota(e.target.value)}
+          placeholder="Ej. Practícalo por la noche antes de dormir."
+          maxLength={1000}
+          rows={2}
+        />
 
-        {errorForm && <div style={styles.error}>{errorForm}</div>}
+        {errorForm && (
+          <div style={{ marginBottom: 16 }}>
+            <Alert tone="altos" icon={CircleAlert}>{errorForm}</Alert>
+          </div>
+        )}
 
-        <button type="submit" disabled={!puedeEnviar} style={{ ...styles.boton, opacity: puedeEnviar ? 1 : 0.6 }}>
-          <Send size={16} /> {enviando ? 'Asignando...' : 'Asignar ejercicio'}
-        </button>
+        <Button type="submit" icon={Send} disabled={!puedeEnviar}>
+          {enviando ? 'Asignando…' : 'Asignar ejercicio'}
+        </Button>
       </form>
 
-      <h3 style={styles.subtitulo}>Ejercicios asignados</h3>
+      <hr className="ui-card-divider" />
+
+      <h3 className="ui-subtitle">Ejercicios asignados</h3>
       {errorLista ? (
-        <div style={styles.error}>{errorLista}</div>
+        <Alert tone="altos" icon={CircleAlert}>{errorLista}</Alert>
       ) : cargando ? (
-        <div style={styles.vacio}>Cargando ejercicios...</div>
+        <div className="ui-empty">Cargando ejercicios…</div>
       ) : ejercicios.length === 0 ? (
-        <div style={styles.vacio}>Aún no has asignado ejercicios a este paciente.</div>
+        <div className="ui-empty">Aún no has asignado ejercicios a este paciente.</div>
       ) : (
-        <div style={styles.lista}>
+        <div>
           {ejercicios.map((e) => (
-            <div key={e.id} style={styles.fila}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={styles.filaTitulo}>
+            <div key={e.id} className="ui-exercise">
+              <div className="ui-exercise-body">
+                <div className="ui-list-title ui-exercise-title">
                   {e.tecnica_id ? tituloTecnica(e.tecnica_id) : e.texto_personalizado}
                 </div>
-                <div style={styles.filaTipo}>{e.tecnica_id ? 'Técnica de la app' : 'Ejercicio personalizado'}</div>
-                {e.nota && <div style={styles.filaNota}>{e.nota}</div>}
-                <div style={styles.filaFecha}>Asignado el {fecha(e.fecha_asignacion)}</div>
+                <div className="ui-list-time">{e.tecnica_id ? 'Técnica de la app' : 'Ejercicio personalizado'}</div>
+                {e.nota && <div className="ui-exercise-note">{e.nota}</div>}
+                <div className="ui-list-time" style={{ marginTop: 6 }}>Asignado el {fecha(e.fecha_asignacion)}</div>
               </div>
-              <span style={{ ...styles.estado, ...(e.visto ? styles.estadoVisto : styles.estadoPendiente) }}>
+              <Badge tone={e.visto ? 'primary' : 'neutral'} dot={false}>
                 {e.visto ? <Eye size={12} /> : <EyeOff size={12} />}
                 {e.visto ? 'Visto por el paciente' : 'Aún no lo ve'}
-              </span>
+              </Badge>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
-
-const styles = {
-  tarjeta: { backgroundColor: '#fff', border: '1px solid #eee', borderRadius: '15px', padding: '16px', marginTop: '20px' },
-  titulo: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 'bold', color: '#555', marginBottom: '12px' },
-  disclaimer: { display: 'flex', gap: '8px', alignItems: 'flex-start', backgroundColor: '#f1f5f9', color: '#64748b', fontSize: '12px', lineHeight: 1.4, padding: '8px 12px', borderRadius: '8px', marginBottom: '14px' },
-  form: { display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' },
-  label: { display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#555' },
-  input: { padding: '10px 12px', borderRadius: '10px', border: '1px solid #ddd', fontSize: '14px', fontFamily: 'inherit', fontWeight: 'normal', outline: 'none', backgroundColor: '#fff' },
-  boton: { alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 18px', borderRadius: '20px', border: 'none', backgroundColor: '#1E6AFB', color: '#fff', cursor: 'pointer', fontWeight: 'bold' },
-  error: { backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '8px 12px', borderRadius: '8px', fontSize: '13px' },
-  subtitulo: { fontSize: '14px', color: '#555', margin: '0 0 10px' },
-  vacio: { textAlign: 'center', color: '#999', fontSize: '13px', padding: '20px 0' },
-  lista: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  fila: { display: 'flex', alignItems: 'flex-start', gap: '12px', backgroundColor: '#f6f8fb', borderRadius: '12px', padding: '12px 14px', flexWrap: 'wrap' },
-  filaTitulo: { fontWeight: 'bold', fontSize: '14px', color: '#1a1a1a', whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
-  filaTipo: { fontSize: '11px', color: '#888', marginTop: '2px' },
-  filaNota: { fontSize: '13px', color: '#444', marginTop: '6px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
-  filaFecha: { fontSize: '11px', color: '#999', marginTop: '6px' },
-  estado: { display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' },
-  estadoVisto: { color: '#0f766e', backgroundColor: '#ccfbf1' },
-  estadoPendiente: { color: '#64748b', backgroundColor: '#e2e8f0' },
-};
 
 export default EjerciciosPaciente;

@@ -115,6 +115,29 @@ export function Field({ label, help, id, ...inputProps }) {
   );
 }
 
+// Mismo formato que Field; las opciones van como children (<option>).
+export function Select({ label, help, id, children, ...selectProps }) {
+  return (
+    <div className="ui-field">
+      <label className="ui-label" htmlFor={id}>{label}</label>
+      <select id={id} className="ui-input ui-select" {...selectProps}>
+        {children}
+      </select>
+      {help && <span className="ui-help">{help}</span>}
+    </div>
+  );
+}
+
+export function Textarea({ label, help, id, rows = 3, ...textareaProps }) {
+  return (
+    <div className="ui-field">
+      <label className="ui-label" htmlFor={id}>{label}</label>
+      <textarea id={id} className="ui-input ui-textarea" rows={rows} {...textareaProps} />
+      {help && <span className="ui-help">{help}</span>}
+    </div>
+  );
+}
+
 // Mensaje de éxito o error dentro de una tarjeta.
 export function Alert({ tone = 'primary', icon: Icon, children }) {
   return (
