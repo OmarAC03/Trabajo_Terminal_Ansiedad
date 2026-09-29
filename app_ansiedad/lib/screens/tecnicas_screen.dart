@@ -5,6 +5,8 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:provider/provider.dart';
 import '../providers/pendientes_provider.dart';
+import '../ui/app_colors.dart';
+import '../ui/widgets.dart';
 import 'ejercicios_asignados_screen.dart';
 
 // --- MODELO DE DATOS ---
@@ -43,7 +45,7 @@ final List<Tecnica> _catalogoTecnicas = [
     titulo: "Respiración 4-7-8",
     descripcionCorta: "Calma tu sistema nervioso en un par de minutos",
     icono: Icons.air,
-    color: const Color(0xFF1E6AFB),
+    color: AppColors.primario,
     tipo: 'respiracion',
   ),
   Tecnica(
@@ -134,8 +136,6 @@ void abrirTecnica(BuildContext context, Tecnica t) {
 class TecnicasScreen extends StatelessWidget {
   const TecnicasScreen({super.key});
 
-  static const Color headerColor = Color(0xFF1E6AFB);
-
   /// Las rutas que se abren con Navigator.push quedan fuera del árbol de
   /// MainLayout, así que el PendientesProvider se le pasa a la pantalla de
   /// ejercicios de forma explícita.
@@ -152,96 +152,121 @@ class TecnicasScreen extends StatelessWidget {
     ).then((_) => pendientes.refrescar());
   }
 
+  /// Fila de tarjeta tocable: ícono en cuadro de color, título, subtítulo y
+  /// chevron (catálogo y tarjeta de ejercicios comparten el formato).
+  Widget _buildFila({
+    required Widget icono,
+    required String titulo,
+    required Widget subtitulo,
+    required VoidCallback onTap,
+    Color? fondo,
+    Color? borde,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Tarjeta(
+        padding: const EdgeInsets.all(14),
+        color: fondo,
+        colorBorde: borde,
+        onTap: onTap,
+        child: Row(
+          children: [
+            icono,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(titulo,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.texto)),
+                  const SizedBox(height: 3),
+                  subtitulo,
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.textoSecundario),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _iconoCuadro(IconData icono, Color color) {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(icono, color: color),
+    );
+  }
+
   Widget _buildTarjetaEjercicios(BuildContext context) {
     final nuevos = context.watch<PendientesProvider>().ejercicios;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 24),
-      elevation: 0,
-      color: headerColor.withValues(alpha: 0.06),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: headerColor.withValues(alpha: 0.25)),
+    return _buildFila(
+      fondo: AppColors.primarioSuave,
+      borde: AppColors.primario.withValues(alpha: 0.25),
+      icono: Badge(
+        isLabelVisible: nuevos > 0,
+        backgroundColor: AppColors.altos,
+        label: Text('$nuevos'),
+        child: _iconoCuadro(Icons.assignment_outlined, AppColors.primario),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(14),
-        leading: Badge(
-          isLabelVisible: nuevos > 0,
-          label: Text('$nuevos'),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: headerColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(Icons.assignment_outlined, color: headerColor),
-          ),
+      titulo: "Ejercicios asignados por tu especialista",
+      subtitulo: Text(
+        nuevos > 0
+            ? (nuevos == 1 ? "Tienes 1 ejercicio nuevo" : "Tienes $nuevos ejercicios nuevos")
+            : "Consulta lo que tu especialista te sugirió practicar",
+        style: TextStyle(
+          color: nuevos > 0 ? AppColors.primario : AppColors.textoAyuda,
+          fontSize: 12,
+          fontWeight: nuevos > 0 ? FontWeight.w600 : FontWeight.normal,
         ),
-        title: const Text("Ejercicios asignados por tu especialista",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            nuevos > 0
-                ? (nuevos == 1 ? "Tienes 1 ejercicio nuevo" : "Tienes $nuevos ejercicios nuevos")
-                : "Consulta lo que tu especialista te sugirió practicar",
-            style: TextStyle(
-              color: nuevos > 0 ? headerColor : Colors.grey.shade600,
-              fontSize: 12,
-              fontWeight: nuevos > 0 ? FontWeight.w600 : FontWeight.normal,
-            ),
-          ),
-        ),
-        trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
-        onTap: () => _abrirEjercicios(context),
       ),
+      onTap: () => _abrirEjercicios(context),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FB),
-      appBar: AppBar(
-        title: const Text("Técnicas de relajación",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: headerColor,
-        elevation: 0,
-      ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(20),
-        // +1: la tarjeta de ejercicios asignados va antes del catálogo.
-        itemCount: _catalogoTecnicas.length + 1,
-        itemBuilder: (context, i) {
-          if (i == 0) return _buildTarjetaEjercicios(context);
-          final t = _catalogoTecnicas[i - 1];
-          return Card(
-            margin: const EdgeInsets.only(bottom: 16),
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-              side: BorderSide(color: Colors.grey.shade200),
+      backgroundColor: AppColors.fondo,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const EncabezadoGradiente(
+            icono: Icons.spa,
+            titulo: "Técnicas de relajación",
+            subtitulo: "Practica a tu ritmo",
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              // +2: la tarjeta de ejercicios asignados y el título del
+              // catálogo van antes de las técnicas.
+              itemCount: _catalogoTecnicas.length + 2,
+              itemBuilder: (context, i) {
+                if (i == 0) return _buildTarjetaEjercicios(context);
+                if (i == 1) {
+                  return const Padding(
+                    padding: EdgeInsets.fromLTRB(2, 8, 0, 10),
+                    child: EtiquetaSeccion("Técnicas"),
+                  );
+                }
+                final t = _catalogoTecnicas[i - 2];
+                return _buildFila(
+                  icono: _iconoCuadro(t.icono, t.color),
+                  titulo: t.titulo,
+                  subtitulo: Text(t.descripcionCorta,
+                      style: const TextStyle(color: AppColors.textoAyuda, fontSize: 12)),
+                  onTap: () => abrirTecnica(context, t),
+                );
+              },
             ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(14),
-              leading: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: t.color.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(t.icono, color: t.color),
-              ),
-              title: Text(t.titulo, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              subtitle: Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(t.descripcionCorta,
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-              ),
-              trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
-              onTap: () => abrirTecnica(context, t),
-            ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
@@ -265,7 +290,7 @@ class _RespiracionGuiadaScreenState extends State<RespiracionGuiadaScreen>
   static const int _totalSeg = _inhalaSeg + _sostenSeg + _exhalaSeg;
 
   // Colores ancla del ciclo: Inhala -> Sostén -> Exhala -> (vuelve a Inhala)
-  static const Color _colorInhala = Color(0xFF1E6AFB); // azul
+  static const Color _colorInhala = AppColors.primario; // azul
   static const Color _colorSosten = Color(0xFF7C4DFF); // morado
   static const Color _colorExhala = Color(0xFF14C7B4); // verde-azulado
 
@@ -389,27 +414,21 @@ class _RespiracionGuiadaScreenState extends State<RespiracionGuiadaScreen>
     const Color colorBase = _colorInhala;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FB),
-      appBar: AppBar(
-        title: const Text("Respiración 4-7-8",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: colorBase,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(_vozActiva ? Icons.record_voice_over : Icons.voice_over_off),
-            color: Colors.white,
-            tooltip: _vozActiva ? "Voz activada" : "Voz desactivada",
-            onPressed: _toggleVoz,
-          ),
-          IconButton(
-            icon: Icon(_musicaActiva ? Icons.music_note : Icons.music_off),
-            color: Colors.white,
-            tooltip: _musicaActiva ? "Música activada" : "Música desactivada",
-            onPressed: _toggleMusica,
-          ),
-        ],
-      ),
+      backgroundColor: AppColors.fondo,
+      appBar: appBarGradiente("Respiración 4-7-8", acciones: [
+        IconButton(
+          icon: Icon(_vozActiva ? Icons.record_voice_over : Icons.voice_over_off),
+          color: Colors.white,
+          tooltip: _vozActiva ? "Voz activada" : "Voz desactivada",
+          onPressed: _toggleVoz,
+        ),
+        IconButton(
+          icon: Icon(_musicaActiva ? Icons.music_note : Icons.music_off),
+          color: Colors.white,
+          tooltip: _musicaActiva ? "Música activada" : "Música desactivada",
+          onPressed: _toggleMusica,
+        ),
+      ]),
       body: Column(
         children: [
           Expanded(
@@ -461,7 +480,7 @@ class _RespiracionGuiadaScreenState extends State<RespiracionGuiadaScreen>
                       ),
                       const SizedBox(height: 20),
                       Text("Ciclos completados: $_ciclos",
-                          style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                          style: const TextStyle(color: AppColors.textoAyuda, fontSize: 13)),
                     ],
                   );
                 },
@@ -469,20 +488,11 @@ class _RespiracionGuiadaScreenState extends State<RespiracionGuiadaScreen>
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(30),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _toggle,
-                icon: Icon(_activo ? Icons.pause : Icons.play_arrow),
-                label: Text(_activo ? "Pausar" : "Iniciar"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colorBase,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-              ),
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 30),
+            child: BotonPrimario(
+              texto: _activo ? "Pausar" : "Iniciar",
+              icono: _activo ? Icons.pause : Icons.play_arrow,
+              onPressed: _toggle,
             ),
           ),
         ],
@@ -731,7 +741,7 @@ class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> with TickerProv
                 children: [
                   Container(
                     padding: const EdgeInsets.all(22),
-                    decoration: BoxDecoration(color: t.color.withOpacity(0.12), shape: BoxShape.circle),
+                    decoration: BoxDecoration(color: t.color.withValues(alpha: 0.12), shape: BoxShape.circle),
                     child: Icon(_iconosGrounding[idx], color: t.color, size: 52),
                   ),
                   const SizedBox(height: 12),
@@ -765,32 +775,27 @@ class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> with TickerProv
     final enUltimoPaso = _pasoActual == pasos.length - 1;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FB),
-      appBar: AppBar(
-        title: Text(t.titulo, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: t.color,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(_vozActiva ? Icons.record_voice_over : Icons.voice_over_off),
-            color: Colors.white,
-            tooltip: _vozActiva ? "Voz activada" : "Voz desactivada",
-            onPressed: _toggleVoz,
-          ),
-          IconButton(
-            icon: Icon(_musicaActiva ? Icons.music_note : Icons.music_off),
-            color: Colors.white,
-            tooltip: _musicaActiva ? "Música activada" : "Música desactivada",
-            onPressed: _toggleMusica,
-          ),
-          IconButton(
-            icon: Icon(_modoAutomatico ? Icons.timer : Icons.touch_app),
-            color: Colors.white,
-            tooltip: _modoAutomatico ? "Avance automático" : "Avance manual",
-            onPressed: _toggleModoAutomatico,
-          ),
-        ],
-      ),
+      backgroundColor: AppColors.fondo,
+      appBar: appBarGradiente(t.titulo, acciones: [
+        IconButton(
+          icon: Icon(_vozActiva ? Icons.record_voice_over : Icons.voice_over_off),
+          color: Colors.white,
+          tooltip: _vozActiva ? "Voz activada" : "Voz desactivada",
+          onPressed: _toggleVoz,
+        ),
+        IconButton(
+          icon: Icon(_musicaActiva ? Icons.music_note : Icons.music_off),
+          color: Colors.white,
+          tooltip: _musicaActiva ? "Música activada" : "Música desactivada",
+          onPressed: _toggleMusica,
+        ),
+        IconButton(
+          icon: Icon(_modoAutomatico ? Icons.timer : Icons.touch_app),
+          color: Colors.white,
+          tooltip: _modoAutomatico ? "Avance automático" : "Avance manual",
+          onPressed: _toggleModoAutomatico,
+        ),
+      ]),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -799,13 +804,12 @@ class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> with TickerProv
               LinearProgressIndicator(
                 value: (_pasoActual + 1) / pasos.length,
                 color: t.color,
-                backgroundColor: t.color.withOpacity(0.15),
+                backgroundColor: t.color.withValues(alpha: 0.15),
                 minHeight: 6,
                 borderRadius: BorderRadius.circular(10),
               ),
               const SizedBox(height: 10),
-              Text("Paso ${_pasoActual + 1} de ${pasos.length}",
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontWeight: FontWeight.bold)),
+              EtiquetaSeccion("Paso ${_pasoActual + 1} de ${pasos.length}"),
             ],
             Expanded(
               child: Center(
@@ -817,7 +821,7 @@ class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> with TickerProv
                           const SizedBox(height: 20),
                           Text(t.introduccion ?? "",
                               textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 16, height: 1.5)),
+                              style: const TextStyle(fontSize: 16, height: 1.5, color: AppColors.texto)),
                         ],
                       )
                     : Column(
@@ -828,7 +832,8 @@ class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> with TickerProv
                           Text(
                             pasos[_pasoActual],
                             textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 19, height: 1.4, fontWeight: FontWeight.w500),
+                            style: const TextStyle(
+                                fontSize: 19, height: 1.4, fontWeight: FontWeight.w500, color: AppColors.texto),
                           ),
                         ],
                       ),
@@ -852,10 +857,9 @@ class _TecnicaPasosScreenState extends State<TecnicaPasosScreen> with TickerProv
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: enUltimoPaso ? Colors.green : t.color,
+                    backgroundColor: enUltimoPaso ? AppColors.normal : AppColors.primario,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   child: Text(enIntroduccion ? "Comenzar" : (enUltimoPaso ? "Terminar" : "Siguiente")),
                 ),

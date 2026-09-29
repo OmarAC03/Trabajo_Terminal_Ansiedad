@@ -237,24 +237,44 @@ class Aviso extends StatelessWidget {
 }
 
 /// Tarjeta blanca con borde y sombra sutil.
+/// Con [onTap] se vuelve tocable (ripple recortado a las esquinas).
 class Tarjeta extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   final Color? color;
+  final Color? colorBorde;
+  final VoidCallback? onTap;
 
-  const Tarjeta({super.key, required this.child, this.padding = const EdgeInsets.all(16), this.color});
+  const Tarjeta({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+    this.color,
+    this.colorBorde,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final radio = BorderRadius.circular(AppColors.radio);
     return Container(
-      padding: padding,
+      clipBehavior: onTap == null ? Clip.none : Clip.antiAlias,
       decoration: BoxDecoration(
         color: color ?? AppColors.superficie,
-        borderRadius: BorderRadius.circular(AppColors.radio),
-        border: Border.all(color: AppColors.borde),
+        borderRadius: radio,
+        border: Border.all(color: colorBorde ?? AppColors.borde),
         boxShadow: AppColors.sombra,
       ),
-      child: child,
+      child: onTap == null
+          ? Padding(padding: padding, child: child)
+          : Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                borderRadius: radio,
+                onTap: onTap,
+                child: Padding(padding: padding, child: child),
+              ),
+            ),
     );
   }
 }
