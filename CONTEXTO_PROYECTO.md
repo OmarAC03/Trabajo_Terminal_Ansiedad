@@ -278,7 +278,7 @@ Referencia: `MARCO_ALCANCE_Y_LENGUAJE.md`. El sistema monitorea parámetros fisi
 
 ### Siguientes fases (la 2e ya está cerrada)
 - ~~**Fase A — rediseño visual completo del portal**~~ — ✅ **COMPLETA (2026-09-28, ver sección 4bis):** commits `2f3a1c0`, `469adba`, `e4da009`, `ea7990f`, `d4b61ea`, `9a2f315`, `cd316a5`.
-- **⏳ Rediseño visual de la app móvil (sección 4quinquies):** paso 0 ✅ (commit `15b171e`); sigue el paso 1 (Login + Registro).
+- **⏳ Rediseño visual de la app móvil (sección 4quinquies):** paso 0 ✅ (commit `81b6bde`); sigue el paso 1 (Login + Registro).
 - **"¿Olvidaste tu contraseña?" en la app Flutter (HU02, lado paciente):** entra como el **paso 2** del rediseño de la app (sección 4quinquies). Mismo mecanismo que el portal: `FirebaseAuth.instance.sendPasswordResetEmail(email:)` desde `login_screen.dart`, con el mismo mensaje genérico y `setLanguageCode('es')`.
 - **Fase C — rol Admin.**
 - **Documento de alineación protocolo TT vs. sistema** (pendiente).
