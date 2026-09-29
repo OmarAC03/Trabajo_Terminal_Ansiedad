@@ -244,8 +244,11 @@ class _HistorialView extends StatelessWidget {
         const SizedBox(height: 12),
         _buildTendenciaCard(scoreProm, p.tendenciaScore),
         const SizedBox(height: 16),
+        // BPM y HRV promedio por día (como el portal). Antes graficaba el
+        // "índice promedio/día" (score 0–10), que ya no se muestra en ninguna
+        // pantalla por el marco de alcance.
         _buildCardChart(
-          "Tendencia de indicadores fisiológicos (índice promedio/día)",
+          "Tendencia de indicadores fisiológicos (promedio por día)",
           LineChart(
             LineChartData(
               gridData: FlGridData(
@@ -255,7 +258,15 @@ class _HistorialView extends StatelessWidget {
               ),
               borderData: FlBorderData(show: false),
               titlesData: FlTitlesData(
-                leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 32,
+                    interval: 20,
+                    getTitlesWidget: (value, meta) => Text(value.toInt().toString(),
+                        style: const TextStyle(fontSize: 10, color: AppColors.textoSecundario)),
+                  ),
+                ),
                 rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 bottomTitles: AxisTitles(
@@ -276,19 +287,19 @@ class _HistorialView extends StatelessWidget {
                 ),
               ),
               lineBarsData: [
-                LineChartBarData(
-                  spots: List.generate(actual.length,
-                      (i) => FlSpot(i.toDouble(), actual[i].scorePromedio)),
-                  isCurved: true,
-                  color: AppColors.primario,
-                  barWidth: 3,
-                  dotData: const FlDotData(show: true),
-                  belowBarData: BarAreaData(show: true, color: AppColors.primario.withValues(alpha: 0.08)),
-                ),
+                _lineaPorDia(actual, (r) => r.bpmPromedio, AppColors.metricaBpm),
+                _lineaPorDia(actual, (r) => r.hrvPromedio, AppColors.metricaHrv),
               ],
               minY: 0,
-              maxY: 10,
+              maxY: _techoEje(actual),
             ),
+          ),
+          pie: const Row(
+            children: [
+              _Leyenda("BPM (lat/min)", AppColors.metricaBpm),
+              SizedBox(width: 16),
+              _Leyenda("HRV (ms)", AppColors.metricaHrv),
+            ],
           ),
         ),
         const SizedBox(height: 20),
@@ -364,7 +375,7 @@ class _HistorialView extends StatelessWidget {
     return Aviso(texto, icono: icono, color: color, fondo: fondo);
   }
 
-  Widget _buildCardChart(String titulo, Widget chart) {
+  Widget _buildCardChart(String titulo, Widget chart, {Widget? pie}) {
     return Tarjeta(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -372,9 +383,40 @@ class _HistorialView extends StatelessWidget {
           Text(titulo, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.texto, fontSize: 14)),
           const SizedBox(height: 14),
           SizedBox(height: 180, child: chart),
+          if (pie != null) ...[
+            const SizedBox(height: 12),
+            pie,
+          ],
         ],
       ),
     );
+  }
+
+  /// Una línea de la gráfica de Semana/Mes: un punto por día.
+  LineChartBarData _lineaPorDia(List<ResumenDia> dias, int Function(ResumenDia) valor, Color color) {
+    return LineChartBarData(
+      spots: List.generate(dias.length, (i) => FlSpot(i.toDouble(), valor(dias[i]).toDouble())),
+      isCurved: true,
+      preventCurveOverShooting: true,
+      color: color,
+      barWidth: 3,
+      dotData: FlDotData(
+        show: true,
+        getDotPainter: (spot, percent, bar, index) =>
+            FlDotCirclePainter(radius: 3, color: color, strokeWidth: 1.5, strokeColor: Colors.white),
+      ),
+    );
+  }
+
+  /// Techo del eje Y: el mayor valor de BPM o HRV redondeado hacia arriba al
+  /// siguiente múltiplo de 20, con holgura para que la línea no toque el borde.
+  double _techoEje(List<ResumenDia> dias) {
+    var maximo = 0;
+    for (final r in dias) {
+      if (r.bpmPromedio > maximo) maximo = r.bpmPromedio;
+      if (r.hrvPromedio > maximo) maximo = r.hrvPromedio;
+    }
+    return ((maximo + 10) / 20).ceil() * 20.0;
   }
 
   Widget _buildRegistroCard(Lectura registro) {
@@ -515,6 +557,25 @@ class _HistorialView extends StatelessWidget {
       'jul', 'ago', 'sep', 'oct', 'nov', 'dic'
     ];
     return "${dia.day} de ${meses[dia.month - 1]}";
+  }
+}
+
+/// Muestra de color + nombre de la serie, bajo la gráfica.
+class _Leyenda extends StatelessWidget {
+  final String texto;
+  final Color color;
+  const _Leyenda(this.texto, this.color);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 12, height: 3, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+        const SizedBox(width: 6),
+        Text(texto, style: const TextStyle(fontSize: 11, color: AppColors.textoAyuda, fontWeight: FontWeight.w600)),
+      ],
+    );
   }
 }
 
