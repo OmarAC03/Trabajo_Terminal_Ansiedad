@@ -5,6 +5,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import Login from './Login';
 import RegistroEspecialista from './RegistroEspecialista';
+import RecuperarPassword from './RecuperarPassword';
 import PacientesList from './PacientesList';
 import PacienteDetalle from './PacienteDetalle';
 import PerfilEspecialista from './PerfilEspecialista';
@@ -24,10 +25,12 @@ function App() {
   const [perfil, setPerfil] = useState(null);
   // Sección elegida en el sidebar: 'dashboard' | 'pacientes' | 'perfil'.
   const [seccion, setSeccion] = useState('dashboard');
-  // 'login' | 'registro'. Mientras es 'registro' no se carga el dashboard:
-  // Firebase abre sesión al crear la cuenta, pero la fila en `usuarios` aún
-  // no existe hasta que el backend termina el registro.
+  // 'login' | 'registro' | 'recuperar'. Mientras es 'registro' no se carga el
+  // dashboard: Firebase abre sesión al crear la cuenta, pero la fila en
+  // `usuarios` aún no existe hasta que el backend termina el registro.
   const [vista, setVista] = useState('login');
+  // Correo escrito en el login, para prellenar "¿Olvidaste tu contraseña?".
+  const [emailRecuperar, setEmailRecuperar] = useState('');
   // Paciente abierto en el detalle (Fase 2a), o null para ver la lista. Se
   // guarda solo el id y el objeto se toma de `pacientes`, así el detalle
   // recibe la "última lectura" fresca de cada vuelta del polling.
@@ -102,7 +105,15 @@ function App() {
     );
   }
   if (usuario === null) {
-    return <Login onIrARegistro={() => setVista('registro')} />;
+    if (vista === 'recuperar') {
+      return <RecuperarPassword emailInicial={emailRecuperar} onVolver={() => setVista('login')} />;
+    }
+    return (
+      <Login
+        onIrARegistro={() => setVista('registro')}
+        onOlvidePassword={(email) => { setEmailRecuperar(email); setVista('recuperar'); }}
+      />
+    );
   }
 
   const cerrarSesion = () => {

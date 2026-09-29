@@ -1,8 +1,25 @@
 import { useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { CircleAlert, LogIn } from 'lucide-react';
 import { auth } from './firebase';
+import AuthLayout from './ui/AuthLayout';
+import { Alert, Button, Field } from './ui/components';
 
-function Login({ onIrARegistro }) {
+// Solo se separan los errores que no dicen nada de la cuenta (red, límite de
+// intentos). Correo inexistente y contraseña incorrecta dan el mismo mensaje
+// para no revelar qué correos están registrados.
+function mensajeErrorLogin(error) {
+  switch (error?.code) {
+    case 'auth/network-request-failed':
+      return 'Sin conexión. Revisa tu red e inténtalo de nuevo.';
+    case 'auth/too-many-requests':
+      return 'Demasiados intentos. Espera unos minutos o restablece tu contraseña.';
+    default:
+      return 'Correo o contraseña incorrectos.';
+  }
+}
+
+function Login({ onIrARegistro, onOlvidePassword }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -15,85 +32,65 @@ function Login({ onIrARegistro }) {
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err) {
-      setError('Correo o contraseña incorrectos.');
+      setError(mensajeErrorLogin(err));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={styles.container}>
-      <form onSubmit={handleSubmit} style={styles.card}>
-        <h1 style={styles.title}>Portal Clínico TT</h1>
-        <p style={styles.subtitle}>Acceso para especialistas</p>
-        <input
+    <AuthLayout
+      title="Iniciar sesión"
+      subtitle="Acceso para especialistas"
+      footer={
+        <>
+          ¿Eres especialista y no tienes cuenta?{' '}
+          <Button variant="link" onClick={onIrARegistro}>Regístrate</Button>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit}>
+        <Field
+          id="login-email"
+          label="Correo electrónico"
           type="email"
-          placeholder="Correo"
+          autoComplete="email"
+          placeholder="nombre@institucion.mx"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          style={styles.input}
           required
         />
-        <input
-          type="password"
-          placeholder="Contraseña"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={styles.input}
-          required
-        />
-        {error && <p style={styles.error}>{error}</p>}
-        <button type="submit" disabled={loading} style={styles.button}>
-          {loading ? 'Entrando...' : 'Entrar'}
-        </button>
-        <button type="button" onClick={onIrARegistro} style={styles.linkButton}>
-          ¿Eres especialista? Regístrate
-        </button>
+
+        <div className="ui-field">
+          <div className="ui-auth-label-row">
+            <label className="ui-label" htmlFor="login-password">Contraseña</label>
+            <Button variant="link" onClick={() => onOlvidePassword(email.trim())}>
+              ¿Olvidaste tu contraseña?
+            </Button>
+          </div>
+          <input
+            id="login-password"
+            className="ui-input"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
+
+        {error && (
+          <div className="ui-auth-alert">
+            <Alert tone="altos" icon={CircleAlert}>{error}</Alert>
+          </div>
+        )}
+
+        <Button type="submit" icon={LogIn} disabled={loading} className="ui-btn-block">
+          {loading ? 'Entrando…' : 'Entrar'}
+        </Button>
       </form>
-    </div>
+    </AuthLayout>
   );
 }
-
-const styles = {
-  container: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f6f8fb',
-    fontFamily: 'Segoe UI, sans-serif',
-  },
-  card: {
-    backgroundColor: '#fff',
-    padding: '40px',
-    borderRadius: '15px',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
-    width: '320px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-  },
-  title: { margin: 0, color: '#1a1a1a', textAlign: 'center' },
-  subtitle: { margin: '0 0 10px', color: '#666', textAlign: 'center', fontSize: '13px' },
-  input: { padding: '10px 12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px' },
-  button: {
-    padding: '10px 20px',
-    borderRadius: '8px',
-    border: 'none',
-    backgroundColor: '#1E6AFB',
-    color: '#fff',
-    cursor: 'pointer',
-    fontSize: '14px',
-  },
-  linkButton: {
-    padding: '4px',
-    border: 'none',
-    backgroundColor: 'transparent',
-    color: '#1E6AFB',
-    cursor: 'pointer',
-    fontSize: '13px',
-  },
-  error: { color: '#ef4444', fontSize: '13px', margin: 0 },
-};
 
 export default Login;

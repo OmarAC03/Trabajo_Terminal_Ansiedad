@@ -368,6 +368,23 @@
   border-color: var(--color-primary-border);
 }
 
+/* Acción secundaria con aspecto de enlace (p. ej. "¿Olvidaste tu contraseña?"). */
+.ui-btn-link {
+  padding: 0;
+  background: transparent;
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.ui-btn-link:hover:not(:disabled) {
+  color: var(--color-primary-hover);
+  text-decoration: underline;
+}
+
+.ui-btn-block {
+  width: 100%;
+}
+
 .ui-btn-sm {
   padding: 6px 12px;
   font-size: var(--text-sm);
@@ -849,6 +866,162 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+/* ---------- Pantallas sin sesión (login, registro, recuperar) ---------- */
+.ui-auth {
+  display: grid;
+  grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--color-bg);
+  font-family: var(--font-sans);
+  color: var(--color-text);
+}
+
+.ui-auth-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding: 40px;
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.ui-auth-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--text-lg);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* El logo del sidebar es azul sobre blanco; aquí va invertido. */
+.ui-auth-logo .ui-brand-logo {
+  background: #fff;
+  color: var(--color-primary);
+}
+
+.ui-auth-accent {
+  opacity: 0.8;
+}
+
+.ui-auth-pitch {
+  margin-top: auto;
+}
+
+.ui-auth-pitch-title {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.ui-auth-pitch-text {
+  margin: 12px 0 0;
+  font-size: var(--text-lg);
+  line-height: 1.5;
+  opacity: 0.9;
+}
+
+.ui-auth-scope {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.12);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.ui-auth-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+
+.ui-auth-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 32px;
+  box-sizing: border-box;
+}
+
+.ui-auth-title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.ui-auth-subtitle {
+  margin: 4px 0 24px;
+  font-size: var(--text-md);
+  color: var(--color-text-muted);
+}
+
+.ui-auth-card .ui-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Fila etiqueta + enlace sobre el campo de contraseña. */
+.ui-auth-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ui-auth-label-row .ui-btn-link {
+  font-size: var(--text-sm);
+}
+
+.ui-auth-alert {
+  margin-bottom: 16px;
+}
+
+.ui-auth-footer {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.ui-auth-footer .ui-btn-link {
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 860px) {
+  .ui-auth {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* En angosto el panel de marca se reduce a un encabezado con el logo y el
+     aviso de alcance. */
+  .ui-auth-brand {
+    gap: 16px;
+    padding: 20px 16px;
+  }
+
+  .ui-auth-pitch {
+    display: none;
+  }
+
+  .ui-auth-main {
+    align-items: flex-start;
+    padding: 24px 16px;
+  }
+
+  .ui-auth-card {
+    padding: 24px 20px;
+  }
 }
 
 /* ---------- Mi perfil ---------- */
