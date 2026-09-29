@@ -100,6 +100,99 @@ AppBar appBarGradiente(String titulo, {List<Widget>? acciones}) {
   );
 }
 
+/// Campo de formulario de la guía: etiqueta pequeña semibold arriba, ícono a
+/// la izquierda y el resto del estilo del tema (radio 12, foco azul).
+class CampoTexto extends StatelessWidget {
+  final String etiqueta;
+  final TextEditingController controller;
+  final IconData icono;
+  final String? hint;
+  final TextInputType? keyboardType;
+  final TextInputAction? textInputAction;
+  final bool obscureText;
+  final Widget? suffixIcon;
+  final ValueChanged<String>? onSubmitted;
+
+  const CampoTexto({
+    super.key,
+    required this.etiqueta,
+    required this.controller,
+    required this.icono,
+    this.hint,
+    this.keyboardType,
+    this.textInputAction,
+    this.obscureText = false,
+    this.suffixIcon,
+    this.onSubmitted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          etiqueta,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textoAyuda),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          textInputAction: textInputAction,
+          obscureText: obscureText,
+          onSubmitted: onSubmitted,
+          style: const TextStyle(color: AppColors.texto, fontSize: 15),
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixIcon: Icon(icono, size: 20),
+            suffixIcon: suffixIcon,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Botón primario azul a todo el ancho; muestra un spinner mientras [cargando].
+class BotonPrimario extends StatelessWidget {
+  final String texto;
+  final VoidCallback? onPressed;
+  final bool cargando;
+  final IconData? icono;
+
+  const BotonPrimario({super.key, required this.texto, this.onPressed, this.cargando = false, this.icono});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton(
+        onPressed: cargando ? null : onPressed,
+        style: ElevatedButton.styleFrom(
+          disabledBackgroundColor: AppColors.primario.withValues(alpha: 0.6),
+          disabledForegroundColor: Colors.white,
+        ),
+        child: cargando
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (icono != null) ...[Icon(icono, size: 20), const SizedBox(width: 8)],
+                  Flexible(child: Text(texto, overflow: TextOverflow.ellipsis)),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
 /// Tarjeta blanca con borde y sombra sutil.
 class Tarjeta extends StatelessWidget {
   final Widget child;

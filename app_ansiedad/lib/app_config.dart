@@ -139,6 +139,9 @@ class Disclaimers {
       'Esta app monitorea parámetros fisiológicos (frecuencia cardiaca, SpO2 y HRV) '
       'asociados a la ansiedad como apoyo a tu especialista. No emite diagnósticos '
       'ni reemplaza la atención de un profesional de salud.';
+  static const String acceso =
+      'Herramienta de apoyo para tu especialista: muestra parámetros fisiológicos '
+      'y no emite diagnósticos.';
   static const String ejercicios =
       'Estos ejercicios son una herramienta de apoyo sugerida por tu especialista; '
       'no son un tratamiento ni sustituyen la atención profesional. Si tienes dudas '

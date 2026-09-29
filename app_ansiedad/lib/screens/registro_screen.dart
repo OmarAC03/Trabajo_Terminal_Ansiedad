@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:app_ansiedad/app_config.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:app_ansiedad/api_client.dart';
+import 'package:app_ansiedad/ui/app_colors.dart';
+import 'package:app_ansiedad/ui/estructura_acceso.dart';
+import 'package:app_ansiedad/ui/widgets.dart';
 import 'dart:convert';
 
 
@@ -23,7 +26,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
   void _mostrarError(String mensaje) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje), backgroundColor: Colors.red),
+      SnackBar(content: Text(mensaje), backgroundColor: AppColors.altos),
     );
   }
 
@@ -53,7 +56,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
     final errorValidacion = _validarCampos();
     if (errorValidacion != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorValidacion), backgroundColor: Colors.orange),
+        SnackBar(content: Text(errorValidacion), backgroundColor: AppColors.elevados),
       );
       return;
     }
@@ -141,92 +144,49 @@ class _RegistroScreenState extends State<RegistroScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const Color primaryBlue = Color(0xFF1E6AFB);
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FB),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: primaryBlue),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                "Crear Cuenta",
-                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black87),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                "Regístrate para comenzar tu monitoreo biométrico",
-                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 40),
-
-              // Campo Nombre
-              TextField(
-                controller: _nombreController,
-                decoration: InputDecoration(
-                  labelText: "Nombre completo",
-                  prefixIcon: const Icon(Icons.person, color: primaryBlue),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Campo Correo
-              TextField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  labelText: "Correo Electrónico",
-                  prefixIcon: const Icon(Icons.email, color: primaryBlue),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Campo Contraseña
-              TextField(
-                controller: _passwordController,
-                obscureText: _obscurePassword,
-                decoration: InputDecoration(
-                  labelText: "Contraseña",
-                  prefixIcon: const Icon(Icons.lock, color: primaryBlue),
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                  ),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
-                ),
-              ),
-              const SizedBox(height: 30),
-
-              // Botón Registrar
-              SizedBox(
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _registrarUsuario,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryBlue,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text("Registrarme", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
+    return EstructuraAcceso(
+      conRegreso: true,
+      titulo: 'Crear cuenta',
+      subtitulo: 'Regístrate para comenzar tu monitoreo biométrico',
+      formulario: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          CampoTexto(
+            etiqueta: 'Nombre completo',
+            controller: _nombreController,
+            icono: Icons.person_outline,
+            textInputAction: TextInputAction.next,
           ),
-        ),
+          const SizedBox(height: 16),
+          CampoTexto(
+            etiqueta: 'Correo electrónico',
+            controller: _emailController,
+            icono: Icons.mail_outline,
+            hint: 'tu@correo.com',
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+          ),
+          const SizedBox(height: 16),
+          CampoTexto(
+            etiqueta: 'Contraseña',
+            controller: _passwordController,
+            icono: Icons.lock_outline,
+            hint: 'Mínimo 6 caracteres',
+            obscureText: _obscurePassword,
+            textInputAction: TextInputAction.done,
+            suffixIcon: IconButton(
+              icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+              tooltip: _obscurePassword ? 'Mostrar contraseña' : 'Ocultar contraseña',
+              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+            ),
+          ),
+          const SizedBox(height: 24),
+          BotonPrimario(
+            texto: 'Registrarme',
+            cargando: _isLoading,
+            onPressed: _registrarUsuario,
+          ),
+        ],
       ),
     );
   }
