@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'ui/app_colors.dart';
 
 /// Catálogo de avatares disponibles. El "id" es lo que se guarda en
 /// `photoURL` de Firebase Auth con el prefijo "avatar:" (ej. "avatar:zorro").
@@ -117,7 +118,7 @@ Future<TipoAvatar?> mostrarSelectorAvatar(BuildContext context, {TipoAvatar? act
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: seleccionado ? const Color(0xFF1E6AFB) : Colors.transparent,
+                            color: seleccionado ? AppColors.primario : Colors.transparent,
                             width: 3,
                           ),
                         ),

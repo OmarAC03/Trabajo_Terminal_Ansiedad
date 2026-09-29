@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/vinculacion_provider.dart';
+import '../ui/app_colors.dart';
+import '../ui/widgets.dart';
 
 /// Pantalla "Especialista vinculado" — capa de UI.
 ///
@@ -27,8 +29,6 @@ class _VinculacionView extends StatefulWidget {
 }
 
 class _VinculacionViewState extends State<_VinculacionView> {
-  static const Color headerColor = Color(0xFF1E6AFB);
-
   // El controlador del campo de texto es puramente de UI, igual que en
   // MensajesScreen: no forma parte del estado de la vinculación.
   final TextEditingController _controladorCodigo = TextEditingController();
@@ -51,40 +51,45 @@ class _VinculacionViewState extends State<_VinculacionView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("✅ Vinculado con ${p.vinculacion.especialistaNombre ?? 'tu especialista'}"),
-          backgroundColor: Colors.green,
+          backgroundColor: AppColors.normal,
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ $error"), backgroundColor: Colors.red),
+        SnackBar(content: Text("❌ $error"), backgroundColor: AppColors.altos),
       );
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
     final p = context.watch<VinculacionProvider>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FB),
-      appBar: AppBar(
-        title: const Text("Especialista", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: headerColor,
-        elevation: 0,
-      ),
+      backgroundColor: AppColors.fondo,
+      appBar: appBarGradiente("Especialista"),
       body: RefreshIndicator(
         onRefresh: () => p.cargar(),
         child: p.isLoading
             ? ListView(children: const [
                 Padding(
                   padding: EdgeInsets.only(top: 150),
-                  child: Center(child: CircularProgressIndicator(color: headerColor)),
+                  child: Center(child: CircularProgressIndicator(color: AppColors.primario)),
                 ),
               ])
             : ListView(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(16),
                 children: [
-                  if (p.errorMsg != null) _buildBannerError(p.errorMsg!),
+                  if (p.errorMsg != null) ...[
+                    Aviso(
+                      p.errorMsg!,
+                      icono: Icons.warning_amber_rounded,
+                      color: AppColors.elevados,
+                      fondo: AppColors.elevadosFondo,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   p.vinculacion.vinculado ? _buildTarjetaVinculado(p) : _buildFormularioCodigo(p),
                 ],
               ),
@@ -92,45 +97,26 @@ class _VinculacionViewState extends State<_VinculacionView> {
     );
   }
 
-  Widget _buildBannerError(String mensaje) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(14)),
-      child: Row(
-        children: [
-          const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
-          const SizedBox(width: 10),
-          Expanded(child: Text(mensaje, style: const TextStyle(color: Colors.orange, fontSize: 12))),
-        ],
-      ),
-    );
-  }
-
   Widget _buildTarjetaVinculado(VinculacionProvider p) {
-    return Container(
+    return Tarjeta(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: headerColor.withValues(alpha: 0.1), shape: BoxShape.circle),
-            child: const Icon(Icons.verified_user, color: headerColor, size: 32),
+            width: 64,
+            height: 64,
+            decoration: const BoxDecoration(color: AppColors.primarioSuave, shape: BoxShape.circle),
+            child: const Icon(Icons.verified_user, color: AppColors.primario, size: 32),
           ),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             "Ya estás vinculado",
-            style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 14, color: AppColors.textoAyuda),
           ),
           const SizedBox(height: 4),
           Text(
             p.vinculacion.especialistaNombre ?? "Especialista",
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.texto),
             textAlign: TextAlign.center,
           ),
         ],
@@ -139,56 +125,36 @@ class _VinculacionViewState extends State<_VinculacionView> {
   }
 
   Widget _buildFormularioCodigo(VinculacionProvider p) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+    return Tarjeta(
+      padding: const EdgeInsets.all(20),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text("Vincúlate con tu especialista", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(
+          const Text("Vincúlate con tu especialista",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.texto)),
+          const SizedBox(height: 6),
+          const Text(
             "Pídele a tu especialista el código de vinculación y escríbelo aquí. "
             "Solo se hace una vez.",
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            style: TextStyle(color: AppColors.textoAyuda, fontSize: 13),
           ),
           const SizedBox(height: 20),
-          TextField(
+          CampoTexto(
+            etiqueta: "Código de vinculación",
             controller: _controladorCodigo,
+            icono: Icons.key_outlined,
+            hint: "Ej. A1B2C3",
             textCapitalization: TextCapitalization.characters,
+            textInputAction: TextInputAction.done,
             enabled: !p.isVinculando,
-            decoration: InputDecoration(
-              hintText: "Código de vinculación",
-              filled: true,
-              fillColor: Colors.grey[100],
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            ),
             onSubmitted: (_) => _vincular(p),
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: p.isVinculando ? null : () => _vincular(p),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: headerColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              child: p.isVinculando
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Text("Vincular"),
-            ),
+          BotonPrimario(
+            texto: "Vincular",
+            icono: Icons.link,
+            cargando: p.isVinculando,
+            onPressed: () => _vincular(p),
           ),
         ],
       ),

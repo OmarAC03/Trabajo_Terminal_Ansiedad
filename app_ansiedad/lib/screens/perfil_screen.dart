@@ -6,6 +6,8 @@ import 'vinculacion_screen.dart';
 import '../app_config.dart';
 import '../avatar_widgets.dart';
 import '../providers/perfil_provider.dart';
+import '../ui/app_colors.dart';
+import '../ui/widgets.dart';
 
 /// Pantalla de Perfil — capa de UI.
 ///
@@ -28,8 +30,6 @@ class PerfilScreen extends StatelessWidget {
 class _PerfilView extends StatelessWidget {
   const _PerfilView();
 
-  static const Color headerColor = Color(0xFF1E6AFB);
-
   Future<void> _elegirAvatar(BuildContext context, PerfilProvider p) async {
     final elegido = await mostrarSelectorAvatar(context, actual: p.avatar);
     if (elegido == null || elegido == p.avatar) return;
@@ -39,7 +39,7 @@ class _PerfilView extends StatelessWidget {
 
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok ? "✅ Avatar actualizado" : "❌ No se pudo guardar el avatar. Intenta de nuevo."),
-      backgroundColor: ok ? Colors.green : Colors.red,
+      backgroundColor: ok ? AppColors.normal : AppColors.altos,
     ));
   }
 
@@ -49,7 +49,6 @@ class _PerfilView extends StatelessWidget {
     final nuevoNombre = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text("Editar nombre"),
         content: TextField(
           controller: controller,
@@ -63,7 +62,6 @@ class _PerfilView extends StatelessWidget {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar")),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            style: ElevatedButton.styleFrom(backgroundColor: headerColor, foregroundColor: Colors.white),
             child: const Text("Guardar"),
           ),
         ],
@@ -77,11 +75,11 @@ class _PerfilView extends StatelessWidget {
 
     if (error == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Nombre actualizado"), backgroundColor: Colors.green),
+        const SnackBar(content: Text("✅ Nombre actualizado"), backgroundColor: AppColors.normal),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ $error"), backgroundColor: Colors.red),
+        SnackBar(content: Text("❌ $error"), backgroundColor: AppColors.altos),
       );
     }
   }
@@ -90,14 +88,13 @@ class _PerfilView extends StatelessWidget {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text("Cerrar sesión"),
         content: const Text("¿Seguro que quieres cerrar tu sesión?"),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancelar")),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.altos, foregroundColor: Colors.white),
             child: const Text("Cerrar sesión"),
           ),
         ],
@@ -129,65 +126,61 @@ class _PerfilView extends StatelessWidget {
     final p = context.watch<PerfilProvider>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FB),
-      appBar: AppBar(
-        title: const Text("Mi Perfil", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: headerColor,
-        elevation: 0,
-      ),
-      body: RefreshIndicator(
-        onRefresh: p.cargar,
-        child: p.isLoading
-            ? ListView(children: const [
-                Padding(
-                  padding: EdgeInsets.only(top: 150),
-                  child: Center(child: CircularProgressIndicator(color: headerColor)),
-                ),
-              ])
-            : ListView(
-                padding: const EdgeInsets.all(24),
-                children: [
-                  if (p.errorMsg != null) _buildBannerError(p.errorMsg!),
-                  _buildTarjetaPerfil(context, p),
-                  const SizedBox(height: 24),
-                  _buildSeccionCuenta(p),
-                  if (p.rol == 'paciente') ...[
-                    const SizedBox(height: 24),
-                    _buildSeccionEspecialista(context),
-                  ],
-                  const SizedBox(height: 24),
-                  _buildSeccionAcerca(),
-                  const SizedBox(height: 30),
-                  _buildBotonCerrarSesion(context),
-                ],
-              ),
-      ),
-    );
-  }
-
-  Widget _buildBannerError(String mensaje) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(14)),
-      child: Row(
+      backgroundColor: AppColors.fondo,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
-          const SizedBox(width: 10),
-          Expanded(child: Text(mensaje, style: const TextStyle(color: Colors.orange, fontSize: 12))),
+          const EncabezadoGradiente(
+            icono: Icons.person_outline,
+            titulo: "Mi Perfil",
+            subtitulo: "Tu cuenta y tu especialista",
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: p.cargar,
+              child: p.isLoading
+                  ? ListView(children: const [
+                      Padding(
+                        padding: EdgeInsets.only(top: 120),
+                        child: Center(child: CircularProgressIndicator(color: AppColors.primario)),
+                      ),
+                    ])
+                  : ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        if (p.errorMsg != null) ...[
+                          Aviso(
+                            p.errorMsg!,
+                            icono: Icons.warning_amber_rounded,
+                            color: AppColors.elevados,
+                            fondo: AppColors.elevadosFondo,
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        _buildTarjetaPerfil(context, p),
+                        const SizedBox(height: 20),
+                        _buildSeccionCuenta(p),
+                        if (p.rol == 'paciente') ...[
+                          const SizedBox(height: 20),
+                          _buildSeccionEspecialista(context),
+                        ],
+                        const SizedBox(height: 20),
+                        _buildSeccionAcerca(),
+                        const SizedBox(height: 24),
+                        _buildBotonCerrarSesion(context),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildTarjetaPerfil(BuildContext context, PerfilProvider p) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+    return Tarjeta(
+      padding: const EdgeInsets.all(20),
       child: Column(
         children: [
           GestureDetector(
@@ -199,7 +192,7 @@ class _PerfilView extends StatelessWidget {
                     ? AnimalAvatar(tipo: p.avatar!, size: 84)
                     : CircleAvatar(
                         radius: 42,
-                        backgroundColor: headerColor,
+                        backgroundColor: AppColors.primario,
                         child: Text(
                           _iniciales(p.nombre, p.email),
                           style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
@@ -211,7 +204,7 @@ class _PerfilView extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(5),
                     decoration: BoxDecoration(
-                      color: headerColor,
+                      color: AppColors.primario,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                     ),
@@ -221,34 +214,36 @@ class _PerfilView extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Text(
             p.nombre.isEmpty ? "Sin nombre registrado" : p.nombre,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.texto),
           ),
           const SizedBox(height: 4),
-          Text(p.email, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+          Text(p.email, style: const TextStyle(color: AppColors.textoAyuda, fontSize: 13)),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(color: headerColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(color: AppColors.primarioSuave, borderRadius: BorderRadius.circular(999)),
             child: Text(
               p.rol == 'especialista' ? "ESPECIALISTA" : "PACIENTE",
-              style: TextStyle(color: headerColor, fontSize: 11, fontWeight: FontWeight.bold),
+              style: const TextStyle(color: AppColors.primario, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.6),
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: () => _editarNombre(context, p),
-              icon: const Icon(Icons.edit, size: 16),
+              icon: const Icon(Icons.edit_outlined, size: 16),
               label: const Text("Editar nombre"),
               style: OutlinedButton.styleFrom(
-                foregroundColor: headerColor,
-                side: BorderSide(color: headerColor.withValues(alpha: 0.4)),
+                foregroundColor: AppColors.primario,
+                side: BorderSide(color: AppColors.primario.withValues(alpha: 0.4)),
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppColors.radio)),
               ),
             ),
           ),
@@ -265,30 +260,29 @@ class _PerfilView extends StatelessWidget {
   }
 
   Widget _buildSeccionEspecialista(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 10),
-          child: Text("Especialista",
-              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700, fontSize: 13)),
-        ),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.grey.shade200),
+    return _buildSeccion("Especialista", [
+      Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppColors.radio),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VinculacionScreen())),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Icon(Icons.medical_services_outlined, size: 18, color: AppColors.primario),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text("Especialista vinculado",
+                      style: TextStyle(color: AppColors.texto, fontSize: 13, fontWeight: FontWeight.w600)),
+                ),
+                Icon(Icons.chevron_right, size: 20, color: AppColors.textoSecundario),
+              ],
+            ),
           ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            leading: const Icon(Icons.medical_services_outlined, size: 20, color: headerColor),
-            title: const Text("Especialista vinculado", style: TextStyle(fontSize: 13)),
-            trailing: const Icon(Icons.chevron_right, size: 20),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VinculacionScreen())),
-          ),
         ),
-      ],
-    );
+      ),
+    ]);
   }
 
   Widget _buildSeccionAcerca() {
@@ -296,28 +290,29 @@ class _PerfilView extends StatelessWidget {
       _buildFila(Icons.info_outline, "Proyecto", "Trabajo Terminal — Sistema de Ansiedad"),
       _buildFila(Icons.cloud_outlined, "Servidor", "Conectado (Render + Supabase)"),
       const Padding(
-        padding: EdgeInsets.fromLTRB(16, 4, 16, 14),
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 14),
         child: DisclaimerNota(Disclaimers.alcance),
       ),
     ]);
   }
 
+  /// Título gris en mayúsculas + tarjeta con filas separadas por líneas.
   Widget _buildSeccion(String titulo, List<Widget> filas) {
+    final conDivisores = <Widget>[];
+    for (var i = 0; i < filas.length; i++) {
+      if (i > 0) conDivisores.add(const Divider(height: 1, indent: 16, endIndent: 16));
+      conDivisores.add(filas[i]);
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 10),
-          child: Text(titulo,
-              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700, fontSize: 13)),
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: EtiquetaSeccion(titulo),
         ),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: Column(children: filas),
+        Tarjeta(
+          padding: EdgeInsets.zero,
+          child: Column(children: conDivisores),
         ),
       ],
     );
@@ -328,16 +323,16 @@ class _PerfilView extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
-          Icon(icono, size: 18, color: Colors.grey.shade500),
+          Icon(icono, size: 18, color: AppColors.textoSecundario),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+            child: Text(label, style: const TextStyle(color: AppColors.textoAyuda, fontSize: 13)),
           ),
           Flexible(
             child: Text(
               valor,
               textAlign: TextAlign.end,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.texto),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -351,12 +346,15 @@ class _PerfilView extends StatelessWidget {
       width: double.infinity,
       child: OutlinedButton.icon(
         onPressed: () => _cerrarSesion(context),
-        icon: const Icon(Icons.logout, color: Colors.red, size: 18),
-        label: const Text("Cerrar sesión", style: TextStyle(color: Colors.red)),
+        icon: const Icon(Icons.logout, size: 18),
+        label: const Text("Cerrar sesión"),
         style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Colors.red),
+          foregroundColor: AppColors.altos,
+          backgroundColor: AppColors.superficie,
+          side: const BorderSide(color: AppColors.altos),
           padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: const TextStyle(fontWeight: FontWeight.bold),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppColors.radio)),
         ),
       ),
     );

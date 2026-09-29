@@ -112,6 +112,8 @@ class CampoTexto extends StatelessWidget {
   final bool obscureText;
   final Widget? suffixIcon;
   final ValueChanged<String>? onSubmitted;
+  final TextCapitalization textCapitalization;
+  final bool enabled;
 
   const CampoTexto({
     super.key,
@@ -124,6 +126,8 @@ class CampoTexto extends StatelessWidget {
     this.obscureText = false,
     this.suffixIcon,
     this.onSubmitted,
+    this.textCapitalization = TextCapitalization.none,
+    this.enabled = true,
   });
 
   @override
@@ -142,6 +146,8 @@ class CampoTexto extends StatelessWidget {
           textInputAction: textInputAction,
           obscureText: obscureText,
           onSubmitted: onSubmitted,
+          textCapitalization: textCapitalization,
+          enabled: enabled,
           style: const TextStyle(color: AppColors.texto, fontSize: 15),
           decoration: InputDecoration(
             hintText: hint,
