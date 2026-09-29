@@ -5,6 +5,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'auth_gate.dart';
 import 'logger.dart';
+import 'ui/app_colors.dart';
+import 'ui/app_theme.dart';
 
 void main() {
   // runZonedGuarded envuelve TODO lo que sigue (incluida la inicialización
@@ -59,10 +61,7 @@ class AppAnsiedad extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Sistema de Ansiedad',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.claro,
       home: const AuthGate(), // Decide solo entre Login y la app según la sesión
     );
   }
@@ -74,19 +73,19 @@ class _PantallaErrorInesperado extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFFF6F8FB),
+      color: AppColors.fondo,
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: const [
-              Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
+              Icon(Icons.error_outline, size: 48, color: AppColors.altos),
               SizedBox(height: 12),
               Text(
                 'Algo salió mal en esta pantalla.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16),
+                style: TextStyle(fontSize: 16, color: AppColors.texto),
               ),
             ],
           ),

@@ -7,6 +7,7 @@ import 'screens/historial_screen.dart';
 import 'screens/mensajes_screen.dart'; // ¡Nueva pantalla!
 import 'screens/perfil_screen.dart';
 import 'screens/tecnicas_screen.dart';
+import 'ui/app_colors.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -77,8 +78,40 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
   Widget _conBadge(Widget icono, int cantidad) {
     return Badge(
       isLabelVisible: cantidad > 0,
+      backgroundColor: AppColors.altos,
       label: Text(cantidad > 9 ? '9+' : '$cantidad'),
       child: icono,
+    );
+  }
+
+  /// Ícono de la barra: el activo lleva un puntito azul debajo; el inactivo
+  /// deja el mismo espacio transparente para que la barra no brinque.
+  Widget _icono(IconData icono, int cantidad, {required bool activo}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _conBadge(Icon(icono), cantidad),
+          const SizedBox(height: 3),
+          Container(
+            width: 4,
+            height: 4,
+            decoration: BoxDecoration(
+              color: activo ? AppColors.primario : Colors.transparent,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  BottomNavigationBarItem _item(IconData inactivo, IconData activo, String label, {int badge = 0}) {
+    return BottomNavigationBarItem(
+      icon: _icono(inactivo, badge, activo: false),
+      activeIcon: _icono(activo, badge, activo: true),
+      label: label,
     );
   }
 
@@ -96,79 +129,30 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
               index: _indiceActual,
               children: _pantallas,
             ),
-            // Usamos BottomNavigationBar clásico para tener control total del diseño
+            // Barra inferior de GUIA_ESTILO_APP.md: blanca con borde superior,
+            // inactivo gris, activo azul con puntito debajo.
             bottomNavigationBar: Container(
-              decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withValues(alpha: 0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, -5),
-                  ),
-                ],
+              decoration: const BoxDecoration(
+                color: AppColors.superficie,
+                border: Border(top: BorderSide(color: AppColors.borde)),
               ),
               child: BottomNavigationBar(
                 currentIndex: _indiceActual,
                 onTap: _cambiarPestana,
-                backgroundColor: Colors.white,
+                backgroundColor: AppColors.superficie,
                 type: BottomNavigationBarType.fixed,
-                selectedItemColor: const Color(0xFF1E6AFB), // Azul de tu diseño
-                unselectedItemColor: Colors.grey[400],
-                selectedFontSize: 12,
-                unselectedFontSize: 12,
+                selectedItemColor: AppColors.primario,
+                unselectedItemColor: AppColors.textoSecundario,
+                selectedFontSize: 11,
+                unselectedFontSize: 11,
+                selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
                 elevation: 0,
                 items: [
-                  const BottomNavigationBarItem(
-                    icon: Padding(
-                      padding: EdgeInsets.only(bottom: 4),
-                      child: Icon(Icons.home_outlined),
-                    ),
-                    activeIcon: Padding(
-                      padding: EdgeInsets.only(bottom: 4),
-                      child: Icon(Icons.home),
-                    ),
-                    label: 'Inicio',
-                  ),
-                  const BottomNavigationBarItem(
-                    icon: Padding(
-                      padding: EdgeInsets.only(bottom: 4),
-                      child: Icon(Icons.bar_chart),
-                    ),
-                    label: 'Historial',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: _conBadge(const Icon(Icons.chat_bubble_outline), mensajes),
-                    ),
-                    activeIcon: const Padding(
-                      padding: EdgeInsets.only(bottom: 4),
-                      child: Icon(Icons.chat_bubble),
-                    ),
-                    label: 'Mensajes',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: _conBadge(const Icon(Icons.spa_outlined), ejercicios),
-                    ),
-                    activeIcon: Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: _conBadge(const Icon(Icons.spa), ejercicios),
-                    ),
-                    label: 'Técnicas',
-                  ),
-                  const BottomNavigationBarItem(
-                    icon: Padding(
-                      padding: EdgeInsets.only(bottom: 4),
-                      child: Icon(Icons.person_outline),
-                    ),
-                    activeIcon: Padding(
-                      padding: EdgeInsets.only(bottom: 4),
-                      child: Icon(Icons.person),
-                    ),
-                    label: 'Perfil',
-                  ),
+                  _item(Icons.home_outlined, Icons.home, 'Inicio'),
+                  _item(Icons.bar_chart_outlined, Icons.bar_chart, 'Historial'),
+                  _item(Icons.chat_bubble_outline, Icons.chat_bubble, 'Mensajes', badge: mensajes),
+                  _item(Icons.spa_outlined, Icons.spa, 'Técnicas', badge: ejercicios),
+                  _item(Icons.person_outline, Icons.person, 'Perfil'),
                 ],
               ),
             ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/login_screen.dart';
 import 'main_layout.dart';
+import 'ui/app_colors.dart';
 
 /// Puerta de entrada de la app.
 ///
@@ -47,14 +48,14 @@ class _PantallaCarga extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      backgroundColor: Color(0xFFF6F8FB),
+      backgroundColor: AppColors.fondo,
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.monitor_heart, size: 60, color: Color(0xFF1E6AFB)),
+            Icon(Icons.monitor_heart, size: 60, color: AppColors.primario),
             SizedBox(height: 20),
-            CircularProgressIndicator(color: Color(0xFF1E6AFB)),
+            CircularProgressIndicator(color: AppColors.primario),
           ],
         ),
       ),

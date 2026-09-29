@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'ui/app_colors.dart';
 
 /// Configuración central de la app.
 ///
@@ -66,14 +67,27 @@ extension EstadoAnsiedadInfo on EstadoAnsiedad {
     }
   }
 
+  /// Colores del semáforo de GUIA_ESTILO_APP.md (los mismos del portal).
   Color get color {
     switch (this) {
       case EstadoAnsiedad.alta:
-        return Colors.red;
+        return AppColors.altos;
       case EstadoAnsiedad.moderada:
-        return Colors.orange;
+        return AppColors.elevados;
       case EstadoAnsiedad.baja:
-        return Colors.teal;
+        return AppColors.normal;
+    }
+  }
+
+  /// Fondo suave que acompaña a [color] en badges y tarjetas.
+  Color get colorFondo {
+    switch (this) {
+      case EstadoAnsiedad.alta:
+        return AppColors.altosFondo;
+      case EstadoAnsiedad.moderada:
+        return AppColors.elevadosFondo;
+      case EstadoAnsiedad.baja:
+        return AppColors.normalFondo;
     }
   }
 
@@ -141,10 +155,10 @@ class DisclaimerNota extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500),
+        const Icon(Icons.info_outline, size: 14, color: AppColors.textoSecundario),
         const SizedBox(width: 6),
         Expanded(
-          child: Text(texto, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, height: 1.3)),
+          child: Text(texto, style: const TextStyle(fontSize: 11, color: AppColors.textoAyuda, height: 1.3)),
         ),
       ],
     );
