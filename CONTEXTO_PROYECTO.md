@@ -209,6 +209,17 @@ Referencia: `MARCO_ALCANCE_Y_LENGUAJE.md`. El sistema monitorea parámetros fisi
 
 ---
 
+## 4quinquies. Rediseño visual de la app móvil (unificada con el portal)
+
+**Estado: ⏳ EN PROGRESO (paso 0 de 7 hecho, 2026-09-29).** Referencia visual exacta: `app_ansiedad/GUIA_ESTILO_APP.md` (misma paleta que el portal: azul `#2563EB`, fondo `#F8FAFC`, semáforo verde/ámbar/rojo con fondos suaves, header con gradiente `#1D4ED8`→`#2563EB`, tarjetas de métrica, bottom nav). Regla: **solo apariencia**, un paso a la vez con `flutter analyze` + prueba en el celular antes de commitear. La lógica del monitor, el chat/socket y los datos no se tocan. Única funcionalidad nueva: "¿Olvidaste tu contraseña?" (HU02, paso 2, commit aparte).
+
+- **Decisiones aprobadas:** (1) el Monitor deja de mostrar la tarjeta "ÍNDICE x/10" y la barra de score (va contra el marco de alcance); el score se sigue calculando y enviando por dentro. (2) Se mantienen las **5 pestañas** (la guía dice 4, pero Técnicas es funcionalidad real). (3) En el paso 2, los errores de login se unifican en "Correo o contraseña incorrectos." (como el portal: no revelar si el correo existe). (4) Sin Inter: fuente por defecto, sin agregar `google_fonts`.
+- **Paso 0 — Base visual + barra inferior (✅ probado en el celular):** `lib/ui/app_colors.dart` (paleta y semáforo con fondos), `lib/ui/app_theme.dart` (`AppTheme.claro`: tema global, reemplaza el seed teal de `main.dart`), `lib/ui/widgets.dart` (`EncabezadoGradiente`, `appBarGradiente`, `Tarjeta`, `EtiquetaSeccion`, `TarjetaMetrica`, `BadgeEstado` — se usan desde el paso 1). `EstadoAnsiedadInfo.color` pasa a los colores de la guía y gana `colorFondo` (`textoDB`/`textoUI` sin cambios). `main_layout.dart`: barra blanca con borde superior, activo azul con puntito, badges en rojo; misma lógica de pestañas/badges/sondeo.
+- **Pasos siguientes:** 1 Login + Registro (visual) · 2 "¿Olvidaste tu contraseña?" (`setLanguageCode('es')` + `sendPasswordResetEmail`, mensaje genérico, pantalla `recuperar_password_screen.dart` con el correo prellenado; sin backend) · 3 Monitor · 4 Historial · 5 Técnicas + Ejercicios asignados (sin tocar animaciones/voz/música) · 6 Mensajes · 7 Perfil + Vinculación.
+- **Fuera de este rediseño:** la pantalla "Alerta"/pedir ayuda del mockup (feature futura, en Diferidos), "Score de ansiedad", textos de diagnóstico, "Health Monitor" y elementos del mockup sin dato real detrás.
+
+---
+
 ## 5. Deuda técnica / pendientes conocidos
 
 - **Seguridad (Inc. 6a, ✅ CERRADO):** `GET /api/lecturas` y el resto de endpoints ya exigen token Firebase y el portal web ya exige login — verificado end-to-end (ver sección 4). El pendiente menor de confirmar el rol especialista quedó cerrado al verificar la Fase D del sistema de vinculación (sección 4ter).
@@ -255,7 +266,7 @@ Referencia: `MARCO_ALCANCE_Y_LENGUAJE.md`. El sistema monitorea parámetros fisi
 
 ## 8. Siguiente paso sugerido
 
-**Estado al cierre de la última sesión (2026-09-28):** **Fase A del portal (rediseño visual) ✅ COMPLETA**: los 7 pasos (Dashboard, Pacientes, Detalle, Ejercicios, Chat, Perfil, Login/Registro + restablecer contraseña HU02) probados y commiteados — ver sección 4bis. **Fase 2e** (perfil del especialista + cierre de seguridad de `usuarios/:id` + base visual del portal, sección 4bis) **✅ PROBADA y CERRADA**: backend `0268162` y portal `86e369a`, ambos en `main`; seguridad de `usuarios/:id` verificada en GET y PUT (403 ajeno / 200 propio). Antes: re-enfoque de lenguaje (sección 4quater), Portal Web Fase 2a y **Fase 2b (chat)** construidos y desplegados; la 2b no se considera cerrada hasta pasar la prueba de aislamiento (punto 3, diferida). **Fase 2c (ejercicios + badges)** ✅ **PROBADA (2026-09-28)**: asignación, "Nuevo"/badge y "Visto por el paciente" verificados; solo queda la prueba del 403 por comando (punto 1).
+**Estado al cierre de la última sesión (2026-09-29):** **Rediseño visual de la app móvil ⏳ en progreso** (paso 0 de 7 ✅, sección 4quinquies). **Fase A del portal (rediseño visual) ✅ COMPLETA**: los 7 pasos (Dashboard, Pacientes, Detalle, Ejercicios, Chat, Perfil, Login/Registro + restablecer contraseña HU02) probados y commiteados — ver sección 4bis. **Fase 2e** (perfil del especialista + cierre de seguridad de `usuarios/:id` + base visual del portal, sección 4bis) **✅ PROBADA y CERRADA**: backend `0268162` y portal `86e369a`, ambos en `main`; seguridad de `usuarios/:id` verificada en GET y PUT (403 ajeno / 200 propio). Antes: re-enfoque de lenguaje (sección 4quater), Portal Web Fase 2a y **Fase 2b (chat)** construidos y desplegados; la 2b no se considera cerrada hasta pasar la prueba de aislamiento (punto 3, diferida). **Fase 2c (ejercicios + badges)** ✅ **PROBADA (2026-09-28)**: asignación, "Nuevo"/badge y "Visto por el paciente" verificados; solo queda la prueba del 403 por comando (punto 1).
 
 ### Pendientes, EN ORDEN
 
@@ -267,7 +278,8 @@ Referencia: `MARCO_ALCANCE_Y_LENGUAJE.md`. El sistema monitorea parámetros fisi
 
 ### Siguientes fases (la 2e ya está cerrada)
 - ~~**Fase A — rediseño visual completo del portal**~~ — ✅ **COMPLETA (2026-09-28, ver sección 4bis):** commits `2f3a1c0`, `469adba`, `e4da009`, `ea7990f`, `d4b61ea`, `9a2f315`, `cd316a5`.
-- **"¿Olvidaste tu contraseña?" en la app Flutter (HU02, lado paciente):** pendiente a propósito (no se hizo en el paso 7). Mismo mecanismo: `FirebaseAuth.instance.sendPasswordResetEmail(email:)` desde `login_screen.dart`, con el mismo mensaje genérico y `setLanguageCode('es')`.
+- **⏳ Rediseño visual de la app móvil (sección 4quinquies):** paso 0 ✅ (commit `15b171e`); sigue el paso 1 (Login + Registro).
+- **"¿Olvidaste tu contraseña?" en la app Flutter (HU02, lado paciente):** entra como el **paso 2** del rediseño de la app (sección 4quinquies). Mismo mecanismo que el portal: `FirebaseAuth.instance.sendPasswordResetEmail(email:)` desde `login_screen.dart`, con el mismo mensaje genérico y `setLanguageCode('es')`.
 - **Fase C — rol Admin.**
 - **Documento de alineación protocolo TT vs. sistema** (pendiente).
 
@@ -275,6 +287,7 @@ Referencia: `MARCO_ALCANCE_Y_LENGUAJE.md`. El sistema monitorea parámetros fisi
 - **Token del chat en la app:** se manda solo al conectar el socket; tras ~1 h una reconexión falla hasta reabrir la pantalla (el portal ya lo resuelve con `auth` como función).
 - **Badge de Mensajes por socket (Fase 2c):** hoy el badge sale del sondeo cada 45 s; mejora: incrementarlo al recibir `recibir_mensaje` por el socket que ya abre `MensajesProvider`.
 - **Reporte PDF descargable por paciente** (portal).
+- **Pantalla "Alerta"/pedir ayuda (app):** en el mockup móvil el paciente elige un motivo y avisa a su especialista. Funcionalidad nueva, fuera del rediseño visual de la app.
 - **Bugs visuales del Monitor:** fondo azul estático al hacer scroll y botón "Sincronizar" cortado por el FAB. *Nota:* ya se aplicó un ajuste para ambos en `alerta_screen.dart` (commit `3b4383c`: fondo dentro del scroll + padding inferior de 100 px), pero no se confirmó en el dispositivo — verificar si persisten antes de volver a tocarlo.
 - **Cambio de tema de color azul → menta** (app y portal).
 - **Incremento 6b:** estrategia de testing (unit, widget, integración) — empezar por `auth.js`/`validation.js` en el backend y un test de `api_client.dart` que confirme el header de auth.
