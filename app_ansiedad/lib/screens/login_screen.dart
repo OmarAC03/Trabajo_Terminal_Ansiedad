@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../main_layout.dart'; // O la ruta correcta donde tengas tu MainLayout
+import 'recuperar_password_screen.dart';
 import 'registro_screen.dart';
 import '../ui/app_colors.dart';
 import '../ui/estructura_acceso.dart';
@@ -51,12 +52,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      String mensajeError = 'Ocurrió un error al iniciar sesión';
-      
-      if (e.code == 'user-not-found' || e.code == 'invalid-email') {
-        mensajeError = 'No se encontró un usuario con ese correo.';
-      } else if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
-        mensajeError = 'Contraseña incorrecta.';
+      // Igual que el portal: solo se separan los errores que no dicen nada de
+      // la cuenta (red, límite de intentos). Correo inexistente y contraseña
+      // incorrecta dan el mismo mensaje para no revelar qué correos existen.
+      final String mensajeError;
+      switch (e.code) {
+        case 'network-request-failed':
+          mensajeError = 'Sin conexión. Revisa tu red e inténtalo de nuevo.';
+          break;
+        case 'too-many-requests':
+          mensajeError = 'Demasiados intentos. Espera unos minutos o restablece tu contraseña.';
+          break;
+        default:
+          mensajeError = 'Correo o contraseña incorrectos.';
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -108,7 +116,25 @@ class _LoginScreenState extends State<LoginScreen> {
               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
             ),
           ),
-          const SizedBox(height: 24),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => RecuperarPasswordScreen(emailInicial: _emailController.text.trim()),
+                  ),
+                );
+              },
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+              ),
+              child: const Text('¿Olvidaste tu contraseña?'),
+            ),
+          ),
+          const SizedBox(height: 12),
           BotonPrimario(
             texto: 'Iniciar sesión',
             cargando: _isLoading,

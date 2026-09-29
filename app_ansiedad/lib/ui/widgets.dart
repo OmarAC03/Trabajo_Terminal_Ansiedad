@@ -193,6 +193,45 @@ class BotonPrimario extends StatelessWidget {
   }
 }
 
+/// Aviso en línea (equivalente a `Alert` del portal): ícono + texto sobre un
+/// fondo suave del mismo tono.
+class Aviso extends StatelessWidget {
+  final String texto;
+  final IconData icono;
+  final Color color;
+  final Color fondo;
+
+  const Aviso(this.texto, {super.key, required this.icono, required this.color, required this.fondo});
+
+  const Aviso.info(this.texto, {super.key, this.icono = Icons.mark_email_read_outlined})
+      : color = AppColors.primario,
+        fondo = AppColors.primarioSuave;
+
+  const Aviso.error(this.texto, {super.key, this.icono = Icons.error_outline})
+      : color = AppColors.altos,
+        fondo = AppColors.altosFondo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: fondo,
+        borderRadius: BorderRadius.circular(AppColors.radio),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icono, size: 18, color: color),
+          const SizedBox(width: 8),
+          Expanded(child: Text(texto, style: TextStyle(color: color, fontSize: 13, height: 1.35))),
+        ],
+      ),
+    );
+  }
+}
+
 /// Tarjeta blanca con borde y sombra sutil.
 class Tarjeta extends StatelessWidget {
   final Widget child;
