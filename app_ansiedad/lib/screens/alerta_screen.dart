@@ -3,7 +3,11 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../app_config.dart';
+import '../logger.dart';
 import '../providers/alerta_provider.dart';
+import '../repositories/perfil_repository.dart';
+import '../ui/app_colors.dart';
+import '../ui/widgets.dart';
 
 /// Pantalla de Alerta (Monitor) — capa de UI.
 ///
@@ -23,13 +27,70 @@ class AlertaScreen extends StatelessWidget {
   }
 }
 
+/// Encabezado del Monitor: "Buenos días / Buenas tardes / Buenas noches" +
+/// nombre del paciente.
+///
+/// El nombre vive en la tabla `usuarios` (no en Firebase), así que se lee una
+/// vez con el PerfilRepository existente (mismo `GET /api/usuarios/:id` que
+/// usa Perfil). No pasa por AlertaProvider: es solo texto de presentación.
+/// Mientras carga, o si falla, se muestra la parte del correo antes de la @
+/// (lo que se veía antes).
+class _EncabezadoMonitor extends StatefulWidget {
+  final Widget inferior;
+  const _EncabezadoMonitor({required this.inferior});
+
+  @override
+  State<_EncabezadoMonitor> createState() => _EncabezadoMonitorState();
+}
+
+class _EncabezadoMonitorState extends State<_EncabezadoMonitor> {
+  String? _nombre;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarNombre();
+  }
+
+  Future<void> _cargarNombre() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final perfil = await PerfilRepository().obtenerPerfil(uid);
+      final nombre = perfil.nombre.trim();
+      if (mounted && nombre.isNotEmpty) setState(() => _nombre = nombre);
+    } catch (e) {
+      // No es crítico: se queda el respaldo del correo.
+      AppLogger.warning('No se pudo cargar el nombre para el saludo', tag: 'monitor', error: e);
+    }
+  }
+
+  String get _respaldoCorreo =>
+      FirebaseAuth.instance.currentUser?.email?.split('@')[0] ?? "Paciente";
+
+  /// Solo el primer nombre, para que el saludo quepa en una línea.
+  String get _primerNombre => (_nombre ?? _respaldoCorreo).split(RegExp(r'\s+')).first;
+
+  static String _saludo(DateTime ahora) {
+    final h = ahora.hour;
+    if (h >= 5 && h < 12) return 'Buenos días';
+    if (h >= 12 && h < 19) return 'Buenas tardes';
+    return 'Buenas noches';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return EncabezadoGradiente(
+      icono: Icons.monitor_heart,
+      titulo: '${_saludo(DateTime.now())}, $_primerNombre',
+      subtitulo: 'Monitor de indicadores fisiológicos',
+      inferior: widget.inferior,
+    );
+  }
+}
+
 class _AlertaView extends StatelessWidget {
   const _AlertaView();
-
-  static const Color primaryBlue = Color(0xFF1E6AFB);
-
-  String get _nombreUsuario =>
-      FirebaseAuth.instance.currentUser?.email?.split('@')[0] ?? "Paciente";
 
   void _mostrarSnack(BuildContext context, String m, Color c) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), backgroundColor: c));
@@ -38,12 +99,12 @@ class _AlertaView extends StatelessWidget {
   Future<void> _conectar(BuildContext context, AlertaProvider p) async {
     final mensaje = await p.escanearYConectar();
     if (mensaje == null || !context.mounted) return;
-    _mostrarSnack(context, mensaje.texto, mensaje.advertencia ? Colors.orange : Colors.red);
+    _mostrarSnack(context, mensaje.texto, mensaje.advertencia ? AppColors.elevados : AppColors.altos);
   }
 
   Future<void> _sincronizar(BuildContext context, AlertaProvider p) async {
     if (!p.tieneDatosPendientes) return;
-    _mostrarSnack(context, "Enviando resumen...", Colors.blueGrey);
+    _mostrarSnack(context, "Enviando resumen...", AppColors.textoAyuda);
 
     final r = await p.enviarResumen();
     if (!context.mounted) return;
@@ -52,10 +113,10 @@ class _AlertaView extends StatelessWidget {
       case ResultadoSync.sinDatos:
         break;
       case ResultadoSync.exito:
-        _mostrarSnack(context, "✅ Resumen guardado en historial", Colors.green);
+        _mostrarSnack(context, "✅ Resumen guardado en historial", AppColors.normal);
         break;
       case ResultadoSync.error:
-        _mostrarSnack(context, "❌ ${r.mensajeError}", Colors.red);
+        _mostrarSnack(context, "❌ ${r.mensajeError}", AppColors.altos);
         break;
     }
   }
@@ -65,105 +126,164 @@ class _AlertaView extends StatelessWidget {
     final p = context.watch<AlertaProvider>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FB),
-      // El fondo azul vive DENTRO del área scrolleable (antes estaba fijo
-      // detrás y se despegaba del contenido al hacer scroll).
+      backgroundColor: AppColors.fondo,
       body: SingleChildScrollView(
-        child: Stack(
-        children: [
-          Positioned(top: 0, left: 0, right: 0, child: _buildDisenoFondo(context, primaryBlue)), // El fondo azul
-          Padding(
-            // Padding inferior amplio para que el FAB "Conectar Sensor" no
-            // tape el botón de sincronizar al final del scroll.
-            padding: const EdgeInsets.only(top: 50, left: 20, right: 20, bottom: 100),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildHeader(p), // Nombre y estado
-                const SizedBox(height: 12),
-                _buildBotonSimulacion(context, p),
-                const SizedBox(height: 25),
-                _buildAnxietyIndicator(p), // El semáforo visual
-                const SizedBox(height: 10),
-                const DisclaimerNota(Disclaimers.monitor),
-
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(child: _buildMetricCard("CORAZÓN", "${p.bpmActual}", "BPM", Colors.blueAccent, Icons.favorite)),
-                    const SizedBox(width: 15),
-                    Expanded(child: _buildMetricCard("OXÍGENO", "${p.spo2Actual}", "%", Colors.green, Icons.opacity)),
-                  ],
-                ),
-                const SizedBox(height: 15),
-                Row(
-                  children: [
-                    Expanded(child: _buildMetricCard("VARIABILIDAD", "${p.hrvActual}", "ms", Colors.orange, Icons.timer)),
-                    Expanded(
-                      child: _buildMetricCard("ÍNDICE", p.ansiedadScore.toStringAsFixed(1), "/10", _colorEstado(p), Icons.psychology),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 20),
-                const Text("Tendencia en tiempo real", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
-                const SizedBox(height: 10),
-                _buildTrendChart(p), // La gráfica de fl_chart
-
-                const SizedBox(height: 30),
-                _buildBotonSincronizar(context, p),
-              ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _EncabezadoMonitor(
+              inferior: Row(
+                children: [
+                  Expanded(child: _buildEstadoConexion(p)),
+                  const SizedBox(width: 8),
+                  _buildBotonSimulacion(p),
+                ],
+              ),
             ),
-          ),
-        ],
+            Padding(
+              // Padding inferior amplio para que el FAB "Conectar Sensor" no
+              // tape el botón de sincronizar al final del scroll.
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildIndicadores(p),
+                  const SizedBox(height: 8),
+                  const DisclaimerNota(Disclaimers.monitor),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: _buildMetrica(p, 'BPM', p.bpmActual, 'lat/min', Icons.favorite, AppColors.metricaBpm)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _buildMetrica(p, 'SpO2', p.spo2Actual, '%', Icons.water_drop, AppColors.metricaSpo2)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _buildMetrica(p, 'HRV', p.hrvActual, 'ms', Icons.timer, AppColors.metricaHrv)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _buildTrendChart(p),
+                  const SizedBox(height: 20),
+                  BotonPrimario(
+                    texto: 'Sincronizar resumen de datos',
+                    icono: Icons.cloud_upload_outlined,
+                    onPressed: p.sensorConectado ? () => _sincronizar(context, p) : null,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
-      floatingActionButton: _buildFabConectar(context, p, primaryBlue),
-    );
-  }
-
-  Color _colorEstado(AlertaProvider p) =>
-      p.tieneLectura ? EstadoAnsiedadInfo.colorDesdeTexto(p.estadoAnsiedadTexto) : Colors.grey;
-
-  // Texto visible del semáforo: "Normal" / "Elevados" / "Altos". Por dentro
-  // el provider sigue manejando el valor de BD ("Baja" / "Moderada" / "Alta").
-  String _etiquetaEstado(AlertaProvider p) =>
-      p.tieneLectura ? EstadoAnsiedadInfo.textoUIDesdeTexto(p.estadoAnsiedadTexto) : p.estadoAnsiedadTexto;
-
-  // --- Botón de Sincronización ---
-  Widget _buildBotonSincronizar(BuildContext context, AlertaProvider p) {
-    return ElevatedButton.icon(
-      onPressed: p.sensorConectado ? () => _sincronizar(context, p) : null,
-      icon: const Icon(Icons.cloud_upload),
-      label: const Text("Sincronizar resumen de datos"),
-      style: ElevatedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        backgroundColor: Colors.teal,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      ),
+      floatingActionButton: _buildFabConectar(context, p),
     );
   }
 
   // --- WIDGETS DE DISEÑO ---
-  Widget _buildDisenoFondo(BuildContext context, Color color) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.35,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [color, const Color(0xFF0C52CE)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+
+  /// Chip translúcido con el estado del enlace ("En vivo (Serial)", etc.).
+  Widget _buildEstadoConexion(AlertaProvider p) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(999),
         ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(p.sensorConectado ? Icons.sensors : Icons.sensors_off, color: Colors.white, size: 14),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                p.lastSyncTime,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildFabConectar(BuildContext context, AlertaProvider p, Color color) {
+  Widget _buildBotonSimulacion(AlertaProvider p) {
+    return TextButton.icon(
+      onPressed: p.isScanning ? null : p.toggleSimulacion,
+      icon: Icon(
+        p.modoSimulacion ? Icons.stop_circle_outlined : Icons.science_outlined,
+        color: Colors.white,
+        size: 16,
+      ),
+      label: Text(
+        p.modoSimulacion ? "Detener simulación" : "Simular datos (sin sensor)",
+        style: const TextStyle(color: Colors.white, fontSize: 12),
+      ),
+      style: TextButton.styleFrom(
+        backgroundColor: Colors.white.withValues(alpha: 0.15),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+
+  /// Tarjeta "Indicadores fisiológicos" con el badge Normal / Elevados / Altos.
+  /// Sin score ni barra (GUIA_ESTILO_APP.md): el sistema no emite diagnósticos.
+  /// El provider sigue calculando el score por dentro para el semáforo.
+  Widget _buildIndicadores(AlertaProvider p) {
+    return Tarjeta(
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.primarioSuave,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.monitor_heart_outlined, color: AppColors.primario, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Indicadores fisiológicos",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.texto),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  p.tieneLectura ? "Según la lectura actual del sensor" : p.estadoAnsiedadTexto,
+                  style: const TextStyle(fontSize: 12, color: AppColors.textoAyuda),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Por dentro el provider maneja el valor de BD ("Baja" / "Moderada" /
+          // "Alta"); el badge muestra Normal / Elevados / Altos.
+          BadgeEstado(p.tieneLectura ? p.estadoAnsiedadTexto : null),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetrica(AlertaProvider p, String etiqueta, int valor, String unidad, IconData icono, Color colorIcono) {
+    return TarjetaMetrica(
+      etiqueta: etiqueta,
+      valor: p.tieneLectura ? '$valor' : '--',
+      unidad: unidad,
+      icono: icono,
+      colorIcono: colorIcono,
+    );
+  }
+
+  Widget _buildFabConectar(BuildContext context, AlertaProvider p) {
     return FloatingActionButton.extended(
       // Si está escaneando, desactivamos el botón para evitar múltiples clics
       onPressed: p.isScanning ? null : () => _conectar(context, p),
@@ -178,129 +298,57 @@ class _AlertaView extends StatelessWidget {
 
       label: Text(
         p.isScanning ? "Conectando..." : (p.sensorConectado ? "Conectado" : "Conectar Sensor"),
+        style: const TextStyle(fontWeight: FontWeight.bold),
       ),
 
-      backgroundColor: p.sensorConectado ? Colors.green : color,
+      backgroundColor: p.sensorConectado ? AppColors.normal : AppColors.primario,
       foregroundColor: Colors.white,
-    );
-  }
-
-  Widget _buildBotonSimulacion(BuildContext context, AlertaProvider p) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: TextButton.icon(
-        onPressed: p.isScanning ? null : p.toggleSimulacion,
-        icon: Icon(
-          p.modoSimulacion ? Icons.stop_circle : Icons.science_outlined,
-          color: Colors.white,
-          size: 18,
-        ),
-        label: Text(
-          p.modoSimulacion ? "Detener simulación" : "Simular datos (sin sensor)",
-          style: const TextStyle(color: Colors.white, fontSize: 12),
-        ),
-        style: TextButton.styleFrom(
-          backgroundColor: Colors.white.withValues(alpha: 0.15),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(AlertaProvider p) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text("Monitor Biométrico", style: TextStyle(color: Colors.white70, fontSize: 16)),
-          Text(_nombreUsuario, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-          Text("📡 ${p.lastSyncTime}", style: const TextStyle(color: Colors.white60, fontSize: 12)),
-        ]),
-        const CircleAvatar(backgroundColor: Colors.white24, child: Icon(Icons.person, color: Colors.white)),
-      ],
-    );
-  }
-
-  Widget _buildAnxietyIndicator(AlertaProvider p) {
-    final color = _colorEstado(p);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade200)),
-      child: Column(children: [
-        // Título y estado comparten la fila pero cada uno es Flexible: si no
-        // caben (ej. "ESPERANDO SENSOR..." en pantallas angostas) bajan de
-        // línea en vez de encimarse o desbordar la fila.
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Flexible(
-            child: Text("Indicadores fisiológicos", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-          ),
-          const SizedBox(width: 12),
-          Flexible(
-            child: Text(
-              _etiquetaEstado(p).toUpperCase(),
-              textAlign: TextAlign.end,
-              style: TextStyle(color: color, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ]),
-        const SizedBox(height: 12),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: LinearProgressIndicator(value: p.ansiedadScore / 10, minHeight: 10, backgroundColor: Colors.grey[200], valueColor: AlwaysStoppedAnimation<Color>(color)),
-        ),
-      ]),
-    );
-  }
-
-  Widget _buildMetricCard(String t, String v, String u, Color c, IconData i) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade200)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(i, color: c, size: 20),
-        const SizedBox(height: 8),
-        Text(t, style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
-        Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-          Text(v, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(width: 4),
-          Text(u, style: const TextStyle(color: Colors.grey, fontSize: 10)),
-        ]),
-      ]),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppColors.radio)),
     );
   }
 
   Widget _buildTrendChart(AlertaProvider p) {
     final puntos = p.tendenciaBpm;
-    return Container(
-      height: 180,
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade200)),
-      child: puntos.isEmpty
-          ? const Center(child: Text("Esperando datos...", style: TextStyle(color: Colors.grey)))
-          : LineChart(
-              LineChartData(
-                minY: 40,
-                maxY: 140,
-                gridData: const FlGridData(show: true, drawVerticalLine: false),
-                titlesData: const FlTitlesData(
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                ),
-                borderData: FlBorderData(show: false),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: List.generate(puntos.length, (i) => FlSpot(i.toDouble(), puntos[i].toDouble())),
-                    isCurved: true,
-                    color: Colors.blueAccent,
-                    barWidth: 3,
-                    dotData: const FlDotData(show: false),
-                    belowBarData: BarAreaData(show: true, color: Colors.blueAccent.withValues(alpha: 0.1)),
+    return Tarjeta(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const EtiquetaSeccion("Tendencia en tiempo real · BPM"),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 150,
+            child: puntos.isEmpty
+                ? const Center(child: Text("Esperando datos...", style: TextStyle(color: AppColors.textoSecundario)))
+                : LineChart(
+                    LineChartData(
+                      minY: 40,
+                      maxY: 140,
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: false,
+                        getDrawingHorizontalLine: (_) => const FlLine(color: AppColors.borde, strokeWidth: 1),
+                      ),
+                      titlesData: const FlTitlesData(
+                        rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      ),
+                      borderData: FlBorderData(show: false),
+                      lineBarsData: [
+                        LineChartBarData(
+                          spots: List.generate(puntos.length, (i) => FlSpot(i.toDouble(), puntos[i].toDouble())),
+                          isCurved: true,
+                          color: AppColors.primario,
+                          barWidth: 3,
+                          dotData: const FlDotData(show: false),
+                          belowBarData: BarAreaData(show: true, color: AppColors.primario.withValues(alpha: 0.08)),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
-            ),
+          ),
+        ],
+      ),
     );
   }
 }

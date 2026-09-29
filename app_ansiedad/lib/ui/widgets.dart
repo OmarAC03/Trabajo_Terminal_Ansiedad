@@ -170,10 +170,14 @@ class BotonPrimario extends StatelessWidget {
       height: 50,
       child: ElevatedButton(
         onPressed: cargando ? null : onPressed,
-        style: ElevatedButton.styleFrom(
-          disabledBackgroundColor: AppColors.primario.withValues(alpha: 0.6),
-          disabledForegroundColor: Colors.white,
-        ),
+        // Mientras carga se mantiene azul (atenuado); desactivado por otra
+        // razón usa el gris del tema para que se lea como no disponible.
+        style: cargando
+            ? ElevatedButton.styleFrom(
+                disabledBackgroundColor: AppColors.primario.withValues(alpha: 0.6),
+                disabledForegroundColor: Colors.white,
+              )
+            : null,
         child: cargando
             ? const SizedBox(
                 width: 22,
@@ -275,14 +279,19 @@ class EtiquetaSeccion extends StatelessWidget {
   }
 }
 
-/// Tarjeta de métrica (BPM / SpO2 / HRV): etiqueta arriba, valor grande en
-/// negrita máxima y unidad gris abajo.
+/// Tarjeta de métrica (BPM / SpO2 / HRV): ícono en su color propio, etiqueta
+/// arriba, valor grande en negrita máxima y unidad gris abajo.
 class TarjetaMetrica extends StatelessWidget {
   final String etiqueta;
   final String valor;
   final String unidad;
+
+  /// Color del valor (azul por defecto, o el del estado).
   final Color color;
   final IconData? icono;
+
+  /// Color del ícono; si no se da, usa [color].
+  final Color? colorIcono;
 
   const TarjetaMetrica({
     super.key,
@@ -291,10 +300,12 @@ class TarjetaMetrica extends StatelessWidget {
     required this.unidad,
     this.color = AppColors.primario,
     this.icono,
+    this.colorIcono,
   });
 
   @override
   Widget build(BuildContext context) {
+    final tonoIcono = colorIcono ?? color;
     return Tarjeta(
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -303,8 +314,16 @@ class TarjetaMetrica extends StatelessWidget {
           Row(
             children: [
               if (icono != null) ...[
-                Icon(icono, size: 14, color: color),
-                const SizedBox(width: 4),
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: tonoIcono.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icono, size: 15, color: tonoIcono),
+                ),
+                const SizedBox(width: 6),
               ],
               Flexible(child: EtiquetaSeccion(etiqueta)),
             ],

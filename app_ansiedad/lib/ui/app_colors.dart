@@ -37,6 +37,14 @@ class AppColors {
   static const Color sinLecturas = Color(0xFF94A3B8);
   static const Color sinLecturasFondo = Color(0xFFF1F5F9);
 
+  // --- Íconos de métrica ---
+  // Un color por indicador para distinguirlos de un vistazo. A propósito NO
+  // son el verde/ámbar/rojo del semáforo, para que un ícono no se lea como
+  // "Normal" o "Elevados".
+  static const Color metricaBpm = Color(0xFFE11D48); // rosa
+  static const Color metricaSpo2 = Color(0xFF0891B2); // cian
+  static const Color metricaHrv = Color(0xFF7C3AED); // violeta
+
   // --- Forma ---
   static const double radio = 12;
   static const List<BoxShadow> sombra = [
