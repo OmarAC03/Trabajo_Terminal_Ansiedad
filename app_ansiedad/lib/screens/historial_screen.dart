@@ -6,6 +6,8 @@ import '../app_config.dart';
 import '../models/lectura.dart';
 import '../models/resumen_dia.dart';
 import '../providers/historial_provider.dart';
+import '../ui/app_colors.dart';
+import '../ui/widgets.dart';
 
 /// Pantalla de Historial — capa de UI.
 ///
@@ -28,34 +30,30 @@ class HistorialScreen extends StatelessWidget {
 class _HistorialView extends StatelessWidget {
   const _HistorialView();
 
-  static const Color headerColor = Color(0xFF1E6AFB);
-
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<HistorialProvider>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FB),
-      appBar: AppBar(
-        title: const Text("Historial y Tendencias",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: headerColor,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: () => provider.cargar(),
-            tooltip: "Actualizar datos",
-          ),
-        ],
-      ),
+      backgroundColor: AppColors.fondo,
       body: RefreshIndicator(
         onRefresh: () => provider.cargar(),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildSelectorPeriodo(context, provider),
+            EncabezadoGradiente(
+              icono: Icons.bar_chart,
+              titulo: "Historial y Tendencias",
+              subtitulo: "Tus indicadores fisiológicos",
+              accion: IconButton(
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                onPressed: () => provider.cargar(),
+                tooltip: "Actualizar datos",
+              ),
+              inferior: _buildSelectorPeriodo(provider),
+            ),
             const Padding(
-              padding: EdgeInsets.fromLTRB(20, 4, 20, 4),
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: DisclaimerNota(Disclaimers.historial),
             ),
             Expanded(
@@ -71,7 +69,7 @@ class _HistorialView extends StatelessWidget {
     switch (p.estado) {
       case EstadoCarga.inicial:
       case EstadoCarga.cargando:
-        return const Center(child: CircularProgressIndicator(color: headerColor));
+        return const Center(child: CircularProgressIndicator(color: AppColors.primario));
       case EstadoCarga.error:
         return _buildErrorState(context, p);
       case EstadoCarga.listo:
@@ -79,26 +77,25 @@ class _HistorialView extends StatelessWidget {
     }
   }
 
-  // --- SELECTOR DÍA / SEMANA / MES ---
-  Widget _buildSelectorPeriodo(BuildContext context, HistorialProvider p) {
-    Widget chip(String valor, String label) {
+  // --- SELECTOR DÍA / SEMANA / MES (segmentado, dentro del gradiente) ---
+  Widget _buildSelectorPeriodo(HistorialProvider p) {
+    Widget segmento(String valor, String label) {
       final seleccionado = p.periodo == valor;
       return Expanded(
         child: GestureDetector(
           onTap: () => p.cambiarPeriodo(valor),
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            padding: const EdgeInsets.symmetric(vertical: 10),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(vertical: 9),
             decoration: BoxDecoration(
-              color: seleccionado ? headerColor : Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: seleccionado ? headerColor : Colors.grey.shade300),
+              color: seleccionado ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               label,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: seleccionado ? Colors.white : Colors.grey.shade700,
+                color: seleccionado ? AppColors.primario : Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
               ),
@@ -108,33 +105,39 @@ class _HistorialView extends StatelessWidget {
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(AppColors.radio),
+      ),
       child: Row(
         children: [
-          chip('dia', 'Día'),
-          chip('semana', 'Semana'),
-          chip('mes', 'Mes'),
+          segmento('dia', 'Día'),
+          segmento('semana', 'Semana'),
+          segmento('mes', 'Mes'),
         ],
       ),
     );
   }
 
   Widget _buildErrorState(BuildContext context, HistorialProvider p) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(30),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.cloud_off, size: 70, color: Colors.grey.shade300),
-            const SizedBox(height: 15),
-            Text(p.errorMsg ?? "Error", textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
-            const SizedBox(height: 15),
-            ElevatedButton(onPressed: () => p.cargar(), child: const Text("Reintentar")),
-          ],
+    return ListView(
+      padding: const EdgeInsets.all(30),
+      children: [
+        const SizedBox(height: 60),
+        const Icon(Icons.cloud_off, size: 64, color: AppColors.borde),
+        const SizedBox(height: 15),
+        Text(
+          p.errorMsg ?? "Error",
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: AppColors.textoAyuda),
         ),
-      ),
+        const SizedBox(height: 15),
+        Center(
+          child: ElevatedButton(onPressed: () => p.cargar(), child: const Text("Reintentar")),
+        ),
+      ],
     );
   }
 
@@ -162,39 +165,43 @@ class _HistorialView extends StatelessWidget {
         conteo.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
       children: [
-        _buildKpiRow([
-          _KpiData("BPM promedio", bpmProm.round().toString(), Icons.favorite, Colors.blueAccent),
-          _KpiData("BPM máximo", bpmMax.round().toString(), Icons.trending_up, Colors.redAccent),
-          _KpiData("Lecturas hoy", lecturas.length.toString(), Icons.list_alt, headerColor),
-          _KpiData("Nivel predominante", EstadoAnsiedadInfo.textoUIDesdeTexto(estadoPredominante), Icons.psychology,
-              _colorEstado(estadoPredominante)),
+        _buildKpis([
+          _KpiData("BPM promedio", bpmProm.round().toString(), "lat/min", Icons.favorite, AppColors.metricaBpm),
+          _KpiData("BPM máximo", bpmMax.round().toString(), "lat/min", Icons.trending_up, AppColors.metricaBpm),
+          _KpiData("Lecturas hoy", lecturas.length.toString(), "lecturas", Icons.list_alt, AppColors.primario),
+          _KpiData("Nivel predominante", EstadoAnsiedadInfo.textoUIDesdeTexto(estadoPredominante), "del día",
+              Icons.monitor_heart_outlined, _colorEstado(estadoPredominante),
+              colorValor: _colorEstado(estadoPredominante)),
         ]),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         _buildCardChart(
           "Evolución de BPM hoy",
           LineChart(
             LineChartData(
-              gridData: const FlGridData(show: false),
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                getDrawingHorizontalLine: (_) => const FlLine(color: AppColors.borde, strokeWidth: 1),
+              ),
               titlesData: const FlTitlesData(show: false),
               borderData: FlBorderData(show: false),
               lineBarsData: [
                 LineChartBarData(
                   spots: List.generate(bpms.length, (i) => FlSpot(i.toDouble(), bpms[i])),
                   isCurved: true,
-                  color: Colors.blueAccent,
+                  color: AppColors.primario,
                   barWidth: 3,
                   dotData: const FlDotData(show: false),
-                  belowBarData: BarAreaData(show: true, color: Colors.blueAccent.withValues(alpha: 0.1)),
+                  belowBarData: BarAreaData(show: true, color: AppColors.primario.withValues(alpha: 0.08)),
                 ),
               ],
             ),
           ),
         ),
         const SizedBox(height: 20),
-        Text("Lecturas recientes",
-            style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold, fontSize: 14)),
+        const EtiquetaSeccion("Lecturas recientes"),
         const SizedBox(height: 10),
         ...lecturas.reversed.map(_buildRegistroCard),
       ],
@@ -224,22 +231,28 @@ class _HistorialView extends StatelessWidget {
     final scoreProm = p.promedioPonderado((r) => r.scorePromedio);
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
       children: [
-        _buildKpiRow([
-          _KpiData("BPM promedio", bpmProm.round().toString(), Icons.favorite, Colors.blueAccent),
-          _KpiData("HRV promedio", hrvProm.round().toString(), Icons.timer, Colors.orange),
-          _KpiData("Lecturas altas", p.episodiosAltosTotales.toString(), Icons.warning_amber_rounded, Colors.red),
-          _KpiData("Días sin lecturas altas", p.rachaSinEpisodiosAltos.toString(), Icons.emoji_events, Colors.teal),
+        _buildKpis([
+          _KpiData("BPM promedio", bpmProm.round().toString(), "lat/min", Icons.favorite, AppColors.metricaBpm),
+          _KpiData("HRV promedio", hrvProm.round().toString(), "ms", Icons.timer, AppColors.metricaHrv),
+          _KpiData("Lecturas altas", p.episodiosAltosTotales.toString(), "en el periodo",
+              Icons.warning_amber_rounded, AppColors.altos, colorValor: AppColors.altos),
+          _KpiData("Días sin lecturas altas", p.rachaSinEpisodiosAltos.toString(), "días seguidos",
+              Icons.emoji_events_outlined, AppColors.normal, colorValor: AppColors.normal),
         ]),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         _buildTendenciaCard(scoreProm, p.tendenciaScore),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         _buildCardChart(
           "Tendencia de indicadores fisiológicos (índice promedio/día)",
           LineChart(
             LineChartData(
-              gridData: const FlGridData(show: false),
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                getDrawingHorizontalLine: (_) => const FlLine(color: AppColors.borde, strokeWidth: 1),
+              ),
               borderData: FlBorderData(show: false),
               titlesData: FlTitlesData(
                 leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -256,7 +269,7 @@ class _HistorialView extends StatelessWidget {
                       return Padding(
                         padding: const EdgeInsets.only(top: 6),
                         child: Text(_etiquetaDia(actual[idx].dia, p.periodo),
-                            style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                            style: const TextStyle(fontSize: 10, color: AppColors.textoSecundario)),
                       );
                     },
                   ),
@@ -267,10 +280,10 @@ class _HistorialView extends StatelessWidget {
                   spots: List.generate(actual.length,
                       (i) => FlSpot(i.toDouble(), actual[i].scorePromedio)),
                   isCurved: true,
-                  color: headerColor,
+                  color: AppColors.primario,
                   barWidth: 3,
                   dotData: const FlDotData(show: true),
-                  belowBarData: BarAreaData(show: true, color: headerColor.withValues(alpha: 0.1)),
+                  belowBarData: BarAreaData(show: true, color: AppColors.primario.withValues(alpha: 0.08)),
                 ),
               ],
               minY: 0,
@@ -279,8 +292,7 @@ class _HistorialView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 20),
-        Text("Resumen por día",
-            style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold, fontSize: 14)),
+        const EtiquetaSeccion("Resumen por día"),
         const SizedBox(height: 10),
         ...actual.reversed.map(_buildResumenDiaCard),
       ],
@@ -289,95 +301,76 @@ class _HistorialView extends StatelessWidget {
 
   // --- WIDGETS REUTILIZABLES ---
 
-  Widget _buildKpiRow(List<_KpiData> kpis) {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 1.6,
-      children: kpis.map((k) {
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(k.icon, color: k.color, size: 20),
-              const SizedBox(height: 8),
-              Text(k.valor,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  overflow: TextOverflow.ellipsis),
-              Text(k.label,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                  overflow: TextOverflow.ellipsis),
-            ],
-          ),
-        );
-      }).toList(),
-    );
+  /// KPIs en 2 columnas. Filas con IntrinsicHeight para que ambas tarjetas
+  /// midan lo mismo aunque una etiqueta ocupe dos líneas.
+  Widget _buildKpis(List<_KpiData> kpis) {
+    Widget tarjeta(int i) {
+      final k = kpis[i];
+      return TarjetaMetrica(
+        etiqueta: k.label,
+        valor: k.valor,
+        unidad: k.unidad,
+        icono: k.icon,
+        colorIcono: k.color,
+        color: k.colorValor ?? AppColors.primario,
+      );
+    }
+
+    final filas = <Widget>[];
+    for (var i = 0; i < kpis.length; i += 2) {
+      if (filas.isNotEmpty) filas.add(const SizedBox(height: 10));
+      filas.add(IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: tarjeta(i)),
+            const SizedBox(width: 10),
+            Expanded(child: i + 1 < kpis.length ? tarjeta(i + 1) : const SizedBox()),
+          ],
+        ),
+      ));
+    }
+    return Column(children: filas);
   }
 
   Widget _buildTendenciaCard(double scoreProm, double? tendencia) {
     String texto;
     Color color;
+    Color fondo;
     IconData icono;
 
     if (tendencia == null) {
       texto = "Aún no hay suficiente historial para comparar contra el periodo anterior.";
-      color = Colors.grey;
+      color = AppColors.textoAyuda;
+      fondo = AppColors.sinLecturasFondo;
       icono = Icons.info_outline;
     } else if (tendencia <= -5) {
       texto = "El índice promedio de tus indicadores fisiológicos bajó ${tendencia.abs().toStringAsFixed(0)}% vs el periodo anterior.";
-      color = Colors.green;
+      color = AppColors.normal;
+      fondo = AppColors.normalFondo;
       icono = Icons.trending_down;
     } else if (tendencia >= 5) {
       texto = "El índice promedio de tus indicadores fisiológicos subió ${tendencia.toStringAsFixed(0)}% vs el periodo anterior.";
-      color = Colors.red;
+      color = AppColors.altos;
+      fondo = AppColors.altosFondo;
       icono = Icons.trending_up;
     } else {
       texto = "Tus indicadores fisiológicos se mantienen estables respecto al periodo anterior.";
-      color = Colors.blueGrey;
+      color = AppColors.primario;
+      fondo = AppColors.primarioSuave;
       icono = Icons.trending_flat;
     }
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Icon(icono, color: color),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(texto, style: TextStyle(color: color.withValues(alpha: 0.9), fontSize: 12.5)),
-          ),
-        ],
-      ),
-    );
+    return Aviso(texto, icono: icono, color: color, fondo: fondo);
   }
 
   Widget _buildCardChart(String titulo, Widget chart) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+    return Tarjeta(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(titulo, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700, fontSize: 13)),
-          const SizedBox(height: 12),
+          Text(titulo, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.texto, fontSize: 14)),
+          const SizedBox(height: 14),
           SizedBox(height: 180, child: chart),
         ],
       ),
@@ -385,38 +378,33 @@ class _HistorialView extends StatelessWidget {
   }
 
   Widget _buildRegistroCard(Lectura registro) {
-    final color = _colorEstado(registro.estadoAnsiedadTexto);
     final fecha = registro.fechaMedicion;
     final hora = fecha != null
         ? "${fecha.hour.toString().padLeft(2, '0')}:${fecha.minute.toString().padLeft(2, '0')}"
         : "--:--";
 
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Tarjeta(
+        padding: const EdgeInsets.all(12),
+        child: Column(
           children: [
-            Icon(Icons.monitor_heart, color: color, size: 20),
-            const SizedBox(width: 10),
-            Text(hora, style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold, fontSize: 13)),
-            const Spacer(),
-            _buildMiniDato("BPM", "${registro.bpm}"),
-            const SizedBox(width: 14),
-            _buildMiniDato("SpO2", "${registro.spo2}%"),
-            const SizedBox(width: 14),
-            _buildMiniDato("HRV", "${registro.hrv}"),
-            const SizedBox(width: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-              child: Text(EstadoAnsiedadInfo.textoUIDesdeTexto(registro.estadoAnsiedadTexto).toUpperCase(),
-                  style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                const Icon(Icons.schedule, size: 16, color: AppColors.textoSecundario),
+                const SizedBox(width: 6),
+                Text(hora, style: const TextStyle(color: AppColors.texto, fontWeight: FontWeight.bold, fontSize: 14)),
+                const Spacer(),
+                BadgeEstado(registro.estadoAnsiedadTexto),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: _buildMiniDato("BPM", "${registro.bpm}", AppColors.metricaBpm)),
+                Expanded(child: _buildMiniDato("SpO2", "${registro.spo2}%", AppColors.metricaSpo2)),
+                Expanded(child: _buildMiniDato("HRV", "${registro.hrv} ms", AppColors.metricaHrv)),
+              ],
             ),
           ],
         ),
@@ -426,65 +414,84 @@ class _HistorialView extends StatelessWidget {
 
   Widget _buildResumenDiaCard(ResumenDia r) {
     final colorPredominante = r.episodiosAltos > 0
-        ? Colors.red
+        ? AppColors.altos
         : r.episodiosModerados > 0
-            ? Colors.orange
-            : Colors.teal;
+            ? AppColors.elevados
+            : AppColors.normal;
 
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Tarjeta(
+        padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Container(width: 6, height: 40, decoration: BoxDecoration(color: colorPredominante, borderRadius: BorderRadius.circular(4))),
+            Container(
+              width: 5,
+              height: 40,
+              decoration: BoxDecoration(color: colorPredominante, borderRadius: BorderRadius.circular(4)),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(_etiquetaFechaCompleta(r.dia),
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.texto)),
+                  const SizedBox(height: 2),
                   Text("${r.totalRegistros} lecturas · ${r.episodiosAltos} lecturas altas",
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      style: const TextStyle(fontSize: 11, color: AppColors.textoAyuda)),
                 ],
               ),
             ),
-            _buildMiniDato("BPM", r.bpmPromedio.toString()),
-            const SizedBox(width: 14),
-            _buildMiniDato("HRV", r.hrvPromedio.toString()),
+            SizedBox(width: 56, child: _buildMiniDato("BPM", r.bpmPromedio.toString(), AppColors.metricaBpm)),
+            SizedBox(width: 56, child: _buildMiniDato("HRV", r.hrvPromedio.toString(), AppColors.metricaHrv)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMiniDato(String label, String value) {
+  /// Valor + etiqueta pequeña; el puntito de color identifica la métrica
+  /// igual que los íconos del Monitor.
+  Widget _buildMiniDato(String label, String value, Color colorMetrica) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 9, fontWeight: FontWeight.w600)),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.texto)),
+        const SizedBox(height: 2),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 6, height: 6, decoration: BoxDecoration(color: colorMetrica, shape: BoxShape.circle)),
+            const SizedBox(width: 4),
+            Text(label,
+                style: const TextStyle(color: AppColors.textoSecundario, fontSize: 10, fontWeight: FontWeight.w600)),
+          ],
+        ),
       ],
     );
   }
 
   Widget _buildEmptyState(String titulo, String subtitulo) {
     return Padding(
-      padding: const EdgeInsets.only(top: 100),
+      padding: const EdgeInsets.only(top: 80, left: 24, right: 24),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.cloud_off, size: 80, color: Colors.grey.shade300),
+            Container(
+              width: 72,
+              height: 72,
+              decoration: const BoxDecoration(color: AppColors.primarioSuave, shape: BoxShape.circle),
+              child: const Icon(Icons.insights, size: 36, color: AppColors.primario),
+            ),
             const SizedBox(height: 15),
-            Text(titulo, style: const TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.bold)),
+            Text(titulo,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.texto, fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 5),
-            Text(subtitulo, style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+            Text(subtitulo,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.textoAyuda, fontSize: 12)),
           ],
         ),
       ),
@@ -514,7 +521,14 @@ class _HistorialView extends StatelessWidget {
 class _KpiData {
   final String label;
   final String valor;
+  final String unidad;
   final IconData icon;
+
+  /// Color del ícono.
   final Color color;
-  _KpiData(this.label, this.valor, this.icon, this.color);
+
+  /// Color del número (azul si es null; color del semáforo cuando aplica).
+  final Color? colorValor;
+
+  const _KpiData(this.label, this.valor, this.unidad, this.icon, this.color, {this.colorValor});
 }
