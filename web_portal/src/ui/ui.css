@@ -916,10 +916,76 @@
   top: 20px;
 }
 
-/* El chat aún trae su margen superior en línea (se rediseña en el paso 5);
-   en la columna derecha debe alinearse con el primer bloque de la izquierda. */
-.ui-detail-side > :first-child {
-  margin-top: 0 !important;
+/* ---------- Chat especialista ↔ paciente ---------- */
+.ui-chat-list {
+  height: 360px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+
+.ui-chat-empty {
+  margin: auto;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.ui-chat-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.ui-chat-row.is-mine {
+  justify-content: flex-end;
+}
+
+.ui-chat-bubble {
+  max-width: 75%;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  border-bottom-left-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ui-chat-row.is-mine .ui-chat-bubble {
+  border-color: var(--color-primary);
+  border-radius: var(--radius-lg);
+  border-bottom-right-radius: 4px;
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.ui-chat-time {
+  margin-top: 4px;
+  font-size: 11px;
+  text-align: right;
+  color: var(--color-text-muted);
+}
+
+.ui-chat-row.is-mine .ui-chat-time {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.ui-chat-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ui-chat-form .ui-input {
+  flex: 1;
+  min-width: 0;
 }
 
 @media (max-width: 1180px) {
@@ -931,7 +997,8 @@
     position: static;
   }
 
-  .ui-detail-side > :first-child {
-    margin-top: 20px !important;
+  /* Apilado: el chat queda debajo de los ejercicios. */
+  .ui-chat {
+    margin-top: 20px;
   }
 }

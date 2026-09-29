@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
-import { MessageCircle, Send } from 'lucide-react';
+import { CircleAlert, MessageCircle, Send } from 'lucide-react';
 import { auth } from './firebase';
+import { Alert, Button, Card } from './ui/components';
 
 const BACKEND_URL = "https://tt-ansiedad-backend.onrender.com";
 
@@ -106,28 +107,27 @@ function ChatPaciente({ paciente }) {
   };
 
   return (
-    <div style={styles.tarjeta}>
-      <div style={styles.titulo}>
-        <MessageCircle size={18} color="#1E6AFB" /> Mensajes con {paciente.nombre}
-      </div>
-
-      <div ref={listaRef} style={styles.lista}>
+    <Card
+      className="ui-chat"
+      title="Mensajes"
+      subtitle={`Conversación con ${paciente.nombre}`}
+      icon={MessageCircle}
+    >
+      <div ref={listaRef} className="ui-chat-list">
         {cargando ? (
-          <div style={styles.vacio}>Cargando mensajes...</div>
+          <div className="ui-chat-empty">Cargando mensajes…</div>
         ) : mensajes.length === 0 ? (
-          <div style={styles.vacio}>Aún no hay mensajes en esta conversación.</div>
+          <div className="ui-chat-empty">Aún no hay mensajes en esta conversación.</div>
         ) : (
           mensajes.map((m) => {
             // Mensajes antiguos sin remitente_id los envió el paciente (antes
             // solo la app podía escribir).
             const esMio = (m.remitente_id || m.paciente_id) === miUid;
             return (
-              <div key={m.id} style={{ ...styles.fila, justifyContent: esMio ? 'flex-end' : 'flex-start' }}>
-                <div style={{ ...styles.burbuja, ...(esMio ? styles.burbujaMia : styles.burbujaOtra) }}>
+              <div key={m.id} className={`ui-chat-row ${esMio ? 'is-mine' : ''}`}>
+                <div className="ui-chat-bubble">
                   <div>{m.texto}</div>
-                  <div style={{ ...styles.hora, color: esMio ? 'rgba(255,255,255,0.75)' : '#999' }}>
-                    {hora(m.fecha_envio)}
-                  </div>
+                  <div className="ui-chat-time">{hora(m.fecha_envio)}</div>
                 </div>
               </div>
             );
@@ -135,38 +135,27 @@ function ChatPaciente({ paciente }) {
         )}
       </div>
 
-      {error && <div style={styles.error}>{error}</div>}
+      {error && (
+        <div style={{ marginTop: 12 }}>
+          <Alert tone="altos" icon={CircleAlert}>{error}</Alert>
+        </div>
+      )}
 
-      <form onSubmit={enviar} style={styles.form}>
+      <form onSubmit={enviar} className="ui-chat-form">
         <input
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
-          placeholder="Escribe un mensaje..."
+          placeholder="Escribe un mensaje…"
+          aria-label="Mensaje para el paciente"
           maxLength={2000}
-          style={styles.input}
+          className="ui-input"
         />
-        <button type="submit" disabled={!texto.trim() || enviando} style={styles.boton}>
-          <Send size={16} /> {enviando ? 'Enviando...' : 'Enviar'}
-        </button>
+        <Button type="submit" icon={Send} disabled={!texto.trim() || enviando}>
+          {enviando ? 'Enviando…' : 'Enviar'}
+        </Button>
       </form>
-    </div>
+    </Card>
   );
 }
-
-const styles = {
-  tarjeta: { backgroundColor: '#fff', border: '1px solid #eee', borderRadius: '15px', padding: '16px', marginTop: '20px' },
-  titulo: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 'bold', color: '#555', marginBottom: '12px' },
-  lista: { height: '360px', overflowY: 'auto', backgroundColor: '#f6f8fb', borderRadius: '10px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' },
-  vacio: { margin: 'auto', color: '#999', fontSize: '13px' },
-  fila: { display: 'flex' },
-  burbuja: { maxWidth: '70%', padding: '8px 12px', borderRadius: '14px', fontSize: '14px', lineHeight: 1.4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
-  burbujaMia: { backgroundColor: '#1E6AFB', color: '#fff', borderBottomRightRadius: '4px' },
-  burbujaOtra: { backgroundColor: '#fff', color: '#1a1a1a', border: '1px solid #e5e7eb', borderBottomLeftRadius: '4px' },
-  hora: { fontSize: '10px', marginTop: '4px', textAlign: 'right' },
-  error: { backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '8px 12px', borderRadius: '8px', fontSize: '13px', marginTop: '10px' },
-  form: { display: 'flex', gap: '8px', marginTop: '12px' },
-  input: { flex: 1, padding: '10px 14px', borderRadius: '20px', border: '1px solid #ddd', fontSize: '14px', outline: 'none' },
-  boton: { display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 18px', borderRadius: '20px', border: 'none', backgroundColor: '#1E6AFB', color: '#fff', cursor: 'pointer', fontWeight: 'bold' },
-};
 
 export default ChatPaciente;
