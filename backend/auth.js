@@ -22,7 +22,7 @@ function inicializarFirebaseAdmin() {
   admin.initializeApp({ credential: admin.credential.cert(credenciales) });
 }
 
-/** Busca el rol ('paciente' | 'especialista') del uid en la tabla `usuarios`.
+/** Busca el rol ('paciente' | 'especialista' | 'admin') del uid en la tabla `usuarios`.
  * Devuelve null si el token es válido pero todavía no existe la fila (pasa
  * justo entre crear la cuenta en Firebase y el POST /api/usuarios que la
  * registra en Supabase). */
@@ -84,4 +84,19 @@ function requiereAuthSocket(pool) {
   };
 }
 
-module.exports = { inicializarFirebaseAdmin, requiereAuth, requiereAuthSocket };
+/**
+ * Middleware Express de la Fase C: deja pasar solo a `rol === 'admin'`.
+ * Se monta UNA vez delante de todo el router de admin
+ * (`app.use('/api/admin', requiereAdmin, adminRouter)`), así ninguna ruta de
+ * admin puede quedar sin este chequeo por olvido. Pacientes, especialistas y
+ * cuentas sin fila en `usuarios` reciben 403. Va después de requiereAuth.
+ */
+function requiereAdmin(req, res, next) {
+  if (req.rol !== 'admin') {
+    logger.warn('Acceso a ruta de admin rechazado', { uid: req.uid, rol: req.rol, path: req.originalUrl });
+    return next(new AuthError('Solo un administrador puede usar esta ruta.', 403));
+  }
+  next();
+}
+
+module.exports = { inicializarFirebaseAdmin, requiereAuth, requiereAuthSocket, requiereAdmin };

@@ -8,7 +8,8 @@ require('dotenv').config();
 
 const logger = require('./logger');
 const { AuthError, ValidationError } = require('./errors');
-const { inicializarFirebaseAdmin, requiereAuth, requiereAuthSocket } = require('./auth');
+const { inicializarFirebaseAdmin, requiereAuth, requiereAuthSocket, requiereAdmin } = require('./auth');
+const { crearAdminRouter } = require('./admin');
 const {
   validarLectura,
   validarUsuarioNuevo,
@@ -69,11 +70,17 @@ try {
 }
 
 // Todas las rutas /api/* requieren un token Firebase válido. Adjunta
-// req.uid (uid del token) y req.rol ('paciente' | 'especialista' | null si
-// el token es válido pero aún no hay fila en `usuarios`). La autorización
-// específica de cada ruta (dueño vs. especialista, etc.) se decide abajo,
-// al inicio de cada handler.
+// req.uid (uid del token) y req.rol ('paciente' | 'especialista' | 'admin' |
+// null si el token es válido pero aún no hay fila en `usuarios`). La
+// autorización específica de cada ruta (dueño vs. especialista, etc.) se
+// decide abajo, al inicio de cada handler.
 app.use('/api', requiereAuth(pool));
+
+// Rol Admin (Fase C): todo /api/admin/* pasa por requiereAdmin (403 a
+// cualquier otro rol) antes de llegar a cualquier ruta del router. Las rutas
+// clínicas de abajo siguen exigiendo paciente o especialista, así que un admin
+// recibe 403 en ellas (mínimo privilegio).
+app.use('/api/admin', requiereAdmin, crearAdminRouter(pool));
 // ----------------------------------------------
 
 // Nota sobre manejo de errores: Express 5 reenvía automáticamente a
