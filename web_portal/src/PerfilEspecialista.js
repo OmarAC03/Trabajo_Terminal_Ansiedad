@@ -33,11 +33,14 @@ function mensajeErrorPassword(error) {
 // código de vinculación y cambio de contraseña. `perfil` viene de App.js
 // (GET /api/usuarios/:uid, solo el propio); tras guardar el nombre se avisa
 // con `onPerfilActualizado` para que el resto del portal lo vea de inmediato.
-function PerfilEspecialista({ perfil, onPerfilActualizado }) {
+// El admin (Fase C) reutiliza esta pantalla con `esAdmin`: misma cuenta y
+// contraseña, sin la tarjeta del código de vinculación (no tiene pacientes).
+function PerfilEspecialista({ perfil, onPerfilActualizado, esAdmin = false }) {
+  const subtitulo = esAdmin ? 'Datos de tu cuenta de administración' : 'Datos de tu cuenta de especialista';
   if (!perfil) {
     return (
       <div className="ui-page ui-page-wide">
-        <PageHeader title="Mi perfil" subtitle="Datos de tu cuenta de especialista" />
+        <PageHeader title="Mi perfil" subtitle={subtitulo} />
         <Card><div className="ui-empty">Cargando tus datos…</div></Card>
       </div>
     );
@@ -45,13 +48,13 @@ function PerfilEspecialista({ perfil, onPerfilActualizado }) {
 
   return (
     <div className="ui-page ui-page-wide">
-      <PageHeader title="Mi perfil" subtitle="Datos de tu cuenta de especialista" />
+      <PageHeader title="Mi perfil" subtitle={subtitulo} />
       {/* Cuenta + código a la izquierda, contraseña a la derecha (antes eran
           3 tarjetas en una rejilla de 2 y la tercera quedaba sola). */}
       <div className="ui-profile-cols">
         <div className="ui-stack">
-          <DatosCuenta perfil={perfil} onPerfilActualizado={onPerfilActualizado} />
-          <CodigoCard codigo={perfil.codigo_vinculacion} />
+          <DatosCuenta perfil={perfil} onPerfilActualizado={onPerfilActualizado} esAdmin={esAdmin} />
+          {!esAdmin && <CodigoCard codigo={perfil.codigo_vinculacion} />}
         </div>
         <CambiarPassword />
       </div>
@@ -66,7 +69,7 @@ function PerfilEspecialista({ perfil, onPerfilActualizado }) {
   );
 }
 
-function DatosCuenta({ perfil, onPerfilActualizado }) {
+function DatosCuenta({ perfil, onPerfilActualizado, esAdmin }) {
   const [editando, setEditando] = useState(false);
   const [nombre, setNombre] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -119,7 +122,7 @@ function DatosCuenta({ perfil, onPerfilActualizado }) {
         <Avatar nombre={perfil.nombre} size={56} />
         <div style={{ minWidth: 0 }}>
           <div className="ui-profile-name">{perfil.nombre}</div>
-          <div style={{ marginTop: 6 }}><Badge tone="primary" dot={false}>Especialista</Badge></div>
+          <div style={{ marginTop: 6 }}><Badge tone="primary" dot={false}>{esAdmin ? 'Administrador' : 'Especialista'}</Badge></div>
         </div>
       </div>
 

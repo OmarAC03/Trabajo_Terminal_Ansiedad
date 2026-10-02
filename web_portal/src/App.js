@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { LogOut, Users, UserRound, LayoutDashboard } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -10,6 +10,7 @@ import PacientesList from './PacientesList';
 import PacienteDetalle from './PacienteDetalle';
 import PerfilEspecialista from './PerfilEspecialista';
 import Dashboard from './Dashboard';
+import AdminApp from './AdminApp';
 import Layout from './ui/Layout';
 
 const API_URL = "https://tt-ansiedad-backend.onrender.com/api/pacientes";
@@ -38,8 +39,17 @@ function App() {
   // Se incrementa con el botón "Actualizar" para que el detalle recargue.
   const [recargaDetalle, setRecargaDetalle] = useState(0);
   const pacienteSeleccionado = pacientes.find((p) => p.id === pacienteSeleccionadoId) || null;
+  // Rol de la cuenta (Fase C): undefined = aún no se sabe; 'admin' muestra
+  // <AdminApp>; cualquier otro valor (o null si no hay perfil) sigue con el
+  // portal de especialista. El ref lo lee fetchData dentro del intervalo.
+  const [rol, setRol] = useState(undefined);
+  const rolRef = useRef(undefined);
 
-  useEffect(() => onAuthStateChanged(auth, setUsuario), []);
+  useEffect(() => onAuthStateChanged(auth, (u) => {
+    rolRef.current = undefined;
+    setRol(undefined);
+    setUsuario(u);
+  }), []);
 
   // Pide la lista de pacientes y el perfil propio (nombre y codigo_vinculacion)
   // en cada vuelta del polling. Antes el perfil se pedía una sola vez al
@@ -50,7 +60,8 @@ function App() {
   // se procesa por separado: uno puede fallar sin bloquear al otro, y ambos
   // se reintentan solos cada 15s.
   const fetchData = async () => {
-    if (!auth.currentUser) return;
+    // El admin no usa este polling: <AdminApp> carga sus propios datos.
+    if (!auth.currentUser || rolRef.current === 'admin') return;
     let token;
     try {
       token = await auth.currentUser.getIdToken();
@@ -58,6 +69,28 @@ function App() {
       console.error("Error al obtener el token de sesión:", error);
       setLoading(false);
       return;
+    }
+
+    // Fase C: la primera vez se pide SOLO el perfil propio, para saber el rol
+    // antes de pedir /api/pacientes (un admin no debe pedirlo). Ya conocido el
+    // rol, las siguientes vueltas son las de siempre.
+    if (rolRef.current === undefined) {
+      let rolCuenta;
+      try {
+        const res = await axios.get(`${USUARIOS_URL}/${auth.currentUser.uid}`, { headers: { Authorization: `Bearer ${token}` } });
+        setPerfil(res.data);
+        rolCuenta = res.data.rol;
+      } catch (error) {
+        console.error("Error al obtener el perfil:", error);
+        // Sin respuesta (sin red / cold start de Render): se reintenta en la
+        // siguiente vuelta. Con respuesta (p. ej. 404 sin fila): se sigue con
+        // el portal de especialista, que muestra el aviso de acceso como antes.
+        if (!error.response) return;
+        rolCuenta = null;
+      }
+      rolRef.current = rolCuenta;
+      setRol(rolCuenta);
+      if (rolCuenta === 'admin') return;
     }
 
     const [pacientesResultado, perfilResultado] = await Promise.allSettled([
@@ -120,8 +153,19 @@ function App() {
     setPacienteSeleccionadoId(null);
     setSeccion('dashboard');
     setPerfil(null);
+    setPacientes([]);
+    setErrorAcceso('');
     signOut(auth);
   };
+
+  // Mientras no se sabe el rol no se muestra ningún portal, para que un admin
+  // no vea por un instante el de especialista (ni al revés).
+  if (rol === undefined) {
+    return <div style={styles.center}>Cargando...</div>;
+  }
+  if (rol === 'admin') {
+    return <AdminApp perfil={perfil} onPerfilActualizado={setPerfil} onCerrarSesion={cerrarSesion} />;
+  }
 
   const actualizar = () => {
     fetchData();
