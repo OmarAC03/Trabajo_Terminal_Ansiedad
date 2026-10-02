@@ -1,8 +1,12 @@
 # Plan Fase C — Rol Admin
 
-> **Estado: PLANEADA Y APROBADA, pendiente de ejecutar** (plan aprobado el 2026-09-29).
-> **Primer paso al retomar:** correr las 4 consultas de verificación (sección 3) y revisar
-> sus resultados ANTES de cualquier DDL o de designar al admin. No asumir el estado de la base.
+> **Estado: EN EJECUCIÓN** (plan aprobado el 2026-09-29; ejecución iniciada el 2026-10-02).
+> - ✅ **Verificación y DDL hechas** (sección 3, resultados abajo).
+> - ✅ **Paso 1 — Ver usuarios: hecho y probado visualmente** (backend `0f16858`, portal
+>   `9e1b719`). **Pendiente de confirmar:** que un especialista entra y ve su portal igual que
+>   antes, y el 403 por comando de `GET /api/admin/usuarios` con token de paciente y de
+>   especialista (200 con admin).
+> - ⏭️ **Siguiente: paso 2 — Editar datos** (sección 5).
 
 El admin gestiona **todas las cuentas de usuario**: ver, editar datos, cambiar roles,
 suspender/reactivar, forzar restablecimiento de contraseña y eliminar. Se construye **paso
@@ -85,6 +89,27 @@ anteriores.
 
 ## 3. Consultas de verificación (correr al retomar, ANTES de cualquier DDL o designación)
 
+### ✅ Resultados (2026-10-02) y lo que se aplicó
+
+- **Columnas de `usuarios`:** id, nombre, rol, email, fecha_registro, especialista_id,
+  codigo_vinculacion, ultima_apertura_mensajes, ultima_apertura_ejercicios.
+- **CHECK sobre `rol`:** existía `usuarios_rol_check` (solo `'paciente'`, `'especialista'`).
+- **FK hacia `usuarios`:** `lecturas_biometricas.paciente_id` y `mensajes_chat.paciente_id`
+  con `ON DELETE CASCADE`; `usuarios.especialista_id` (`fk_especialista`) con
+  `ON DELETE SET NULL`; `mensajes_chat.remitente_id`, `ejercicios_asignados.paciente_id` y
+  `.especialista_id` sin `ON DELETE`. **Consecuencia:** un `DELETE` real de un paciente
+  borraría sus lecturas y mensajes (y podría fallar por los ejercicios). El paso 6 **nunca**
+  hace `DELETE FROM usuarios`: solo pone `eliminado_en = now()`.
+- **DDL aplicada a mano en Supabase y verificada:**
+  - `usuarios_rol_check` recreado como `CHECK (rol IN ('paciente', 'especialista', 'admin'))`.
+  - `suspendido boolean NOT NULL DEFAULT false` y `eliminado_en timestamptz NULL` (ya
+    existen; los pasos 3 y 6 no necesitan más DDL).
+- **Admin inicial designado:** cuenta dedicada `admin@sistema-ansiedad.com` (registrada como
+  paciente y promovida con el `UPDATE` de abajo). Conteo final: admin 1, especialista 2,
+  paciente 5.
+
+### Consultas (referencia)
+
 Son de **solo lectura**. Pasar los resultados completos antes de continuar.
 
 **Consulta 1 — columnas reales de `usuarios`:**
@@ -139,7 +164,7 @@ ORDER BY rol;
   redacta con el nombre real de la restricción, no se asume).
 - Se designa **una sola vez, a mano**; los siguientes admins se promueven desde el panel.
 
-### DDL esperada (NO aplicar sin verificar con la consulta 1)
+### DDL esperada (✅ ya aplicada el 2026-10-02 con estos nombres, ver resultados arriba)
 
 - **Paso 3 (suspender):** columna de estado de suspensión en `usuarios`, p. ej.
   `suspendido boolean NOT NULL DEFAULT false`.
@@ -173,12 +198,28 @@ estructurado (`backend/logger.js`): quién (uid del admin), qué acción, sobre 
 
 | Paso | Qué se construye | Cómo se prueba |
 |---|---|---|
-| **1. Ver usuarios** | Designar admin (sección 3), `requiereAdmin`, `GET /api/admin/usuarios`, detección de rol en `App.js`, `<AdminApp>` con tabla de usuarios (búsqueda, filtro por rol y estado). | **Por comando:** `GET /api/admin/usuarios` con token de paciente → **403**, de especialista → **403**, de admin → **200**. **Portal:** el admin ve la interfaz de administración; un especialista sigue viendo su portal igual. |
+| **1. Ver usuarios** ✅ | Designar admin (sección 3), `requiereAdmin`, `GET /api/admin/usuarios`, detección de rol en `App.js`, `<AdminApp>` con tabla de usuarios (búsqueda, filtro por rol y estado). | **Por comando:** `GET /api/admin/usuarios` con token de paciente → **403**, de especialista → **403**, de admin → **200**. **Portal:** el admin ve la interfaz de administración; un especialista sigue viendo su portal igual. **Hecho:** admin probado en el portal (contadores 8/5/2/1, tabla, búsqueda, filtros, "Mi perfil" como Administrador). **Falta:** el especialista sin cambios y los 403 por comando. |
 | **2. Editar datos** | Nombre, email y reasignar/desvincular especialista de un paciente. | 403 con paciente y especialista; editar nombre; cambiar email y entrar con el correo nuevo; reasignar un paciente y verlo en la lista del nuevo especialista. |
 | **3. Suspender / reactivar** | DDL de suspensión (tras verificación), endpoints, chequeo en `requiereAuth` y `requiereAuthSocket`, mensaje al intentar entrar (decisión 2). | Suspender a un paciente con la app abierta: su siguiente request da 403 y no puede volver a iniciar sesión; reactivar → vuelve a entrar. Intentar suspenderse a sí mismo → rechazado. Suspender al último admin → rechazado. |
 | **4. Cambiar rol** | Reglas: paciente → especialista (se limpia su `especialista_id` y se genera `codigo_vinculacion`, con la misma función que `POST /api/especialistas`); especialista → otro rol **bloqueado mientras tenga pacientes vinculados**; promover a admin con confirmación explícita; degradar admin respetando "nunca cero admins". | Cada transición; especialista con pacientes → rechazado; no degradarse a sí mismo; no degradar al último admin. |
 | **5. Forzar restablecimiento** | Botón "Enviar correo de restablecimiento" con el texto de contraseñas cifradas (sección 2). `auth.languageCode = 'es'`. | Llega el correo en español al usuario y puede crear su contraseña nueva. |
 | **6. Eliminar** | DDL de borrado lógico (tras verificación), `DELETE` lógico, confirmación escribiendo el email en el portal. Las cuentas eliminadas desaparecen de las listas de uso normal (p. ej. `/api/pacientes` del especialista) y no pueden vincularse ni entrar. | 403 con paciente y especialista; eliminar una cuenta de prueba: no puede entrar, desaparece de la lista de su especialista, sus datos siguen en la BD; no puede eliminarse a sí mismo; especialista con pacientes → rechazado. |
+
+### Cómo quedó el paso 1 (para los siguientes)
+
+- **Backend:** `requiereAdmin` vive en `backend/auth.js`; el router en `backend/admin.js`
+  (`crearAdminRouter(pool)`), montado en `server.js` con
+  `app.use('/api/admin', requiereAdmin, crearAdminRouter(pool))`. Las rutas nuevas de los
+  pasos 2–6 se agregan dentro de ese router. `GET /api/admin/usuarios` devuelve id, nombre,
+  email, rol, fecha_registro, `estado` (`activa` / `suspendida` / `eliminada`, calculado en
+  SQL desde `suspendido` y `eliminado_en`), especialista_id, especialista_nombre y
+  `pacientes_vinculados` (solo en especialistas; hoy cuenta también a los pacientes
+  eliminados — decidirlo en el paso 6).
+- **Portal:** `App.js` resuelve el rol con el perfil propio antes de pedir `/api/pacientes`
+  ("Cargando..." mientras tanto; sin red se reintenta en la siguiente vuelta de 15 s; con
+  respuesta de error sigue al portal de especialista). `AdminApp.js` (sidebar) +
+  `AdminUsuarios.js` (contadores, tabla, búsqueda y filtros en el navegador; recarga con
+  "Actualizar", sin sondeo). "Mi perfil" reutiliza `PerfilEspecialista` con `esAdmin`.
 
 ---
 
