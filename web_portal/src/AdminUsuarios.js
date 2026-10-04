@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Search, RefreshCw, Users, UserRound, Stethoscope, ShieldCheck, ShieldAlert, CircleAlert } from 'lucide-react';
+import {
+  Search, RefreshCw, Users, UserRound, Stethoscope, ShieldCheck, ShieldAlert, CircleAlert, CheckCircle2, Pencil,
+} from 'lucide-react';
 import { auth } from './firebase';
 import { PageHeader, Card, KpiCard, Button, Badge, Avatar, Alert, Disclaimer } from './ui/components';
 import { plural } from './PacientesComun';
+import EditarUsuario from './EditarUsuario';
 
 const ADMIN_USUARIOS_URL = 'https://tt-ansiedad-backend.onrender.com/api/admin/usuarios';
 
 // Sección "Usuarios" del admin (Fase C, paso 1): todas las cuentas de
 // GET /api/admin/usuarios con búsqueda y filtros por rol y estado, en el
 // navegador. Solo datos de cuenta: nunca lecturas, mensajes ni ejercicios.
+// Paso 2: botón "Editar" por fila (nombre, correo y especialista del paciente).
 
 const ROLES = {
   paciente: { etiqueta: 'Paciente', filtro: 'Pacientes', tone: 'neutral' },
@@ -32,16 +36,21 @@ const normalizar = (texto) =>
 const formatoFecha = (fecha) =>
   fecha ? new Date(fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
-function AdminUsuarios() {
+// `onPropiaEditada`: avisa a AdminApp si el admin editó su propia cuenta, para
+// que la barra superior y "Mi perfil" muestren el nombre y correo nuevos.
+function AdminUsuarios({ onPropiaEditada }) {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [filtroRol, setFiltroRol] = useState(null);
   const [filtroEstado, setFiltroEstado] = useState(null);
+  const [editando, setEditando] = useState(null); // cuenta abierta en el panel
+  const [aviso, setAviso] = useState('');
 
   const cargar = async () => {
     setError('');
+    setAviso('');
     try {
       const token = await auth.currentUser.getIdToken();
       const res = await axios.get(ADMIN_USUARIOS_URL, { headers: { Authorization: `Bearer ${token}` } });
@@ -71,6 +80,17 @@ function AdminUsuarios() {
   );
   const hayFiltro = termino !== '' || filtroRol !== null || filtroEstado !== null;
   const contar = (rol) => usuarios.filter((u) => u.rol === rol).length;
+  const especialistas = usuarios.filter((u) => u.rol === 'especialista');
+
+  // Reemplaza la fila con la respuesta del backend y recarga la lista en
+  // segundo plano (una reasignación cambia el conteo de pacientes de dos
+  // especialistas).
+  const alGuardar = (fila) => {
+    setUsuarios((lista) => lista.map((u) => (u.id === fila.id ? fila : u)));
+    setEditando(null);
+    if (fila.id === auth.currentUser?.uid) onPropiaEditada?.(fila);
+    cargar().then(() => setAviso(`Cambios guardados en la cuenta de ${fila.nombre}.`));
+  };
 
   return (
     <div className="ui-page ui-page-wide">
@@ -82,6 +102,7 @@ function AdminUsuarios() {
 
       <div className="ui-stack" style={{ gap: 12, marginBottom: 20 }}>
         {error && <Alert tone="altos" icon={CircleAlert}>{error}</Alert>}
+        {aviso && <Alert tone="normal" icon={CheckCircle2}>{aviso}</Alert>}
         <Disclaimer icon={ShieldAlert}>
           Gestión de cuentas. Este panel no da acceso a datos clínicos (lecturas, mensajes ni ejercicios).
         </Disclaimer>
@@ -136,6 +157,7 @@ function AdminUsuarios() {
                   <th>Estado</th>
                   <th>Vinculación</th>
                   <th>Registro</th>
+                  <th><span className="sr-only">Acciones</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -161,6 +183,18 @@ function AdminUsuarios() {
                     </td>
                     <td className="ui-muted"><Vinculacion usuario={u} /></td>
                     <td className="ui-muted">{formatoFecha(u.fecha_registro)}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <Button
+                        variant="soft"
+                        size="sm"
+                        icon={Pencil}
+                        disabled={u.estado === 'eliminada'}
+                        title={u.estado === 'eliminada' ? 'Una cuenta eliminada no se puede editar' : undefined}
+                        onClick={() => { setAviso(''); setEditando(u); }}
+                      >
+                        Editar
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -168,6 +202,15 @@ function AdminUsuarios() {
           </div>
         )}
       </Card>
+
+      {editando && (
+        <EditarUsuario
+          usuario={editando}
+          especialistas={especialistas}
+          onCerrar={() => setEditando(null)}
+          onGuardado={alGuardar}
+        />
+      )}
     </div>
   );
 }

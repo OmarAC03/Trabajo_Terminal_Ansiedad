@@ -1220,3 +1220,48 @@
     margin-top: 20px;
   }
 }
+
+/* ---------- Panel modal (Fase C: editar cuenta desde el admin) ---------- */
+.ui-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px;
+  overflow-y: auto;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.ui-modal {
+  width: 100%;
+  max-width: 520px;
+}
+
+.ui-modal .ui-card {
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
+}
+
+.ui-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.ui-cambios {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  font-size: var(--text-md);
+  color: var(--color-text);
+}
+
+.ui-cambios li + li {
+  margin-top: 6px;
+}
+
+.ui-cambios .ui-mono {
+  word-break: break-all;
+}

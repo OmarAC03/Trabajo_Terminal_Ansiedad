@@ -37,7 +37,9 @@ function AdminApp({ perfil, onPerfilActualizado, onCerrarSesion }) {
       {seccion === 'perfil' ? (
         <PerfilEspecialista perfil={perfil} onPerfilActualizado={onPerfilActualizado} esAdmin />
       ) : (
-        <AdminUsuarios />
+        <AdminUsuarios
+          onPropiaEditada={(fila) => onPerfilActualizado({ ...perfil, nombre: fila.nombre, email: fila.email })}
+        />
       )}
     </Layout>
   );
