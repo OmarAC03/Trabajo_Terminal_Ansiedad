@@ -138,7 +138,61 @@ function validarEjercicioAsignado(body) {
   };
 }
 
+// --- Edición de cuentas por el admin (Fase C, paso 2) ---
+// Largos según las columnas de `usuarios` (varchar(100)).
+const MAX_LARGO_NOMBRE = 100;
+const MAX_LARGO_EMAIL = 100;
+const FORMATO_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Rol, suspensión y eliminación tienen sus propias rutas: aquí no se aceptan.
+const CAMPOS_EDICION_ADMIN = ['nombre', 'email', 'especialista_id'];
+
+/** PUT /api/admin/usuarios/:id — cuerpo parcial: solo los campos que se
+ * envían se editan. Devuelve un objeto con los campos presentes, ya
+ * normalizados (email sin espacios y en minúsculas; especialista_id puede ser
+ * null para desvincular). Las reglas que dependen de la base (cuenta
+ * eliminada, especialista válido, correo repetido) viven en admin.js. */
+function validarEdicionAdmin(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new ValidationError('El cuerpo debe ser un objeto con los campos a editar.');
+  }
+  const desconocidos = Object.keys(body).filter((campo) => !CAMPOS_EDICION_ADMIN.includes(campo));
+  if (desconocidos.length > 0) {
+    throw new ValidationError(
+      `Campos no permitidos: ${desconocidos.join(', ')}. Solo se puede editar: ${CAMPOS_EDICION_ADMIN.join(', ')}.`
+    );
+  }
+
+  const cambios = {};
+  if (body.nombre !== undefined) {
+    const nombre = requerirString(body.nombre, 'nombre');
+    if (nombre.length > MAX_LARGO_NOMBRE) {
+      throw new ValidationError(`El nombre no puede pasar de ${MAX_LARGO_NOMBRE} caracteres.`);
+    }
+    cambios.nombre = nombre;
+  }
+  if (body.email !== undefined) {
+    const email = requerirString(body.email, 'email').toLowerCase();
+    if (email.length > MAX_LARGO_EMAIL) {
+      throw new ValidationError(`El correo no puede pasar de ${MAX_LARGO_EMAIL} caracteres.`);
+    }
+    if (!FORMATO_EMAIL.test(email)) {
+      throw new ValidationError('El correo no tiene un formato válido.');
+    }
+    cambios.email = email;
+  }
+  if (body.especialista_id !== undefined) {
+    cambios.especialista_id =
+      body.especialista_id === null ? null : requerirString(body.especialista_id, 'especialista_id');
+  }
+
+  if (Object.keys(cambios).length === 0) {
+    throw new ValidationError('Indica al menos un campo para editar: nombre, email o especialista_id.');
+  }
+  return cambios;
+}
+
 module.exports = {
+  validarEdicionAdmin,
   validarLectura,
   validarUsuarioNuevo,
   validarEspecialistaNuevo,

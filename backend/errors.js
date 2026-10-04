@@ -25,4 +25,18 @@ class AuthError extends Error {
   }
 }
 
-module.exports = { ValidationError, AuthError };
+/**
+ * Error con un código HTTP explícito para casos que no son validación ni
+ * autorización (404 no existe, 409 conflicto, 502/503 fallo de Firebase).
+ * Mismo mecanismo: el middleware de error de server.js lee `statusCode` y,
+ * si no es 500, muestra el mensaje al cliente.
+ */
+class HttpError extends Error {
+  constructor(mensaje, statusCode) {
+    super(mensaje);
+    this.name = 'HttpError';
+    this.statusCode = statusCode;
+  }
+}
+
+module.exports = { ValidationError, AuthError, HttpError };
