@@ -2,11 +2,13 @@
 
 > **Estado: EN EJECUCIÓN** (plan aprobado el 2026-09-29; ejecución iniciada el 2026-10-02).
 > - ✅ **Verificación y DDL hechas** (sección 3, resultados abajo).
-> - ✅ **Paso 1 — Ver usuarios: hecho y probado visualmente** (backend `0f16858`, portal
->   `9e1b719`). **Pendiente de confirmar:** que un especialista entra y ve su portal igual que
->   antes, y el 403 por comando de `GET /api/admin/usuarios` con token de paciente y de
->   especialista (200 con admin).
-> - ⏭️ **Siguiente: paso 2 — Editar datos** (sección 5).
+> - ✅ **Paso 1 — Ver usuarios: CERRADO** (backend `0f16858`, portal `9e1b719`). Probado en
+>   el portal (admin, y especialista sin cambios) y por comando (2026-10-03): paciente → 403,
+>   especialista → 403 ("Solo un administrador puede usar esta ruta."), admin → 200 (8 cuentas).
+> - ✅ **Paso 2 — Editar datos: HECHO y PROBADO** (backend `22380cc`, portal `fbc5334`,
+>   2026-10-03). Ver "Cómo quedó el paso 2" en la sección 5.
+> - ⏭️ **Siguiente: paso 3 — Suspender / reactivar** (las columnas `suspendido` y
+>   `eliminado_en` ya existen: no hace falta DDL).
 
 El admin gestiona **todas las cuentas de usuario**: ver, editar datos, cambiar roles,
 suspender/reactivar, forzar restablecimiento de contraseña y eliminar. Se construye **paso
@@ -198,9 +200,9 @@ estructurado (`backend/logger.js`): quién (uid del admin), qué acción, sobre 
 
 | Paso | Qué se construye | Cómo se prueba |
 |---|---|---|
-| **1. Ver usuarios** ✅ | Designar admin (sección 3), `requiereAdmin`, `GET /api/admin/usuarios`, detección de rol en `App.js`, `<AdminApp>` con tabla de usuarios (búsqueda, filtro por rol y estado). | **Por comando:** `GET /api/admin/usuarios` con token de paciente → **403**, de especialista → **403**, de admin → **200**. **Portal:** el admin ve la interfaz de administración; un especialista sigue viendo su portal igual. **Hecho:** admin probado en el portal (contadores 8/5/2/1, tabla, búsqueda, filtros, "Mi perfil" como Administrador). **Falta:** el especialista sin cambios y los 403 por comando. |
-| **2. Editar datos** | Nombre, email y reasignar/desvincular especialista de un paciente. | 403 con paciente y especialista; editar nombre; cambiar email y entrar con el correo nuevo; reasignar un paciente y verlo en la lista del nuevo especialista. |
-| **3. Suspender / reactivar** | DDL de suspensión (tras verificación), endpoints, chequeo en `requiereAuth` y `requiereAuthSocket`, mensaje al intentar entrar (decisión 2). | Suspender a un paciente con la app abierta: su siguiente request da 403 y no puede volver a iniciar sesión; reactivar → vuelve a entrar. Intentar suspenderse a sí mismo → rechazado. Suspender al último admin → rechazado. |
+| **1. Ver usuarios** ✅ | Designar admin (sección 3), `requiereAdmin`, `GET /api/admin/usuarios`, detección de rol en `App.js`, `<AdminApp>` con tabla de usuarios (búsqueda, filtro por rol y estado). | **Por comando:** `GET /api/admin/usuarios` con token de paciente → **403**, de especialista → **403**, de admin → **200**. **Portal:** el admin ve la interfaz de administración; un especialista sigue viendo su portal igual. **Hecho:** admin probado en el portal (contadores 8/5/2/1, tabla, búsqueda, filtros, "Mi perfil" como Administrador). **Cerrado (2026-10-03):** especialista sin cambios y 403/403/200 por comando. |
+| **2. Editar datos** ✅ | Nombre, email y reasignar/desvincular especialista de un paciente. | 403 con paciente y especialista; editar nombre; cambiar email y entrar con el correo nuevo; reasignar un paciente y verlo en la lista del nuevo especialista. **Probado (2026-10-03):** por comando especialista → 403, correo duplicado → 409, especialista a no-paciente → 400, campo `rol` → 400, cuenta inexistente → 404; en el portal: editar nombre (directo), cambiar correo (pide confirmación), reasignar, desvincular y editar el propio nombre. **No reportado por separado:** el 403 con token de paciente (falló el login de esa cuenta; mismo mecanismo que el del especialista) y entrar con el correo nuevo tras cambiarlo. |
+| **3. Suspender / reactivar** | ~~DDL de suspensión~~ (ya aplicada: `suspendido`), endpoints, chequeo en `requiereAuth` y `requiereAuthSocket`, mensaje al intentar entrar (decisión 2). | Suspender a un paciente con la app abierta: su siguiente request da 403 y no puede volver a iniciar sesión; reactivar → vuelve a entrar. Intentar suspenderse a sí mismo → rechazado. Suspender al último admin → rechazado. |
 | **4. Cambiar rol** | Reglas: paciente → especialista (se limpia su `especialista_id` y se genera `codigo_vinculacion`, con la misma función que `POST /api/especialistas`); especialista → otro rol **bloqueado mientras tenga pacientes vinculados**; promover a admin con confirmación explícita; degradar admin respetando "nunca cero admins". | Cada transición; especialista con pacientes → rechazado; no degradarse a sí mismo; no degradar al último admin. |
 | **5. Forzar restablecimiento** | Botón "Enviar correo de restablecimiento" con el texto de contraseñas cifradas (sección 2). `auth.languageCode = 'es'`. | Llega el correo en español al usuario y puede crear su contraseña nueva. |
 | **6. Eliminar** | DDL de borrado lógico (tras verificación), `DELETE` lógico, confirmación escribiendo el email en el portal. Las cuentas eliminadas desaparecen de las listas de uso normal (p. ej. `/api/pacientes` del especialista) y no pueden vincularse ni entrar. | 403 con paciente y especialista; eliminar una cuenta de prueba: no puede entrar, desaparece de la lista de su especialista, sus datos siguen en la BD; no puede eliminarse a sí mismo; especialista con pacientes → rechazado. |
@@ -220,6 +222,31 @@ estructurado (`backend/logger.js`): quién (uid del admin), qué acción, sobre 
   respuesta de error sigue al portal de especialista). `AdminApp.js` (sidebar) +
   `AdminUsuarios.js` (contadores, tabla, búsqueda y filtros en el navegador; recarga con
   "Actualizar", sin sondeo). "Mi perfil" reutiliza `PerfilEspecialista` con `esAdmin`.
+
+### Cómo quedó el paso 2
+
+- **Backend (`22380cc`):** `PUT /api/admin/usuarios/:id` en `backend/admin.js`, cuerpo
+  parcial validado por `validarEdicionAdmin` (`validation.js`: solo `nombre`, `email`,
+  `especialista_id`; máx. 100 caracteres, que es el `varchar(100)` de la base; email en
+  minúsculas y con formato; `especialista_id: null` desvincula). `HttpError` nuevo en
+  `errors.js` (404/409/502/503). Reglas: 404 si no existe, 409 si está eliminada (las
+  suspendidas SÍ se editan), `especialista_id` solo en pacientes y solo a especialistas
+  activos (400), correo repetido en la base o en Firebase → 409. Responde la fila con el
+  mismo formato que la lista (consulta `SELECT_USUARIOS` compartida).
+- **Consistencia del correo (Firebase ↔ base):** `BEGIN` → `SELECT … FOR UPDATE` →
+  validaciones → `UPDATE` (sin confirmar) → `getUser` (correo anterior en Firebase) +
+  `updateUser` → `COMMIT`. Si Firebase falla → `ROLLBACK` (nada cambia). Si falla el
+  `COMMIT` → se devuelve en Firebase el correo anterior (503); si esa compensación también
+  falla → `logger.error('INCONSISTENCIA email admin…')` con ambos correos y 502.
+- **Portal (`fbc5334`):** botón "Editar" por fila en `AdminUsuarios.js` (desactivado en
+  eliminadas); panel `EditarUsuario.js` (nombre, correo, especialista para pacientes);
+  confirmación con resumen y consecuencias solo si cambia el correo o el especialista; tras
+  guardar se reemplaza la fila y se recarga la lista. Si el admin edita su propia cuenta,
+  `AdminApp.js` actualiza la barra superior y "Mi perfil" (y refresca la sesión de Firebase
+  si cambió su correo). Estilos `ui-modal-*` / `ui-cambios` en `ui.css`.
+- **Decisiones del paso:** el admin puede cambiar su propio correo; las cuentas suspendidas
+  se pueden editar; confirmación solo para correo y especialista. Firebase no avisa al
+  usuario del cambio de correo (el panel se lo indica al admin).
 
 ---
 
