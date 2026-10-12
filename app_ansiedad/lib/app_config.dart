@@ -25,6 +25,41 @@ class AppConfig {
   static String urlEjerciciosPaciente(String pacienteId) => '$backendUrl/api/ejercicios/$pacienteId';
   static String get urlPendientes => '$backendUrl/api/pendientes';
   static String urlPendienteVisto(String seccion) => '$backendUrl/api/pendientes/$seccion/visto';
+  static String get urlSesiones => '$backendUrl/api/sesiones';
+}
+
+/// Parámetros de la sesión de medición (Fase M1b, DISENO_FLUJO_MEDICION.md §3).
+/// Son constantes para poder ajustarlas con los directores sin tocar la lógica.
+class ConfigMedicion {
+  ConfigMedicion._();
+
+  /// Segundos de señal VÁLIDA para dar la medición por completada (3 min).
+  /// El backend exige al menos 120 s (MIN_SENAL_VALIDA_SEG en validation.js).
+  static const int objetivoValidoSeg = 180;
+
+  /// Tope de duración total: si no se junta el objetivo antes, la medición no
+  /// se completa y no se sube nada.
+  static const int topeTotalSeg = 600;
+
+  /// Malla de la serie: un punto cada 5 s (1800 s / 5 = 360 puntos máx.).
+  static const int intervaloSerieSeg = 5;
+
+  /// Segundos válidos mínimos de un tramo de la malla para emitir su punto.
+  static const int minValidosPorTramo = 4;
+
+  /// Ventana móvil del RMSSD de cada punto de la serie.
+  static const int ventanaHrvSeg = 30;
+
+  // Rangos de plausibilidad de cada segundo de señal.
+  static const int bpmMin = 40;
+  static const int bpmMax = 180;
+  static const int spo2Min = 80;
+  static const int rrMinMs = 300;
+  static const int rrMaxMs = 2000;
+
+  /// Máxima diferencia relativa entre un RR y el anterior (filtro de
+  /// artefactos habitual en HRV de corto plazo).
+  static const double rrMaxVariacion = 0.20;
 }
 
 /// Los tres niveles de ansiedad que maneja el sistema.
