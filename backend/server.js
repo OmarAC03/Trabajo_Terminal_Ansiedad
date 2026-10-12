@@ -7,7 +7,7 @@ const { Pool } = require('pg'); // Importamos el conector de PostgreSQL
 require('dotenv').config();
 
 const logger = require('./logger');
-const { AuthError, ValidationError } = require('./errors');
+const { AuthError, ValidationError, HttpError } = require('./errors');
 const { inicializarFirebaseAdmin, requiereAuth, requiereAuthSocket, requiereAdmin } = require('./auth');
 const { crearAdminRouter } = require('./admin');
 const {
@@ -18,6 +18,7 @@ const {
   validarCodigoVinculacion,
   validarMensajeChat,
   validarEjercicioAsignado,
+  validarSesion,
 } = require('./validation');
 
 const app = express();
@@ -206,6 +207,110 @@ app.get('/api/lecturas/:pacienteId/resumen', async (req, res) => {
     dias_por_periodo: diasPorPeriodo,
     serie_completa: result.rows, // el cliente separa "actual" vs "anterior" por fecha
   });
+});
+
+// --- SESIONES DE MEDICIÓN (Fase M1) ---
+// Una fila de `sesiones_medicion` = resumen + serie submuestreada + índice de
+// calidad. Convive con `lecturas_biometricas` (histórico, sin migrar).
+//
+// `indice_calidad` es INTERNO: nunca llega al paciente. Por eso aquí no hay
+// SELECT * ni RETURNING *: las columnas salen de estas listas fijas (una
+// columna nueva en la tabla no se filtra sola), y la que incluye la calidad
+// se usa SOLO si quien pide es un especialista (ya autorizado como vinculado
+// por autorizarLecturaPaciente). Negar por defecto, y en el SQL: el dato no
+// sale de la base para el paciente.
+const COLUMNAS_SESION_PACIENTE = [
+  'id', 'fecha_inicio', 'fecha_registro',
+  'duracion_total_seg', 'duracion_valida_seg',
+  'hrv_rmssd', 'hrv_min', 'hrv_max',
+  'bpm_promedio', 'bpm_min', 'bpm_max',
+  'spo2_promedio', 'spo2_min', 'spo2_max',
+  'origen',
+].join(', ');
+const COLUMNAS_SESION_ESPECIALISTA = `${COLUMNAS_SESION_PACIENTE}, indice_calidad`;
+const FORMATO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function columnasSesionPara(req) {
+  return req.rol === 'especialista' ? COLUMNAS_SESION_ESPECIALISTA : COLUMNAS_SESION_PACIENTE;
+}
+
+// POST /api/sesiones — solo el paciente, sobre sí mismo. paciente_id sale del
+// token (validarSesion rechaza el campo en el cuerpo). La respuesta no
+// devuelve la sesión completa ni el índice de calidad.
+app.post('/api/sesiones', async (req, res) => {
+  if (req.rol !== 'paciente') {
+    throw new AuthError('Solo un paciente puede registrar sesiones de medición.', 403);
+  }
+  const datos = validarSesion(req.body);
+
+  const query = `
+    INSERT INTO sesiones_medicion (
+      paciente_id, fecha_inicio, duracion_total_seg, duracion_valida_seg,
+      hrv_rmssd, hrv_min, hrv_max,
+      bpm_promedio, bpm_min, bpm_max,
+      spo2_promedio, spo2_min, spo2_max,
+      indice_calidad, serie, origen
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+    RETURNING id, fecha_inicio, fecha_registro;
+  `;
+  const values = [
+    req.uid, datos.fecha_inicio, datos.duracion_total_seg, datos.duracion_valida_seg,
+    datos.hrv_rmssd, datos.hrv_min, datos.hrv_max,
+    datos.bpm_promedio, datos.bpm_min, datos.bpm_max,
+    datos.spo2_promedio, datos.spo2_min, datos.spo2_max,
+    // JSON.stringify: sin esto, pg convierte el arreglo JS a un arreglo de
+    // Postgres ({...}) en vez de jsonb.
+    datos.indice_calidad, JSON.stringify(datos.serie), datos.origen,
+  ];
+  const result = await pool.query(query, values);
+
+  logger.info('Sesión de medición guardada', {
+    paciente_id: req.uid,
+    origen: datos.origen,
+    duracion_valida_seg: datos.duracion_valida_seg,
+  });
+  res.status(201).json({ mensaje: 'Sesión guardada con éxito', data: result.rows[0] });
+});
+
+// GET /api/sesiones/:pacienteId?limite=50 — lista ligera (sin serie), más
+// recientes primero. El propio paciente o su especialista vinculado (que ve
+// todas las sesiones del paciente, como con las lecturas).
+app.get('/api/sesiones/:pacienteId', async (req, res) => {
+  const { pacienteId } = req.params;
+  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver las sesiones de este paciente.');
+  const limite = Math.min(Math.max(parseInt(req.query.limite) || 50, 1), 200);
+
+  const query = `
+    SELECT ${columnasSesionPara(req)}
+    FROM sesiones_medicion
+    WHERE paciente_id = $1
+    ORDER BY fecha_inicio DESC
+    LIMIT $2;
+  `;
+  const result = await pool.query(query, [pacienteId, limite]);
+  res.status(200).json(result.rows);
+});
+
+// GET /api/sesiones/:pacienteId/:sesionId — detalle con la serie. Una sesión
+// de OTRO paciente responde 404 igual que una inexistente (no revela ids).
+app.get('/api/sesiones/:pacienteId/:sesionId', async (req, res) => {
+  const { pacienteId, sesionId } = req.params;
+  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver las sesiones de este paciente.');
+  if (!FORMATO_UUID.test(sesionId)) {
+    throw new ValidationError('El identificador de la sesión no es válido.');
+  }
+
+  const query = `
+    SELECT ${columnasSesionPara(req)}, serie
+    FROM sesiones_medicion
+    WHERE id = $1 AND paciente_id = $2;
+  `;
+  const result = await pool.query(query, [sesionId, pacienteId]);
+  if (result.rowCount === 0) {
+    throw new HttpError('Sesión no encontrada.', 404);
+  }
+  res.status(200).json(result.rows[0]);
 });
 
 // --- HISTORIAL DEL CHAT DE UN PACIENTE (Fase 2b) ---
