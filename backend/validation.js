@@ -362,8 +362,50 @@ function validarSesion(body) {
   };
 }
 
+// --- EVA post-medición (Fase M2, DESARROLLO_FUNDAMENTADO.md §4.1) ---
+// Replica los CHECK de `respuestas_eva` (chk_eva_valor, chk_eva_contexto)
+// para que un dato malo dé 400 y no un 500 de Postgres.
+const CAMPOS_EVA = ['valor', 'contexto'];
+const CONTEXTOS_EVA = ['reposo', 'estudiando', 'antes_examen', 'despues_estresor', 'otro'];
+// La EVA mide "en este momento": solo se acepta hasta 15 min después de que
+// terminó la medición (fecha_inicio + duracion_total_seg).
+const VENTANA_EVA_MS = 15 * 60 * 1000;
+
+/** POST /api/sesiones/:sesionId/eva — lista cerrada: `valor` (entero 0–100,
+ * deslizador EVA continuo) y `contexto` opcional (lista cerrada, sin texto
+ * libre). Devuelve { valor, contexto } con contexto null si no vino. */
+function validarEva(body) {
+  if (!esObjetoPlano(body)) {
+    throw new ValidationError('El cuerpo debe ser un objeto con la respuesta EVA.');
+  }
+  const desconocidos = Object.keys(body).filter((campo) => !CAMPOS_EVA.includes(campo));
+  if (desconocidos.length > 0) {
+    throw new ValidationError(`Campos no permitidos: ${desconocidos.join(', ')}.`);
+  }
+  const valor = requerirEnteroEnRango(body.valor, 'valor', { min: 0, max: 100 });
+
+  let contexto = null;
+  if (body.contexto !== undefined && body.contexto !== null) {
+    if (!CONTEXTOS_EVA.includes(body.contexto)) {
+      throw new ValidationError(`El campo "contexto" debe ser uno de: ${CONTEXTOS_EVA.join(', ')}.`);
+    }
+    contexto = body.contexto;
+  }
+  return { valor, contexto };
+}
+
+/** Lanza 400 si ya pasó la ventana de la EVA para una sesión. */
+function validarVentanaEva(fechaInicio, duracionTotalSeg, ahora = Date.now()) {
+  const fin = new Date(fechaInicio).getTime() + duracionTotalSeg * 1000;
+  if (ahora > fin + VENTANA_EVA_MS) {
+    throw new ValidationError('La EVA solo se puede responder hasta 15 minutos después de terminar la medición.');
+  }
+}
+
 module.exports = {
   validarSesion,
+  validarEva,
+  validarVentanaEva,
   validarEdicionAdmin,
   validarLectura,
   validarUsuarioNuevo,

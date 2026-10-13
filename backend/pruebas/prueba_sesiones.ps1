@@ -1,5 +1,6 @@
-# Pruebas por comando de /api/sesiones (Fase M1a) contra el backend LOCAL.
-# Uso: .\prueba_sesiones.ps1   (con el backend corriendo en otra ventana)
+# Pruebas por comando de /api/sesiones (Fase M1a) y de la EVA post-medicion
+# (Fase M2, seccion 9) contra el backend LOCAL.
+# Uso: .\backend\pruebas\prueba_sesiones.ps1   (con el backend corriendo en otra ventana)
 # Los tokens se obtienen solos con correo + contrasena (no se guardan).
 
 $Base = 'http://localhost:3000'
@@ -66,13 +67,14 @@ function Tiene($obj, $campo) { return ($obj.PSObject.Properties.Name -contains $
 # arreglo real. Guardarlo primero en una variable y luego envolverlo lo aplana.
 function Lista-Json($texto) { $p = $texto | ConvertFrom-Json; return $p }
 
-function Sesion-Valida {
+# -HaceMinutos: fecha_inicio en el pasado (para probar la ventana de la EVA).
+function Sesion-Valida([int]$HaceMinutos = 0) {
   $serie = @()
   for ($t = 0; $t -le 235; $t += 5) {
     $serie += @{ t = $t; bpm = 70 + ($t % 7); spo2 = 97; hrv = 40 + ($t % 9) }
   }
   return @{
-    fecha_inicio        = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+    fecha_inicio        = (Get-Date).AddMinutes(-$HaceMinutos).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
     duracion_total_seg  = 240
     duracion_valida_seg = 200
     hrv_rmssd = 42.46; hrv_min = 38.5; hrv_max = 49.1
@@ -173,11 +175,61 @@ if ($sesionId) {
 Caso 'Detalle con uuid inexistente -> 404' 404 (Llamar 'GET' "/api/sesiones/$A/$([guid]::NewGuid())" $pac.token $null)
 Caso 'Detalle con id mal formado -> 400' 400 (Llamar 'GET' "/api/sesiones/$A/abc" $pac.token $null)
 
+Write-Host "`n--- 9. EVA post-medicion (Fase M2) ---"
+# Sesion nueva solo para la EVA (la del caso 1 se queda SIN EVA para el ultimo caso).
+$r = Llamar 'POST' '/api/sesiones' $pac.token (Sesion-Valida)
+$idEva = if ($r.status -eq 201) { ($r.texto | ConvertFrom-Json).data.id } else { $null }
+if ($idEva) {
+  $creadas += $idEva
+  $urlEva = "/api/sesiones/$idEva/eva"
+  Caso 'EVA con valor 101 -> 400' 400 (Llamar 'POST' $urlEva $pac.token @{ valor = 101 })
+  Caso 'EVA con valor decimal -> 400' 400 (Llamar 'POST' $urlEva $pac.token @{ valor = 50.5 })
+  Caso 'EVA con contexto fuera de la lista -> 400' 400 (Llamar 'POST' $urlEva $pac.token @{ valor = 50; contexto = 'trabajando' })
+  Caso 'EVA con campo extra -> 400' 400 (Llamar 'POST' $urlEva $pac.token @{ valor = 50; nota = 'x' })
+  Caso 'EVA como especialista -> 403' 403 (Llamar 'POST' $urlEva $esp.token @{ valor = 50 })
+  Caso 'EVA valida -> 201' 201 (Llamar 'POST' $urlEva $pac.token @{ valor = 63; contexto = 'antes_examen' })
+  Caso 'EVA por segunda vez (no editable) -> 409' 409 (Llamar 'POST' $urlEva $pac.token @{ valor = 20 })
+
+  $r = Llamar 'GET' "/api/sesiones/$A" $esp.token $null
+  Caso 'Lista del especialista trae la EVA (63, antes_examen)' 200 $r {
+    $fila = @(Lista-Json $r.texto) | Where-Object { $_.id -eq $idEva }
+    if (-not $fila) { return 'no aparece la sesion con EVA' }
+    if ($fila.eva_valor -ne 63 -or $fila.eva_contexto -ne 'antes_examen' -or -not $fila.eva_fecha) {
+      return "eva_valor=$($fila.eva_valor) eva_contexto=$($fila.eva_contexto) eva_fecha=$($fila.eva_fecha)"
+    }
+    $true
+  }
+  $r = Llamar 'GET' "/api/sesiones/$A/$idEva" $esp.token $null
+  Caso 'Detalle del especialista trae la EVA' 200 $r {
+    $d = $r.texto | ConvertFrom-Json
+    if ($d.eva_valor -eq 63 -and $d.eva_contexto -eq 'antes_examen') { $true } else { "eva_valor=$($d.eva_valor) eva_contexto=$($d.eva_contexto)" }
+  }
+} else { Write-Host "        No se pudo crear la sesion para la EVA (HTTP $($r.status)): $($r.texto)" -ForegroundColor Yellow }
+
+if ($sesionId) {
+  $r = Llamar 'GET' "/api/sesiones/$A/$sesionId" $esp.token $null
+  Caso 'Sesion sin EVA -> eva_valor null (omitida = sin fila)' 200 $r {
+    $d = $r.texto | ConvertFrom-Json
+    if (-not (Tiene $d 'eva_valor')) { 'no trae el campo eva_valor' }
+    elseif ($null -ne $d.eva_valor) { "eva_valor=$($d.eva_valor) (esperado null)" } else { $true }
+  }
+}
+Caso 'EVA sobre sesion inexistente -> 404' 404 (Llamar 'POST' "/api/sesiones/$([guid]::NewGuid())/eva" $pac.token @{ valor = 50 })
+Caso 'EVA con id mal formado -> 400' 400 (Llamar 'POST' '/api/sesiones/abc/eva' $pac.token @{ valor = 50 })
+
+# Sesion que empezo hace 30 min y duro 4 min: termino hace 26 min (> 15).
+$r = Llamar 'POST' '/api/sesiones' $pac.token (Sesion-Valida -HaceMinutos 30)
+if ($r.status -eq 201) {
+  $idVieja = ($r.texto | ConvertFrom-Json).data.id; $creadas += $idVieja
+  Caso 'EVA fuera de la ventana de 15 min -> 400' 400 (Llamar 'POST' "/api/sesiones/$idVieja/eva" $pac.token @{ valor = 50 })
+} else { Write-Host "        No se pudo crear la sesion de hace 30 min (HTTP $($r.status)): $($r.texto)" -ForegroundColor Yellow }
+
 if ($pacB) {
   $r = Llamar 'POST' '/api/sesiones' $pacB.token (Sesion-Valida)
   if ($r.status -eq 201) {
     $idB = ($r.texto | ConvertFrom-Json).data.id; $creadas += $idB
     Caso 'Sesion de B pedida bajo el id de A -> 404' 404 (Llamar 'GET' "/api/sesiones/$A/$idB" $pac.token $null)
+    Caso 'EVA de A sobre la sesion de B -> 404' 404 (Llamar 'POST' "/api/sesiones/$idB/eva" $pac.token @{ valor = 50 })
   } else { Write-Host "        No se pudo crear la sesion de B (HTTP $($r.status)): $($r.texto)" -ForegroundColor Yellow }
 }
 

@@ -19,6 +19,8 @@ const {
   validarMensajeChat,
   validarEjercicioAsignado,
   validarSesion,
+  validarEva,
+  validarVentanaEva,
 } = require('./validation');
 
 const app = express();
@@ -219,6 +221,10 @@ app.get('/api/lecturas/:pacienteId/resumen', async (req, res) => {
 // se usa SOLO si quien pide es un especialista (ya autorizado como vinculado
 // por autorizarLecturaPaciente). Negar por defecto, y en el SQL: el dato no
 // sale de la base para el paciente.
+//
+// Las consultas usan el alias `s` para `sesiones_medicion` y `e` para
+// `respuestas_eva` (LEFT JOIN: una sesión sin EVA trae eva_* en null; la EVA
+// omitida es ausencia de fila, Fase M2).
 const COLUMNAS_SESION_PACIENTE = [
   'id', 'fecha_inicio', 'fecha_registro',
   'duracion_total_seg', 'duracion_valida_seg',
@@ -226,8 +232,9 @@ const COLUMNAS_SESION_PACIENTE = [
   'bpm_promedio', 'bpm_min', 'bpm_max',
   'spo2_promedio', 'spo2_min', 'spo2_max',
   'origen',
-].join(', ');
-const COLUMNAS_SESION_ESPECIALISTA = `${COLUMNAS_SESION_PACIENTE}, indice_calidad`;
+].map((c) => `s.${c}`).join(', ')
+  + ', e.valor AS eva_valor, e.contexto AS eva_contexto, e.fecha_respuesta AS eva_fecha';
+const COLUMNAS_SESION_ESPECIALISTA = `${COLUMNAS_SESION_PACIENTE}, s.indice_calidad`;
 const FORMATO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function columnasSesionPara(req) {
@@ -283,9 +290,10 @@ app.get('/api/sesiones/:pacienteId', async (req, res) => {
 
   const query = `
     SELECT ${columnasSesionPara(req)}
-    FROM sesiones_medicion
-    WHERE paciente_id = $1
-    ORDER BY fecha_inicio DESC
+    FROM sesiones_medicion s
+    LEFT JOIN respuestas_eva e ON e.sesion_id = s.id
+    WHERE s.paciente_id = $1
+    ORDER BY s.fecha_inicio DESC
     LIMIT $2;
   `;
   const result = await pool.query(query, [pacienteId, limite]);
@@ -302,15 +310,56 @@ app.get('/api/sesiones/:pacienteId/:sesionId', async (req, res) => {
   }
 
   const query = `
-    SELECT ${columnasSesionPara(req)}, serie
-    FROM sesiones_medicion
-    WHERE id = $1 AND paciente_id = $2;
+    SELECT ${columnasSesionPara(req)}, s.serie
+    FROM sesiones_medicion s
+    LEFT JOIN respuestas_eva e ON e.sesion_id = s.id
+    WHERE s.id = $1 AND s.paciente_id = $2;
   `;
   const result = await pool.query(query, [sesionId, pacienteId]);
   if (result.rowCount === 0) {
     throw new HttpError('Sesión no encontrada.', 404);
   }
   res.status(200).json(result.rows[0]);
+});
+
+// POST /api/sesiones/:sesionId/eva — EVA post-medición (Fase M2). Solo el
+// paciente, sobre una sesión suya (otra o inexistente → 404, como el
+// detalle). Una por sesión y no editable (409); solo hasta 15 min después de
+// terminar la medición (400). La EVA omitida no se guarda: es ausencia de fila.
+app.post('/api/sesiones/:sesionId/eva', async (req, res) => {
+  if (req.rol !== 'paciente') {
+    throw new AuthError('Solo un paciente puede responder la EVA.', 403);
+  }
+  const { sesionId } = req.params;
+  if (!FORMATO_UUID.test(sesionId)) {
+    throw new ValidationError('El identificador de la sesión no es válido.');
+  }
+  const datos = validarEva(req.body);
+
+  const sesion = await pool.query(
+    'SELECT fecha_inicio, duracion_total_seg FROM sesiones_medicion WHERE id = $1 AND paciente_id = $2',
+    [sesionId, req.uid]
+  );
+  if (sesion.rowCount === 0) {
+    throw new HttpError('Sesión no encontrada.', 404);
+  }
+  validarVentanaEva(sesion.rows[0].fecha_inicio, sesion.rows[0].duracion_total_seg);
+
+  // ON CONFLICT sobre uq_eva_sesion: si ya hay respuesta no inserta nada y
+  // RETURNING viene vacío (atómico, sin carrera entre "revisar" e "insertar").
+  const result = await pool.query(
+    `INSERT INTO respuestas_eva (sesion_id, valor, contexto)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (sesion_id) DO NOTHING
+     RETURNING id, fecha_respuesta;`,
+    [sesionId, datos.valor, datos.contexto]
+  );
+  if (result.rowCount === 0) {
+    throw new HttpError('Esta medición ya tiene una respuesta EVA.', 409);
+  }
+
+  logger.info('Respuesta EVA guardada', { paciente_id: req.uid, sesion_id: sesionId, con_contexto: datos.contexto !== null });
+  res.status(201).json({ mensaje: 'Respuesta guardada con éxito', data: result.rows[0] });
 });
 
 // --- HISTORIAL DEL CHAT DE UN PACIENTE (Fase 2b) ---
