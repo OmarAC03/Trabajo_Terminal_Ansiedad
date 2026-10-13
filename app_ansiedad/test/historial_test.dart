@@ -6,6 +6,7 @@ import 'package:app_ansiedad/models/sesion_resumen.dart';
 import 'package:app_ansiedad/providers/historial_sesiones_provider.dart';
 import 'package:app_ansiedad/providers/sesion_detalle_provider.dart';
 import 'package:app_ansiedad/repositories/sesion_repository.dart';
+import 'package:app_ansiedad/ui/formato_fecha.dart';
 
 /// Fila de la lista tal como la manda el backend al paciente (numeric como texto).
 Map<String, dynamic> fila(String id, String fechaUtc) => {
@@ -89,6 +90,25 @@ void main() {
 
     test('el detalle tolera una serie ausente', () {
       expect(SesionDetalle.fromJson(fila('a', '2026-10-13T15:30:00Z')).serie, isEmpty);
+    });
+  });
+
+  group('Formato de fechas del Historial', () {
+    final ahora = DateTime(2026, 10, 13, 18, 0);
+
+    test('etiquetaDia: Hoy, Ayer, día de la semana y año si es otro', () {
+      expect(etiquetaDia(DateTime(2026, 10, 13), ahora: ahora), 'Hoy');
+      expect(etiquetaDia(DateTime(2026, 10, 12), ahora: ahora), 'Ayer');
+      expect(etiquetaDia(DateTime(2026, 10, 9), ahora: ahora), 'vie 9 oct');
+      expect(etiquetaDia(DateTime(2025, 12, 31), ahora: ahora), 'mié 31 dic 2025');
+    });
+
+    test('duracionCorta y minSeg', () {
+      expect(duracionCorta(45), '45 s');
+      expect(duracionCorta(180), '3 min');
+      expect(duracionCorta(214), '3 min 34 s');
+      expect(minSeg(0), '0:00');
+      expect(minSeg(125), '2:05');
     });
   });
 

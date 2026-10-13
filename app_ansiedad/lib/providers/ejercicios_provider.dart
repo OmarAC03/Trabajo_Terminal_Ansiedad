@@ -6,7 +6,7 @@ import '../repositories/ejercicios_repository.dart';
 import '../repositories/repository_exception.dart';
 
 /// Estado de la pantalla "Ejercicios asignados por tu especialista". Mismo
-/// patrón que HistorialProvider/VinculacionProvider: la UI no toca red.
+/// patrón que HistorialSesionesProvider/VinculacionProvider: la UI no toca red.
 class EjerciciosProvider extends ChangeNotifier {
   final EjerciciosRepository _repo;
   final String pacienteId;

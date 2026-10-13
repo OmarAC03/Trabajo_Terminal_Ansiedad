@@ -6,7 +6,7 @@ import 'repository_exception.dart';
 
 /// Punto único de acceso a los datos de perfil (tabla `usuarios` en Supabase).
 ///
-/// Igual que LecturaRepository: la UI/estado no llama a ApiClient ni parsea
+/// Igual que SesionRepository: la UI/estado no llama a ApiClient ni parsea
 /// JSON directamente, se lo pide a este repositorio.
 class PerfilRepository {
   Future<Perfil> obtenerPerfil(String uid, {String emailRespaldo = ''}) async {

@@ -13,7 +13,7 @@ enum EstadoChat { cargando, sinEspecialista, listo, error }
 ///
 /// La UI ya no toca Socket.io directamente: le pide a este provider que
 /// conecte y le mande el mensaje, y escucha sus cambios con
-/// notifyListeners(), igual que HistorialProvider, PerfilProvider y
+/// notifyListeners(), igual que HistorialSesionesProvider, PerfilProvider y
 /// AlertaProvider.
 class MensajesProvider extends ChangeNotifier {
   final ChatRepository _chatRepo;

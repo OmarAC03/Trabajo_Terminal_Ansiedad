@@ -8,7 +8,7 @@ import '../repositories/repository_exception.dart';
 /// Maneja TODO el estado y la lógica de la pantalla de Perfil.
 ///
 /// La UI ya no toca red ni FirebaseAuth directamente: le pide a este provider
-/// y escucha sus cambios con notifyListeners(), igual que HistorialProvider.
+/// y escucha sus cambios con notifyListeners(), igual que HistorialSesionesProvider.
 class PerfilProvider extends ChangeNotifier {
   final PerfilRepository _repo;
   final String uid;

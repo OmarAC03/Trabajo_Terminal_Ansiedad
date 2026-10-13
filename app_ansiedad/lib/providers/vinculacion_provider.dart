@@ -6,7 +6,7 @@ import '../repositories/vinculacion_repository.dart';
 
 /// Maneja todo el estado de la sección "Especialista vinculado": carga el
 /// estado actual y procesa el código que el paciente escribe. Mismo patrón
-/// que PerfilProvider/HistorialProvider: la UI no toca red ni parsea JSON.
+/// que PerfilProvider/HistorialSesionesProvider: la UI no toca red ni parsea JSON.
 class VinculacionProvider extends ChangeNotifier {
   final VinculacionRepository _repo;
 

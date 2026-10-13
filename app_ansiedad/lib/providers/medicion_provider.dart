@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../app_config.dart';
 import '../logger.dart';
+import '../medicion/aviso_sesiones.dart';
 import '../medicion/calculo_sesion.dart';
 import '../models/lectura_cruda.dart';
 import '../models/sesion_medicion.dart';
@@ -185,6 +186,8 @@ class MedicionProvider extends ChangeNotifier {
       final id = await _repo.enviarSesion(s);
       AppLogger.info('Sesión de medición guardada ($id)', tag: 'medicion');
       _estadoEnvio = EstadoEnvio.enviada;
+      // Inicio e Historial se recargan solos con la sesión nueva.
+      AvisoSesiones.notificarGuardada();
     } on RepositoryException catch (e) {
       _estadoEnvio = EstadoEnvio.error;
       _errorEnvio = e.mensaje;
