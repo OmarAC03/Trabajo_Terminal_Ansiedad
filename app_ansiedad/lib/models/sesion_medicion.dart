@@ -21,6 +21,18 @@ class PuntoSerie {
   const PuntoSerie({required this.t, required this.bpm, required this.spo2, required this.hrv});
 
   Map<String, dynamic> toJson() => {'t': t, 'bpm': bpm, 'spo2': spo2, 'hrv': hrv};
+
+  /// Punto de la `serie` (jsonb) tal como la devuelve el detalle de la sesión.
+  /// Dentro del jsonb los valores ya llegan como número, pero se leen igual
+  /// con `tryParse` para no depender de eso.
+  factory PuntoSerie.fromJson(Map<String, dynamic> json) => PuntoSerie(
+        t: int.tryParse(json['t']?.toString() ?? '') ?? 0,
+        bpm: _asDouble(json['bpm']),
+        spo2: _asDouble(json['spo2']),
+        hrv: _asDouble(json['hrv']),
+      );
+
+  static double _asDouble(dynamic v) => double.tryParse(v?.toString() ?? '') ?? 0.0;
 }
 
 /// Una sesión de medición completa, lista para `POST /api/sesiones`.

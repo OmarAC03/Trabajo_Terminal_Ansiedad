@@ -16,7 +16,14 @@ class InicioProvider extends ChangeNotifier {
   final String pacienteId;
   final SesionRepository _repo;
 
-  InicioProvider({required this.pacienteId, SesionRepository? repo}) : _repo = repo ?? SesionRepository();
+  final Listenable? _aviso;
+
+  /// Con [aviso], se recarga solo cuando se guarda una sesión nueva.
+  InicioProvider({required this.pacienteId, SesionRepository? repo, Listenable? aviso})
+      : _repo = repo ?? SesionRepository(),
+        _aviso = aviso {
+    _aviso?.addListener(cargar);
+  }
 
   EstadoInicio _estado = EstadoInicio.cargando;
   EstadoInicio get estado => _estado;
@@ -65,6 +72,7 @@ class InicioProvider extends ChangeNotifier {
   @override
   void dispose() {
     _desechado = true;
+    _aviso?.removeListener(cargar);
     super.dispose();
   }
 }

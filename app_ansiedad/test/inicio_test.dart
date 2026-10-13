@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:app_ansiedad/contenido/textos_educativos.dart';
+import 'package:app_ansiedad/medicion/aviso_sesiones.dart';
+import 'package:app_ansiedad/models/sesion_detalle.dart';
 import 'package:app_ansiedad/models/sesion_medicion.dart';
 import 'package:app_ansiedad/models/sesion_resumen.dart';
 import 'package:app_ansiedad/providers/inicio_provider.dart';
@@ -39,6 +41,13 @@ class RepoFalso implements SesionRepository {
 
   @override
   Future<String> enviarSesion(SesionMedicion sesion) => throw UnimplementedError();
+
+  @override
+  Future<List<SesionResumen>> obtenerSesiones(String pacienteId, {int limite = 200}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<SesionDetalle> obtenerDetalle(String pacienteId, String sesionId) => throw UnimplementedError();
 }
 
 void main() {
@@ -115,6 +124,16 @@ void main() {
       await p.cargar();
       expect(p.estado, EstadoInicio.listo);
       expect(p.errorMsg, isNull);
+    });
+
+    test('se recarga sola cuando se guarda una sesión nueva', () async {
+      final nueva = SesionResumen.fromJson({...filaBackend(), 'id': 'nueva'});
+      final p = InicioProvider(pacienteId: 'p', repo: RepoFalso([sesion, nueva]), aviso: AvisoSesiones.guardadas);
+      await p.cargar();
+      AvisoSesiones.notificarGuardada();
+      await Future<void>.delayed(Duration.zero);
+      expect(p.ultima?.id, 'nueva');
+      p.dispose();
     });
 
     test('aviso de SpO2 solo por debajo de 94 % (regla §2.3)', () async {

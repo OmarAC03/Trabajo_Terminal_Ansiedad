@@ -1,9 +1,10 @@
-/// Lo que la pantalla de Inicio necesita de una sesión de medición guardada,
-/// tal como la devuelve `GET /api/sesiones/:pacienteId` al paciente (sin
-/// `indice_calidad` ni `serie`).
+/// Una sesión de medición guardada, tal como la devuelve al paciente
+/// `GET /api/sesiones/:pacienteId` (sin `indice_calidad` ni `serie`). La usan
+/// Inicio (la última) y el Historial (la lista).
 class SesionResumen {
   final String id;
   final DateTime fechaInicio;
+  final int duracionTotalSeg;
   final double bpmPromedio;
   final double hrvRmssd;
   final double spo2Promedio;
@@ -11,6 +12,7 @@ class SesionResumen {
   const SesionResumen({
     required this.id,
     required this.fechaInicio,
+    required this.duracionTotalSeg,
     required this.bpmPromedio,
     required this.hrvRmssd,
     required this.spo2Promedio,
@@ -22,11 +24,13 @@ class SesionResumen {
     return SesionResumen(
       id: (json['id'] ?? '').toString(),
       fechaInicio: DateTime.parse(json['fecha_inicio'].toString()).toLocal(),
-      bpmPromedio: _asDouble(json['bpm_promedio']),
-      hrvRmssd: _asDouble(json['hrv_rmssd']),
-      spo2Promedio: _asDouble(json['spo2_promedio']),
+      duracionTotalSeg: asInt(json['duracion_total_seg']),
+      bpmPromedio: asDouble(json['bpm_promedio']),
+      hrvRmssd: asDouble(json['hrv_rmssd']),
+      spo2Promedio: asDouble(json['spo2_promedio']),
     );
   }
 
-  static double _asDouble(dynamic v) => double.tryParse(v?.toString() ?? '') ?? 0.0;
+  static double asDouble(dynamic v) => double.tryParse(v?.toString() ?? '') ?? 0.0;
+  static int asInt(dynamic v) => int.tryParse(v?.toString() ?? '') ?? 0;
 }
