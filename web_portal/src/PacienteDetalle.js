@@ -10,6 +10,7 @@ import { Card, KpiCard, Button, Badge, Avatar, Alert, Disclaimer } from './ui/co
 import { haceTiempo } from './PacientesComun';
 import ChatPaciente from './ChatPaciente';
 import EjerciciosPaciente from './EjerciciosPaciente';
+import SesionesPaciente from './SesionesPaciente';
 
 const LECTURAS_URL = "https://tt-ansiedad-backend.onrender.com/api/lecturas";
 
@@ -159,6 +160,9 @@ function PacienteDetalle({ paciente, onVolver, recarga, onActualizar, errorAcces
           que cambiar de periodo o de ancho de ventana no reconecta el socket. */}
       <div className="ui-detail-cols">
         <div>
+          <SesionesPaciente paciente={paciente} recarga={recarga} />
+          <div style={{ height: 20 }} />
+
           {error ? (
             <Alert tone="altos" icon={CircleAlert}>{error}</Alert>
           ) : cargando ? (
