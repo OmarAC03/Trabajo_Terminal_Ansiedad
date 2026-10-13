@@ -9,6 +9,7 @@ import {
   SESIONES_URL, normalizarSesion, resumenSesiones, datosTendencia,
   porcentajeCalidad, duracionTexto, fechaHora,
 } from './sesiones';
+import SesionDetalle from './SesionDetalle';
 
 // Colores de gráfica de GUIA_ESTILO_PORTAL.md (los mismos de PacienteDetalle).
 const COLORES = { bpm: '#2563eb', hrv: '#d97706' };
@@ -22,6 +23,8 @@ function SesionesPaciente({ paciente, recarga }) {
   const [sesiones, setSesiones] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
+  // Sesión abierta en el detalle (se muestra en lugar de la lista, sin router).
+  const [sesionId, setSesionId] = useState(null);
 
   useEffect(() => {
     let cancelado = false;
@@ -55,6 +58,9 @@ function SesionesPaciente({ paciente, recarga }) {
     };
   }, [paciente.id, recarga]);
 
+  if (sesionId) {
+    return <SesionDetalle paciente={paciente} sesionId={sesionId} onVolver={() => setSesionId(null)} />;
+  }
   if (error) return <Alert tone="altos" icon={CircleAlert}>{error}</Alert>;
   if (cargando) return <Card><div className="ui-empty">Cargando sesiones de medición…</div></Card>;
   if (sesiones.length === 0) {
@@ -72,7 +78,7 @@ function SesionesPaciente({ paciente, recarga }) {
     <div className="ui-stack">
       <Kpis resumen={resumen} />
       {tendencia.length > 0 && <GraficaTendencia datos={tendencia} />}
-      <TablaSesiones sesiones={sesiones} />
+      <TablaSesiones sesiones={sesiones} onSeleccionar={setSesionId} />
     </div>
   );
 }
@@ -124,7 +130,7 @@ function GraficaTendencia({ datos }) {
   );
 }
 
-function TablaSesiones({ sesiones }) {
+function TablaSesiones({ sesiones, onSeleccionar }) {
   return (
     <Card
       className="ui-card-flush"
@@ -147,7 +153,15 @@ function TablaSesiones({ sesiones }) {
           </thead>
           <tbody>
             {sesiones.map((s) => (
-              <tr key={s.id}>
+              <tr
+                key={s.id}
+                className="ui-table-row-link"
+                tabIndex={0}
+                onClick={() => onSeleccionar(s.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') onSeleccionar(s.id);
+                }}
+              >
                 <td className="ui-person-name">{fechaHora(s.fecha_inicio)}</td>
                 <td className="ui-muted">{duracionTexto(s.duracion_total_seg)}</td>
                 <td><span className="ui-num">{Math.round(s.hrv_rmssd)}</span><span className="ui-unit">ms</span></td>

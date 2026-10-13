@@ -1,6 +1,6 @@
 import {
   normalizarSesion, resumenSesiones, datosTendencia, serieConCortes, huecosDeSerie,
-  porcentajeCalidad, minSeg, duracionTexto, fechaHora,
+  porcentajeCalidad, minSeg, duracionTexto, fechaHora, ticksEje,
 } from './sesiones';
 
 // Fila como la manda el backend al especialista: numeric como texto.
@@ -99,6 +99,11 @@ describe('serie con huecos (vista del especialista)', () => {
 });
 
 describe('formato', () => {
+  test('ticksEje: cada minuto, o cada 2 si la sesión pasa de 5 min', () => {
+    expect(ticksEje(214)).toEqual([0, 60, 120, 180]);
+    expect(ticksEje(420)).toEqual([0, 120, 240, 360]);
+  });
+
   test('porcentajeCalidad', () => {
     expect(porcentajeCalidad(0.841)).toBe(84);
     expect(porcentajeCalidad(1)).toBe(100);

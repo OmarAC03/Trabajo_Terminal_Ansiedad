@@ -98,6 +98,14 @@ export function huecosDeSerie(serie, paso = PASO_SERIE_SEG) {
   return huecos;
 }
 
+/** Marcas del eje de tiempo de una sesión: cada minuto (cada 2 si dura más de 5 min). */
+export function ticksEje(ultimoT) {
+  const paso = ultimoT > 300 ? 120 : 60;
+  const ticks = [];
+  for (let t = 0; t <= ultimoT; t += paso) ticks.push(t);
+  return ticks;
+}
+
 /** Índice de calidad (0–1) como porcentaje entero. */
 export const porcentajeCalidad = (indice) => (indice == null ? null : Math.round(indice * 100));
 
