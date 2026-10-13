@@ -37,6 +37,12 @@ class AppColors {
   static const Color sinLecturas = Color(0xFF94A3B8);
   static const Color sinLecturasFondo = Color(0xFFF1F5F9);
 
+  // --- Guía de la medición ---
+  // Ámbar para "acomoda tu dedo / mantén la mano quieta": llama la atención
+  // sin alarmar. Nunca rojo durante la captura (DISENO_FLUJO_MEDICION.md §10).
+  static const Color guia = Color(0xFFB45309);
+  static const Color guiaFondo = Color(0xFFFFFBEB);
+
   // --- Íconos de métrica ---
   // Un color por indicador para distinguirlos de un vistazo. A propósito NO
   // son el verde/ámbar/rojo del semáforo, para que un ícono no se lea como

@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../app_config.dart';
 import '../logger.dart';
 import '../models/lectura_cruda.dart';
 import '../repositories/lectura_repository.dart';
 import '../repositories/sensor_repository.dart';
+import '../repositories/simulador_sensor.dart';
 
 /// Mensaje de una sola vez para que la UI muestre un SnackBar (permiso
 /// denegado, sensor no vinculado). `advertencia` decide el color: naranja si
@@ -80,13 +80,31 @@ class AlertaProvider extends ChangeNotifier {
 
   StreamSubscription<String>? _sensorSub;
   Timer? _simTimer;
-  final Random _rng = Random();
+  final SimuladorSensor _simulador = SimuladorSensor();
+
+  /// Todas las lecturas que llegan (sensor o simulación), incluidas las de
+  /// mala señal. La sesión de medición (MedicionProvider) las escucha aquí.
+  final StreamController<LecturaCruda> _lecturas = StreamController<LecturaCruda>.broadcast();
+  Stream<LecturaCruda> get lecturas => _lecturas.stream;
+
+  bool get forzandoMalaSenal => _simulador.forzarMalaSenal;
+
+  /// Botón de prueba de la simulación. [notificar] en false permite apagarlo
+  /// desde un `dispose` sin redibujar a media desmontada.
+  void setForzarMalaSenal(bool valor, {bool notificar = true}) {
+    _simulador.forzarMalaSenal = valor;
+    if (notificar) notifyListeners();
+  }
+
+  /// Al empezar una medición en simulación: unos segundos de estabilización.
+  void simularColocacionDedo() => _simulador.colocarDedo();
 
   @override
   void dispose() {
     _simTimer?.cancel();
     _sensorSub?.cancel();
     _sensorRepo.desconectar();
+    _lecturas.close();
     super.dispose();
   }
 
@@ -140,6 +158,10 @@ class AlertaProvider extends ChangeNotifier {
   }
 
   void _procesarLectura(LecturaCruda lectura) {
+    _lecturas.add(lectura);
+    // Sin dedo no hay lectura que mostrar: la vista en vivo conserva la última.
+    if (!lectura.dedo) return;
+
     _bpmActual = lectura.bpm;
     _spo2Actual = lectura.spo2;
     _hrvActual = lectura.hrv;
@@ -164,7 +186,7 @@ class AlertaProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- MODO SIMULACIÓN (genera lecturas falsas realistas) ---
+  // --- MODO SIMULACIÓN (SimuladorSensor: RR latido a latido y mala señal) ---
 
   void toggleSimulacion() {
     if (_modoSimulacion) {
@@ -185,8 +207,9 @@ class AlertaProvider extends ChangeNotifier {
     _lastSyncTime = "En vivo (Simulado)";
     notifyListeners();
 
-    _simTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-      _procesarLectura(_generarLecturaFalsa());
+    // Una lectura por segundo, como la espera la sesión de medición.
+    _simTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _procesarLectura(_simulador.siguiente());
     });
   }
 
@@ -197,17 +220,6 @@ class AlertaProvider extends ChangeNotifier {
     _sensorConectado = false;
     _lastSyncTime = "Simulación detenida";
     notifyListeners();
-  }
-
-  // Genera valores biométricos plausibles, con una probabilidad ocasional de
-  // "pico de ansiedad" para poder ver el semáforo cambiar sin hardware real.
-  LecturaCruda _generarLecturaFalsa() {
-    final picoAnsiedad = _rng.nextDouble() < 0.15; // 15% de probabilidad
-    return LecturaCruda(
-      bpm: picoAnsiedad ? 100 + _rng.nextInt(20) : 65 + _rng.nextInt(20),
-      spo2: 95 + _rng.nextInt(5), // 95-99, siempre saludable
-      hrv: picoAnsiedad ? 10 + _rng.nextInt(15) : 30 + _rng.nextInt(30),
-    );
   }
 
   // --- SINCRONIZACIÓN CON BACKEND (REMITIR PROMEDIOS) ---

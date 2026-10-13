@@ -97,6 +97,20 @@ void main() {
       expect(a.construir(origen: OrigenSesion.simulacion).hrvRmssd, 14.14);
     });
 
+    test('segundos con 0, 1 o 2 latidos encadenan las diferencias igual', () {
+      // Misma secuencia 800, 810, 790, 800 repartida como [800, 810], [], [790, 800].
+      final a = nuevo();
+      const porSegundo = [
+        [800, 810],
+        <int>[],
+        [790, 800],
+      ];
+      for (var i = 0; i < objetivo; i++) {
+        a.agregar(seg(rr: i < porSegundo.length ? porSegundo[i] : const []));
+      }
+      expect(a.construir(origen: OrigenSesion.simulacion).hrvRmssd, 14.14);
+    });
+
     test('no resta RR separados por un hueco de mala señal', () {
       final a = nuevo();
       for (var i = 0; i < 90; i++) {

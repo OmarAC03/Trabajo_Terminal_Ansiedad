@@ -1,0 +1,218 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
+import '../app_config.dart';
+import '../logger.dart';
+import '../medicion/calculo_sesion.dart';
+import '../models/lectura_cruda.dart';
+import '../models/sesion_medicion.dart';
+import '../repositories/sesion_repository.dart';
+
+enum FaseMedicion { preparacion, midiendo, completada, noCompletada }
+
+/// Qué mensaje de guía ve el paciente durante la captura. Siempre positivo y
+/// accionable; nunca un veredicto sobre su medición (DISENO_FLUJO_MEDICION.md §10).
+enum GuiaMedicion { detectando, midiendo, casiListo, acomodaDedo, manoQuieta }
+
+enum EstadoEnvio { enviando, enviada, error }
+
+/// Conduce una sesión de medición guiada (Fase M1b): preparación → captura →
+/// completada (y se sube sola) o no completada (se invita a reintentar).
+///
+/// Escucha las lecturas (una por segundo) y las pasa a [AcumuladorSesion].
+/// Un vigía de 1 s rellena como "sin señal" los segundos que no llegaron
+/// (sensor callado, app en segundo plano), para que la duración total refleje
+/// el tiempo real desde `fecha_inicio`.
+class MedicionProvider extends ChangeNotifier {
+  final Stream<LecturaCruda> _fuente;
+  final OrigenSesion origen;
+  final SesionRepository _repo;
+
+  /// Se llama al tocar "Comenzar" (en simulación: colocar el dedo).
+  final VoidCallback? alComenzar;
+
+  MedicionProvider({
+    required Stream<LecturaCruda> fuente,
+    required this.origen,
+    this.alComenzar,
+    SesionRepository? repo,
+  })  : _fuente = fuente,
+        _repo = repo ?? SesionRepository();
+
+  static final _sinSenal = LecturaCruda(bpm: 0, spo2: 0, hrv: 0, dedo: false, estable: false);
+
+  FaseMedicion _fase = FaseMedicion.preparacion;
+  FaseMedicion get fase => _fase;
+
+  AcumuladorSesion? _acumulador;
+  StreamSubscription<LecturaCruda>? _sub;
+  Timer? _vigia;
+  bool _enSegundoPlano = false;
+
+  MotivoSenal _ultimoMotivo = MotivoSenal.valida;
+  int _invalidosSeguidos = 0;
+
+  SesionMedicion? _sesion;
+  SesionMedicion? get sesion => _sesion;
+
+  EstadoEnvio? _estadoEnvio;
+  EstadoEnvio? get estadoEnvio => _estadoEnvio;
+  String? _errorEnvio;
+  String? get errorEnvio => _errorEnvio;
+
+  double get progreso => _acumulador?.progreso ?? 0;
+
+  /// Segundos de señal válida que faltan para completar.
+  int get segundosRestantes =>
+      ConfigMedicion.objetivoValidoSeg - (_acumulador?.segundosValidos ?? 0);
+
+  GuiaMedicion get guia {
+    final a = _acumulador;
+    if (a == null) return GuiaMedicion.detectando;
+    // Un segundo malo aislado solo pausa el anillo; la guía aparece si dura.
+    if (_invalidosSeguidos >= 2) {
+      if (_ultimoMotivo == MotivoSenal.sinDedo) return GuiaMedicion.acomodaDedo;
+      if (a.segundosValidos > 0) return GuiaMedicion.manoQuieta;
+    }
+    if (a.segundosValidos == 0) return GuiaMedicion.detectando;
+    if (progreso >= 0.9) return GuiaMedicion.casiListo;
+    return GuiaMedicion.midiendo;
+  }
+
+  /// La señal es buena ahora mismo (para animar el pulso).
+  bool get senalBuena => _invalidosSeguidos == 0 && (_acumulador?.segundosValidos ?? 0) > 0;
+
+  /// Se puede salir sin perder nada (no hay captura en curso ni sesión sin guardar).
+  bool get puedeSalirSinConfirmar =>
+      _fase == FaseMedicion.preparacion ||
+      _fase == FaseMedicion.noCompletada ||
+      (_fase == FaseMedicion.completada && _estadoEnvio == EstadoEnvio.enviada);
+
+  void comenzar() {
+    if (_fase == FaseMedicion.midiendo) return;
+    _acumulador = AcumuladorSesion(fechaInicio: DateTime.now());
+    _ultimoMotivo = MotivoSenal.valida;
+    _invalidosSeguidos = 0;
+    _sesion = null;
+    _estadoEnvio = null;
+    _errorEnvio = null;
+    _fase = FaseMedicion.midiendo;
+
+    alComenzar?.call();
+    _sub = _fuente.listen(_registrar);
+    _vigia = Timer.periodic(const Duration(seconds: 1), (_) => _vigilar());
+    WakelockPlus.enable().catchError((Object e) {
+      AppLogger.warning('No se pudo mantener la pantalla encendida', tag: 'medicion', error: e);
+    });
+    notifyListeners();
+  }
+
+  /// Vuelve a la pantalla de indicaciones (tras una medición no completada).
+  void reiniciar() {
+    _detener();
+    _acumulador = null;
+    _fase = FaseMedicion.preparacion;
+    notifyListeners();
+  }
+
+  void cancelar() => _detener();
+
+  /// Mientras la app está en segundo plano, lo que llegue no cuenta como válido.
+  void setSegundoPlano(bool valor) => _enSegundoPlano = valor;
+
+  void _registrar(LecturaCruda lectura) {
+    if (_fase != FaseMedicion.midiendo) return;
+    _rellenarHuecos();
+    if (_fase != FaseMedicion.midiendo) return;
+    _anotar(_acumulador!.agregar(_enSegundoPlano ? _sinSenal : lectura));
+    _revisarTermino();
+    notifyListeners();
+  }
+
+  void _vigilar() {
+    if (_fase != FaseMedicion.midiendo) return;
+    final antes = _acumulador!.segundosTotales;
+    _rellenarHuecos();
+    if (_acumulador!.segundosTotales != antes) {
+      _revisarTermino();
+      notifyListeners();
+    }
+  }
+
+  /// Registra como "sin señal" los segundos transcurridos que no trajeron
+  /// lectura. Se tolera 1 s de desfase entre el reloj y la fuente.
+  void _rellenarHuecos() {
+    final a = _acumulador!;
+    final transcurridos = DateTime.now().difference(a.fechaInicio).inSeconds;
+    while (a.segundosTotales < transcurridos - 1 && !a.agotada) {
+      _anotar(a.agregar(_sinSenal));
+    }
+    _revisarTermino();
+  }
+
+  void _anotar(MotivoSenal motivo) {
+    _ultimoMotivo = motivo;
+    _invalidosSeguidos = motivo == MotivoSenal.valida ? 0 : _invalidosSeguidos + 1;
+  }
+
+  void _revisarTermino() {
+    final a = _acumulador!;
+    if (_fase != FaseMedicion.midiendo) return;
+    if (a.completa) {
+      _detener();
+      try {
+        _sesion = a.construir(origen: origen);
+        _fase = FaseMedicion.completada;
+        enviar();
+      } on StateError catch (e) {
+        AppLogger.warning('Sesión completa sin datos suficientes: ${e.message}', tag: 'medicion');
+        _fase = FaseMedicion.noCompletada;
+      }
+    } else if (a.agotada) {
+      _detener();
+      _fase = FaseMedicion.noCompletada;
+    }
+  }
+
+  /// Sube la sesión. Si falla, queda en memoria para "Reintentar envío".
+  Future<void> enviar() async {
+    final s = _sesion;
+    if (s == null || _estadoEnvio == EstadoEnvio.enviando || _estadoEnvio == EstadoEnvio.enviada) return;
+    _estadoEnvio = EstadoEnvio.enviando;
+    _errorEnvio = null;
+    notifyListeners();
+    try {
+      final id = await _repo.enviarSesion(s);
+      AppLogger.info('Sesión de medición guardada ($id)', tag: 'medicion');
+      _estadoEnvio = EstadoEnvio.enviada;
+    } on RepositoryException catch (e) {
+      _estadoEnvio = EstadoEnvio.error;
+      _errorEnvio = e.mensaje;
+    } catch (e, stackTrace) {
+      AppLogger.error('Error inesperado al guardar la sesión', tag: 'medicion', error: e, stackTrace: stackTrace);
+      _estadoEnvio = EstadoEnvio.error;
+      _errorEnvio = 'Ocurrió un error inesperado.';
+    }
+    // El paciente pudo salir de la pantalla mientras se enviaba.
+    if (!_desechado) notifyListeners();
+  }
+
+  void _detener() {
+    _sub?.cancel();
+    _sub = null;
+    _vigia?.cancel();
+    _vigia = null;
+    WakelockPlus.disable().catchError((Object e) {
+      AppLogger.warning('No se pudo liberar la pantalla', tag: 'medicion', error: e);
+    });
+  }
+
+  bool _desechado = false;
+
+  @override
+  void dispose() {
+    _desechado = true;
+    _detener();
+    super.dispose();
+  }
+}

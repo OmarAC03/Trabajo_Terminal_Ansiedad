@@ -6,6 +6,7 @@ import '../app_config.dart';
 import '../logger.dart';
 import '../providers/alerta_provider.dart';
 import '../repositories/perfil_repository.dart';
+import 'medicion_screen.dart';
 import '../ui/app_colors.dart';
 import '../ui/widgets.dart';
 
@@ -102,23 +103,11 @@ class _AlertaView extends StatelessWidget {
     _mostrarSnack(context, mensaje.texto, mensaje.advertencia ? AppColors.elevados : AppColors.altos);
   }
 
-  Future<void> _sincronizar(BuildContext context, AlertaProvider p) async {
-    if (!p.tieneDatosPendientes) return;
-    _mostrarSnack(context, "Enviando resumen...", AppColors.textoAyuda);
-
-    final r = await p.enviarResumen();
-    if (!context.mounted) return;
-
-    switch (r.resultado) {
-      case ResultadoSync.sinDatos:
-        break;
-      case ResultadoSync.exito:
-        _mostrarSnack(context, "✅ Resumen guardado en historial", AppColors.normal);
-        break;
-      case ResultadoSync.error:
-        _mostrarSnack(context, "❌ ${r.mensajeError}", AppColors.altos);
-        break;
-    }
+  /// Medición guiada (Fase M1b). Reemplaza al botón "Sincronizar resumen":
+  /// `POST /api/lecturas` y el historial de lecturas siguen existiendo, pero
+  /// la app ya no sube lecturas sueltas desde aquí.
+  void _iniciarMedicion(BuildContext context, AlertaProvider p) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => MedicionScreen(alerta: p)));
   }
 
   @override
@@ -164,10 +153,22 @@ class _AlertaView extends StatelessWidget {
                   _buildTrendChart(p),
                   const SizedBox(height: 20),
                   BotonPrimario(
-                    texto: 'Sincronizar resumen de datos',
-                    icono: Icons.cloud_upload_outlined,
-                    onPressed: p.sensorConectado ? () => _sincronizar(context, p) : null,
+                    texto: 'Iniciar medición (${ConfigMedicion.objetivoValidoSeg ~/ 60} min)',
+                    icono: Icons.play_circle_outline,
+                    // M1b: solo con la simulación, hasta que el firmware mande
+                    // los RR y la calidad de señal.
+                    onPressed: p.modoSimulacion ? () => _iniciarMedicion(context, p) : null,
                   ),
+                  if (!p.modoSimulacion) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      p.sensorConectado
+                          ? 'Por ahora la medición guiada funciona con la simulación.'
+                          : 'Activa la simulación para iniciar una medición.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 12, color: AppColors.textoAyuda),
+                    ),
+                  ],
                 ],
               ),
             ),
