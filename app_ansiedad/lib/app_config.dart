@@ -26,6 +26,7 @@ class AppConfig {
   static String get urlPendientes => '$backendUrl/api/pendientes';
   static String urlPendienteVisto(String seccion) => '$backendUrl/api/pendientes/$seccion/visto';
   static String get urlSesiones => '$backendUrl/api/sesiones';
+  static String urlSesionesPaciente(String pacienteId) => '$backendUrl/api/sesiones/$pacienteId';
 }
 
 /// Parámetros de la sesión de medición (Fase M1b, DISENO_FLUJO_MEDICION.md §3).
@@ -60,6 +61,11 @@ class ConfigMedicion {
   /// Máxima diferencia relativa entre un RR y el anterior (filtro de
   /// artefactos habitual en HRV de corto plazo).
   static const double rrMaxVariacion = 0.20;
+
+  /// Regla de seguridad (DESARROLLO_FUNDAMENTADO.md §2.3): SpO2 por debajo de
+  /// este valor en una sesión con buena señal → aviso de confirmar con un
+  /// oxímetro. No es una interpretación de ansiedad.
+  static const double spo2UmbralSeguridad = 94;
 }
 
 /// Los tres niveles de ansiedad que maneja el sistema.
@@ -166,6 +172,9 @@ extension EstadoAnsiedadInfo on EstadoAnsiedad {
 class Disclaimers {
   Disclaimers._();
 
+  /// Pantalla de Inicio (DESARROLLO_FUNDAMENTADO.md §5.1, textual).
+  static const String inicio =
+      'Estos son indicadores fisiológicos de apoyo, no un diagnóstico. Tu especialista los interpreta.';
   static const String monitor =
       'Estos son parámetros fisiológicos, no un diagnóstico. Consulta a tu especialista.';
   static const String historial =

@@ -3,6 +3,7 @@ import '../app_config.dart';
 import '../api_client.dart';
 import '../logger.dart';
 import '../models/sesion_medicion.dart';
+import '../models/sesion_resumen.dart';
 import 'repository_exception.dart';
 
 export 'repository_exception.dart';
@@ -28,5 +29,17 @@ class SesionRepository {
 
     final Map<String, dynamic> body = jsonDecode(res.body ?? '{}');
     return (body['data']?['id'] ?? '').toString();
+  }
+
+  /// La sesión más reciente del paciente, o null si todavía no tiene ninguna.
+  Future<SesionResumen?> obtenerUltimaSesion(String pacienteId) async {
+    final url = Uri.parse('${AppConfig.urlSesionesPaciente(pacienteId)}?limite=1');
+    final res = await ApiClient.get(url);
+
+    if (!res.exito) throw RepositoryException(res.mensajeUsuario);
+
+    final List<dynamic> data = jsonDecode(res.body ?? '[]');
+    if (data.isEmpty) return null;
+    return SesionResumen.fromJson(data.first as Map<String, dynamic>);
   }
 }
