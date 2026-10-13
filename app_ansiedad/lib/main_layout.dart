@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'models/pendientes.dart';
 import 'providers/pendientes_provider.dart';
-import 'screens/alerta_screen.dart';
+import 'screens/inicio_screen.dart';
 import 'screens/historial_screen.dart';
 import 'screens/mensajes_screen.dart'; // ¡Nueva pantalla!
 import 'screens/perfil_screen.dart';
@@ -27,7 +27,7 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
 
   // Lista de las 5 pantallas conectadas a la barra
   final List<Widget> _pantallas = [
-    const AlertaScreen(),
+    const InicioScreen(),
     const HistorialScreen(),
     const MensajesScreen(), // La conectamos aquí
     const TecnicasScreen(),

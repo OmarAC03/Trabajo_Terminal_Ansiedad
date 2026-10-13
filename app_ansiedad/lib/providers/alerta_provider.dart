@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import '../app_config.dart';
 import '../logger.dart';
 import '../models/lectura_cruda.dart';
-import '../repositories/lectura_repository.dart';
 import '../repositories/sensor_repository.dart';
 import '../repositories/simulador_sensor.dart';
 
@@ -17,33 +15,16 @@ class MensajeAlerta {
   MensajeAlerta(this.texto, {this.advertencia = false});
 }
 
-enum ResultadoSync { sinDatos, exito, error }
-
-class ResultadoSincronizacion {
-  final ResultadoSync resultado;
-  final String? mensajeError;
-  ResultadoSincronizacion(this.resultado, {this.mensajeError});
-}
-
-/// Maneja TODO el estado y la lógica de la pantalla de Alerta (Monitor).
+/// Fuente de lecturas de la app: el sensor por Bluetooth o la simulación.
 ///
-/// La UI ya no toca Bluetooth, red, ni calcula el semáforo de ansiedad: le
-/// pide a este provider y escucha sus cambios con notifyListeners(), igual
-/// que HistorialProvider y PerfilProvider.
+/// Desde M1c ya no hay vista en vivo (el Monitor se reemplazó por Inicio): este
+/// provider solo conecta la fuente y publica cada lectura en [lecturas], que
+/// es lo que escucha la sesión de medición (MedicionProvider). No calcula
+/// estados ni sube datos.
 class AlertaProvider extends ChangeNotifier {
   final SensorRepository _sensorRepo;
-  final LecturaRepository _lecturaRepo;
-  final String pacienteId;
 
-  AlertaProvider({
-    required this.pacienteId,
-    SensorRepository? sensorRepo,
-    LecturaRepository? lecturaRepo,
-  })  : _sensorRepo = sensorRepo ?? SensorRepository(),
-        _lecturaRepo = lecturaRepo ?? LecturaRepository();
-
-  String _lastSyncTime = "Sin conexión";
-  String get lastSyncTime => _lastSyncTime;
+  AlertaProvider({SensorRepository? sensorRepo}) : _sensorRepo = sensorRepo ?? SensorRepository();
 
   bool _sensorConectado = false;
   bool get sensorConectado => _sensorConectado;
@@ -54,30 +35,6 @@ class AlertaProvider extends ChangeNotifier {
   bool _modoSimulacion = false;
   bool get modoSimulacion => _modoSimulacion;
 
-  int _bpmActual = 0;
-  int get bpmActual => _bpmActual;
-
-  int _spo2Actual = 0;
-  int get spo2Actual => _spo2Actual;
-
-  int _hrvActual = 0;
-  int get hrvActual => _hrvActual;
-
-  // Null hasta que llega la primera lectura (antes de eso la UI muestra
-  // "Esperando sensor..." en vez de un estado de ansiedad real).
-  EstadoAnsiedad? _estado;
-  bool get tieneLectura => _estado != null;
-  String get estadoAnsiedadTexto => _estado?.textoDB ?? "Esperando sensor...";
-  double get ansiedadScore => _estado?.scoreRepresentativo ?? 0.0;
-
-  final List<int> _tendenciaBpm = [];
-  List<int> get tendenciaBpm => _tendenciaBpm;
-
-  final List<int> _bufferBpm = [];
-  final List<int> _bufferSpo2 = [];
-  final List<int> _bufferHrv = [];
-  bool get tieneDatosPendientes => _bufferBpm.isNotEmpty;
-
   StreamSubscription<String>? _sensorSub;
   Timer? _simTimer;
   final SimuladorSensor _simulador = SimuladorSensor();
@@ -86,6 +43,9 @@ class AlertaProvider extends ChangeNotifier {
   /// mala señal. La sesión de medición (MedicionProvider) las escucha aquí.
   final StreamController<LecturaCruda> _lecturas = StreamController<LecturaCruda>.broadcast();
   Stream<LecturaCruda> get lecturas => _lecturas.stream;
+
+  /// Última lectura del sensor, para conservar campos que un paquete no traiga.
+  LecturaCruda _ultimaSensor = LecturaCruda(bpm: 0, spo2: 0, hrv: 0);
 
   bool get forzandoMalaSenal => _simulador.forzarMalaSenal;
 
@@ -108,38 +68,34 @@ class AlertaProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  // --- CONEXIÓN AL SENSOR ---
+  // --- CONEXIÓN AL SENSOR (sin uso en la UI hasta que el firmware mande RR y
+  // calidad de señal; ver M7) ---
 
   Future<MensajeAlerta?> escanearYConectar() async {
     if (_isScanning) return null;
     if (_modoSimulacion) detenerSimulacion();
 
     _isScanning = true;
-    _lastSyncTime = "Buscando vinculado...";
     notifyListeners();
 
     try {
       final stream = await _sensorRepo.conectar();
       _sensorConectado = true;
       _isScanning = false;
-      _lastSyncTime = "En vivo (Serial)";
       notifyListeners();
 
       _sensorSub = stream.listen(_procesarLineaCruda, onDone: () {
         _sensorConectado = false;
-        _lastSyncTime = "Desconectado";
         notifyListeners();
       });
       return null;
     } on SensorException catch (e) {
       _isScanning = false;
-      _lastSyncTime = e.tipo == ErrorSensor.permisos ? "Sin permisos" : "No vinculado";
       notifyListeners();
       return MensajeAlerta(e.mensaje, advertencia: e.tipo == ErrorSensor.noVinculado);
     } catch (e, stackTrace) {
       AppLogger.error('Error inesperado al conectar sensor', tag: 'alerta', error: e, stackTrace: stackTrace);
       _isScanning = false;
-      _lastSyncTime = "Error de enlace";
       notifyListeners();
       return null;
     }
@@ -148,42 +104,13 @@ class AlertaProvider extends ChangeNotifier {
   void _procesarLineaCruda(String linea) {
     try {
       final datos = jsonDecode(linea) as Map<String, dynamic>;
-      final anterior = LecturaCruda(bpm: _bpmActual, spo2: _spo2Actual, hrv: _hrvActual);
-      _procesarLectura(LecturaCruda.fromJson(datos, anterior: anterior));
+      _ultimaSensor = LecturaCruda.fromJson(datos, anterior: _ultimaSensor);
+      _lecturas.add(_ultimaSensor);
     } catch (e) {
       // Línea corrupta del sensor: se ignora y se espera la siguiente. Nivel
       // debug (no error): es ruido esperado del serial, no una falla real.
       AppLogger.debug('Línea de sensor descartada: $e', tag: 'alerta');
     }
-  }
-
-  void _procesarLectura(LecturaCruda lectura) {
-    _lecturas.add(lectura);
-    // Sin dedo no hay lectura que mostrar: la vista en vivo conserva la última.
-    if (!lectura.dedo) return;
-
-    _bpmActual = lectura.bpm;
-    _spo2Actual = lectura.spo2;
-    _hrvActual = lectura.hrv;
-
-    _tendenciaBpm.add(_bpmActual);
-    if (_tendenciaBpm.length > 20) _tendenciaBpm.removeAt(0);
-
-    _bufferBpm.add(_bpmActual);
-    _bufferSpo2.add(_spo2Actual);
-    _bufferHrv.add(_hrvActual);
-
-    // Semáforo de ansiedad: un solo lugar decide el nivel; texto, color y
-    // score se derivan del enum central en app_config.dart.
-    if (_bpmActual > 95 || _hrvActual < 25) {
-      _estado = EstadoAnsiedad.alta;
-    } else if (_bpmActual > 85) {
-      _estado = EstadoAnsiedad.moderada;
-    } else {
-      _estado = EstadoAnsiedad.baja;
-    }
-
-    notifyListeners();
   }
 
   // --- MODO SIMULACIÓN (SimuladorSensor: RR latido a latido y mala señal) ---
@@ -204,12 +131,11 @@ class AlertaProvider extends ChangeNotifier {
 
     _modoSimulacion = true;
     _sensorConectado = true;
-    _lastSyncTime = "En vivo (Simulado)";
     notifyListeners();
 
     // Una lectura por segundo, como la espera la sesión de medición.
     _simTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      _procesarLectura(_simulador.siguiente());
+      _lecturas.add(_simulador.siguiente());
     });
   }
 
@@ -218,40 +144,6 @@ class AlertaProvider extends ChangeNotifier {
     _simTimer = null;
     _modoSimulacion = false;
     _sensorConectado = false;
-    _lastSyncTime = "Simulación detenida";
     notifyListeners();
   }
-
-  // --- SINCRONIZACIÓN CON BACKEND (REMITIR PROMEDIOS) ---
-
-  Future<ResultadoSincronizacion> enviarResumen() async {
-    if (_bufferBpm.isEmpty) {
-      return ResultadoSincronizacion(ResultadoSync.sinDatos);
-    }
-
-    final estadoActual = _estado ?? EstadoAnsiedad.baja;
-
-    try {
-      await _lecturaRepo.enviarResumen(
-        pacienteId: pacienteId,
-        bpm: _promedio(_bufferBpm),
-        spo2: _promedio(_bufferSpo2),
-        hrv: _promedio(_bufferHrv),
-        scoreAnsiedad: estadoActual.scoreRepresentativo,
-        estadoAnsiedad: estadoActual.textoDB,
-      );
-      _bufferBpm.clear();
-      _bufferSpo2.clear();
-      _bufferHrv.clear();
-      return ResultadoSincronizacion(ResultadoSync.exito);
-    } on RepositoryException catch (e) {
-      // No limpiamos el buffer: si falla el guardado, no se pierden lecturas.
-      return ResultadoSincronizacion(ResultadoSync.error, mensajeError: e.mensaje);
-    } catch (e, stackTrace) {
-      AppLogger.error('Error inesperado al sincronizar resumen', tag: 'alerta', error: e, stackTrace: stackTrace);
-      return ResultadoSincronizacion(ResultadoSync.error, mensajeError: "Ocurrió un error inesperado.");
-    }
-  }
-
-  int _promedio(List<int> valores) => (valores.reduce((a, b) => a + b) / valores.length).round();
 }

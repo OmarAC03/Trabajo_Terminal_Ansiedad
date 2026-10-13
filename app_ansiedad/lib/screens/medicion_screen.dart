@@ -393,7 +393,7 @@ class _Completada extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        const DisclaimerNota(Disclaimers.monitor),
+        const DisclaimerNota(Disclaimers.inicio),
         const SizedBox(height: 20),
         switch (p.estadoEnvio) {
           EstadoEnvio.enviada => const Aviso(

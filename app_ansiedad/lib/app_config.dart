@@ -172,11 +172,9 @@ extension EstadoAnsiedadInfo on EstadoAnsiedad {
 class Disclaimers {
   Disclaimers._();
 
-  /// Pantalla de Inicio (DESARROLLO_FUNDAMENTADO.md §5.1, textual).
+  /// Inicio y resultado de la medición (DESARROLLO_FUNDAMENTADO.md §5.1, textual).
   static const String inicio =
       'Estos son indicadores fisiológicos de apoyo, no un diagnóstico. Tu especialista los interpreta.';
-  static const String monitor =
-      'Estos son parámetros fisiológicos, no un diagnóstico. Consulta a tu especialista.';
   static const String historial =
       'Datos de apoyo. La interpretación corresponde a tu especialista.';
   static const String alcance =

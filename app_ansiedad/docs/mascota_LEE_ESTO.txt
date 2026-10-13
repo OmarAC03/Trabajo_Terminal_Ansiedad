@@ -1,0 +1,26 @@
+MASCOTA — assets listos para Flutter
+=====================================
+
+Cinco imagenes PNG con fondo transparente, en los 3 tamanos de densidad de Flutter
+(1x en esta carpeta, 2x en 2.0x/, 3x en 3.0x/). Mismo personaje, estilo coherente.
+
+ARCHIVOS (y cuando usar cada uno):
+- mascota_reposo.png      -> pantalla de Inicio, estado normal (ojos cerrados, sereno)
+- mascota_respirando.png  -> durante la medicion, para guiar la respiracion (inflado)
+- mascota_celebrando.png  -> al completar una medicion (sonriendo, manitas arriba)
+- mascota_saludando.png   -> guia / bienvenida / primer uso (ojos abiertos, saluda)
+- mascota_comunidad.png   -> seccion de comunidad en el login (grupo de colores)
+
+COMO INTEGRARLO EN FLUTTER:
+1. Copiar la carpeta 'mascota/' dentro de assets/ del proyecto
+   (ej: app_ansiedad/assets/mascota/).
+2. En pubspec.yaml, declarar SOLO la carpeta 1x; Flutter toma 2x/3x solo:
+     flutter:
+       assets:
+         - assets/mascota/
+3. Usarla asi:
+     Image.asset('assets/mascota/mascota_reposo.png', height: 88)
+   (el cuadro de 88x88 reservado en el plan de la pantalla de inicio)
+
+NOTA: el 1x esta a 140px de alto, asi que a 88px se ve nitido de sobra.
+Si se quiere mas grande en alguna pantalla, hay margen hasta 140px (1x) sin perder calidad.
