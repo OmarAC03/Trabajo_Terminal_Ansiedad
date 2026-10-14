@@ -670,9 +670,20 @@ app.get('/api/usuarios/:id', async (req, res) => {
   res.status(200).json(result.rows[0]);
 });
 
-// Lista de pacientes para el Portal Web (con su última lectura, si tiene).
+// Ventana de "actividad reciente" del Dashboard del portal (sesiones_7d).
+const DIAS_ACTIVIDAD = 7;
+
+// Lista de pacientes para el Portal Web.
 // Solo un especialista puede ver la lista, y SOLO la de sus propios pacientes
 // (los vinculados a él vía `especialista_id`, Fase D — antes traía a todos).
+//
+// Por paciente: su actividad de sesiones de medición (`ultima_sesion`,
+// `ultima_sesion_origen`, `sesiones_7d`; null/null/0 si nunca midió), que es
+// lo que muestra el Dashboard: actividad, no un estado. Los campos de la
+// última lectura vieja (`ultimo_estado`, `ultima_lectura`, `ultimo_*`) siguen
+// solo por compatibilidad mientras se despliega el portal nuevo; su semáforo
+// de umbrales fijos no tiene fundamento (DESARROLLO_FUNDAMENTADO.md §2) y se
+// quitan en la limpieza de lecturas_biometricas.
 app.get('/api/pacientes', async (req, res) => {
   if (req.rol !== 'especialista') {
     throw new AuthError('Solo un especialista puede ver la lista de pacientes.', 403);
@@ -683,7 +694,10 @@ app.get('/api/pacientes', async (req, res) => {
       u.id, u.nombre, u.email,
       lu.estado_ansiedad AS ultimo_estado,
       lu.fecha_medicion AS ultima_lectura,
-      lu.bpm AS ultimo_bpm, lu.spo2 AS ultimo_spo2, lu.hrv AS ultimo_hrv
+      lu.bpm AS ultimo_bpm, lu.spo2 AS ultimo_spo2, lu.hrv AS ultimo_hrv,
+      us.fecha_inicio AS ultima_sesion,
+      us.origen AS ultima_sesion_origen,
+      s7.total AS sesiones_7d
     FROM usuarios u
     LEFT JOIN LATERAL (
       SELECT estado_ansiedad, fecha_medicion, bpm, spo2, hrv
@@ -692,10 +706,24 @@ app.get('/api/pacientes', async (req, res) => {
       ORDER BY fecha_medicion DESC
       LIMIT 1
     ) lu ON true
+    LEFT JOIN LATERAL (
+      SELECT s.fecha_inicio, s.origen
+      FROM sesiones_medicion s
+      WHERE s.paciente_id = u.id
+      ORDER BY s.fecha_inicio DESC
+      LIMIT 1
+    ) us ON true
+    -- count(*) sin GROUP BY siempre da una fila (0 si no hay sesiones); ::int
+    -- para que pg no lo mande como texto (bigint).
+    CROSS JOIN LATERAL (
+      SELECT count(*)::int AS total
+      FROM sesiones_medicion s
+      WHERE s.paciente_id = u.id AND s.fecha_inicio >= now() - make_interval(days => $2::int)
+    ) s7
     WHERE u.rol = 'paciente' AND u.especialista_id = $1
     ORDER BY u.nombre ASC;
   `;
-  const result = await pool.query(query, [req.uid]);
+  const result = await pool.query(query, [req.uid, DIAS_ACTIVIDAD]);
   res.status(200).json(result.rows);
 });
 

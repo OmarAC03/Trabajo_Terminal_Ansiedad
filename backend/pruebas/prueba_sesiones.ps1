@@ -95,6 +95,12 @@ $pacB = Obtener-Cuenta 'PACIENTE B (otro paciente)' -Opcional
 $A = $pac.uid
 $creadas = @()
 
+# Para la seccion 10: sesiones_7d de A ANTES de crear las sesiones de prueba.
+$r = Llamar 'GET' '/api/pacientes' $esp.token $null
+$filaAntes = if ($r.status -eq 200) { @(Lista-Json $r.texto) | Where-Object { $_.id -eq $A } } else { $null }
+$sesiones7dAntes = if ($filaAntes -and (Tiene $filaAntes 'sesiones_7d')) { [int]$filaAntes.sesiones_7d } else { $null }
+$creadasA = 0  # sesiones de A creadas por este script (todas dentro de los 7 dias)
+
 Write-Host "`n--- 1. POST valido ---"
 $r = Llamar 'POST' '/api/sesiones' $pac.token (Sesion-Valida)
 Caso 'Paciente, sesion valida -> 201 sin indice_calidad' 201 $r {
@@ -103,7 +109,7 @@ Caso 'Paciente, sesion valida -> 201 sin indice_calidad' 201 $r {
   elseif (-not $d.id) { 'la respuesta no trae id' } else { $true }
 }
 $sesionId = if ($r.status -eq 201) { ($r.texto | ConvertFrom-Json).data.id } else { $null }
-if ($sesionId) { $creadas += $sesionId; Write-Host "        id creado: $sesionId" }
+if ($sesionId) { $creadas += $sesionId; $creadasA++; Write-Host "        id creado: $sesionId" }
 
 Write-Host "`n--- 2. Campos no permitidos ---"
 $s = Sesion-Valida; $s.paciente_id = $A
@@ -180,7 +186,7 @@ Write-Host "`n--- 9. EVA post-medicion (Fase M2) ---"
 $r = Llamar 'POST' '/api/sesiones' $pac.token (Sesion-Valida)
 $idEva = if ($r.status -eq 201) { ($r.texto | ConvertFrom-Json).data.id } else { $null }
 if ($idEva) {
-  $creadas += $idEva
+  $creadas += $idEva; $creadasA++
   $urlEva = "/api/sesiones/$idEva/eva"
   Caso 'EVA con valor 101 -> 400' 400 (Llamar 'POST' $urlEva $pac.token @{ valor = 101 })
   Caso 'EVA con valor decimal -> 400' 400 (Llamar 'POST' $urlEva $pac.token @{ valor = 50.5 })
@@ -220,7 +226,7 @@ Caso 'EVA con id mal formado -> 400' 400 (Llamar 'POST' '/api/sesiones/abc/eva' 
 # Sesion que empezo hace 30 min y duro 4 min: termino hace 26 min (> 15).
 $r = Llamar 'POST' '/api/sesiones' $pac.token (Sesion-Valida -HaceMinutos 30)
 if ($r.status -eq 201) {
-  $idVieja = ($r.texto | ConvertFrom-Json).data.id; $creadas += $idVieja
+  $idVieja = ($r.texto | ConvertFrom-Json).data.id; $creadas += $idVieja; $creadasA++
   Caso 'EVA fuera de la ventana de 15 min -> 400' 400 (Llamar 'POST' "/api/sesiones/$idVieja/eva" $pac.token @{ valor = 50 })
 } else { Write-Host "        No se pudo crear la sesion de hace 30 min (HTTP $($r.status)): $($r.texto)" -ForegroundColor Yellow }
 
@@ -232,6 +238,54 @@ if ($pacB) {
     Caso 'EVA de A sobre la sesion de B -> 404' 404 (Llamar 'POST' "/api/sesiones/$idB/eva" $pac.token @{ valor = 50 })
   } else { Write-Host "        No se pudo crear la sesion de B (HTTP $($r.status)): $($r.texto)" -ForegroundColor Yellow }
 }
+
+Write-Host "`n--- 10. Actividad de sesiones en GET /api/pacientes (Dashboard del portal) ---"
+$r = Llamar 'GET' '/api/pacientes' $esp.token $null
+$filas = if ($r.status -eq 200) { @(Lista-Json $r.texto) } else { @() }
+Caso 'Especialista -> 200; cada fila trae los campos nuevos y los viejos' 200 $r {
+  if ($filas.Count -eq 0) { return 'lista vacia' }
+  foreach ($x in $filas) {
+    foreach ($c in 'ultima_sesion', 'ultima_sesion_origen', 'sesiones_7d', 'ultimo_estado', 'ultima_lectura') {
+      if (-not (Tiene $x $c)) { return "la fila de $($x.nombre) no trae $c" }
+    }
+    if ($x.sesiones_7d -is [string]) { return "sesiones_7d llega como texto ('$($x.sesiones_7d)')" }
+  }
+  $true
+}
+$filaA = $filas | Where-Object { $_.id -eq $A }
+$r2 = Llamar 'GET' "/api/sesiones/${A}?limite=1" $esp.token $null
+Caso 'ultima_sesion de A = fecha_inicio de su sesion mas reciente' 200 $r2 {
+  if (-not $filaA) { return 'A no aparece en la lista del especialista' }
+  $ultima = @(Lista-Json $r2.texto)[0]
+  if (-not $ultima) { return 'A no tiene sesiones' }
+  if ([DateTime]::Parse($filaA.ultima_sesion) -ne [DateTime]::Parse($ultima.fecha_inicio)) {
+    return "ultima_sesion=$($filaA.ultima_sesion) fecha_inicio=$($ultima.fecha_inicio)"
+  }
+  if ($filaA.ultima_sesion_origen -ne $ultima.origen) { return "ultima_sesion_origen=$($filaA.ultima_sesion_origen) origen=$($ultima.origen)" }
+  $true
+}
+Caso "sesiones_7d de A subio en $creadasA (las sesiones de este script)" 200 $r {
+  if (-not $filaA) { return 'A no aparece en la lista' }
+  if ($null -eq $sesiones7dAntes) { return 'no se pudo leer sesiones_7d antes de crear las sesiones (backend sin el cambio?)' }
+  if ([int]$filaA.sesiones_7d -ne $sesiones7dAntes + $creadasA) {
+    return "antes=$sesiones7dAntes, creadas=$creadasA, ahora=$($filaA.sesiones_7d)"
+  }
+  $true
+}
+Caso 'Coherencia: sin sesiones -> null/null/0; con sesiones -> origen no null' 200 $r {
+  foreach ($x in $filas) {
+    if ($null -eq $x.ultima_sesion) {
+      if ($null -ne $x.ultima_sesion_origen -or [int]$x.sesiones_7d -ne 0) {
+        return "$($x.nombre): sin ultima_sesion pero origen=$($x.ultima_sesion_origen), sesiones_7d=$($x.sesiones_7d)"
+      }
+    } elseif ($null -eq $x.ultima_sesion_origen) { return "$($x.nombre): con ultima_sesion pero sin origen" }
+  }
+  $true
+}
+$sinSesiones = @($filas | Where-Object { $null -eq $_.ultima_sesion })
+Write-Host "        Pacientes del especialista sin sesiones: $($sinSesiones.Count) (si es 0, el caso null/null/0 no se ejercito con datos reales)"
+Caso 'GET /api/pacientes como paciente -> 403' 403 (Llamar 'GET' '/api/pacientes' $pac.token $null)
+Caso 'GET /api/pacientes como admin -> 403' 403 (Llamar 'GET' '/api/pacientes' $adm.token $null)
 
 Write-Host "`n=== Resultado: $script:ok OK, $script:fallas FALLA ===" -ForegroundColor $(if ($script:fallas -eq 0) { 'Green' } else { 'Red' })
 if ($creadas.Count -gt 0) {
