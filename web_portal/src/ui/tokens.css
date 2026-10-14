@@ -38,6 +38,24 @@
   --color-sin-datos: #94a3b8;
   --color-sin-datos-soft: #f1f5f9;
 
+  /* Acentos por TIPO de dato (grupo, métrica, identidad del paciente), nunca
+     por estado: color que organiza, no que juzga. Sin verde/ámbar/rojo, que
+     son del semáforo (vuelve con M3 y la línea base). */
+  --color-indigo: #4f46e5;
+  --color-indigo-soft: #eef2ff;
+  --color-violet: #7c3aed;
+  --color-violet-soft: #f5f3ff;
+  --color-cyan: #0891b2;
+  --color-cyan-soft: #ecfeff;
+  --color-sky: #0284c7;
+  --color-sky-soft: #f0f9ff;
+
+  /* Recencia de la última sesión: un solo azul, de intenso a pálido. */
+  --color-rec-hoy: #2563eb;
+  --color-rec-semana: #60a5fa;
+  --color-rec-antes: #bfdbfe;
+  --color-rec-nunca: #e2e8f0;
+
   /* Tipografía */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'SFMono-Regular', Menlo, Consolas, 'Courier New', monospace;

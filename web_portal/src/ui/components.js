@@ -2,7 +2,8 @@ import './ui.css';
 
 // Componentes base del portal (Fase 2e). Presentacionales, sin estado de red:
 // cada pantalla decide qué datos mostrar. `tone` es una de
-// 'primary' | 'normal' | 'elevados' | 'altos' | 'neutral' (ver tokens.css).
+// 'primary' | 'normal' | 'elevados' | 'altos' | 'neutral' (ver tokens.css),
+// o un acento por tipo de dato: 'indigo' | 'violet' | 'cyan' | 'sky'.
 
 const clases = (...lista) => lista.filter(Boolean).join(' ');
 
@@ -18,7 +19,8 @@ export function PageHeader({ title, subtitle, actions }) {
   );
 }
 
-export function Card({ title, subtitle, icon: Icon, actions, children, className }) {
+// `iconTone` opcional: el icono del título va en un chip de ese color.
+export function Card({ title, subtitle, icon: Icon, iconTone, actions, children, className }) {
   const conEncabezado = title || subtitle || actions;
   return (
     <section className={clases('ui-card', className)}>
@@ -27,7 +29,12 @@ export function Card({ title, subtitle, icon: Icon, actions, children, className
           <div>
             {title && (
               <h2 className="ui-card-title">
-                {Icon && <Icon size={18} />}
+                {Icon && iconTone && (
+                  <span className={clases('ui-icon-chip', 'ui-icon-chip-sm', `tone-${iconTone}`)}>
+                    <Icon size={16} />
+                  </span>
+                )}
+                {Icon && !iconTone && <Icon size={18} />}
                 {title}
               </h2>
             )}
@@ -42,8 +49,9 @@ export function Card({ title, subtitle, icon: Icon, actions, children, className
 }
 
 // Tarjeta de KPI al estilo del mockup: etiqueta, valor grande, pista de color
-// e icono en un chip suave.
-export function KpiCard({ label, value, hint, hintTone, icon: Icon, tone = 'primary' }) {
+// e icono en un chip suave. `barra` (0–100, opcional) dibuja la proporción del
+// grupo en el color del KPI.
+export function KpiCard({ label, value, hint, hintTone, icon: Icon, tone = 'primary', barra }) {
   return (
     <section className="ui-card ui-kpi">
       <div className="ui-kpi-top">
@@ -55,6 +63,11 @@ export function KpiCard({ label, value, hint, hintTone, icon: Icon, tone = 'prim
         )}
       </div>
       <div className="ui-kpi-value">{value}</div>
+      {barra != null && (
+        <div className={clases('ui-kpi-bar', `tone-${tone}`)} aria-hidden="true">
+          <span style={{ width: `${Math.max(0, Math.min(100, barra))}%` }} />
+        </div>
+      )}
       {hint && <div className={clases('ui-kpi-hint', hintTone && `tone-${hintTone}`)}>{hint}</div>}
     </section>
   );
@@ -93,7 +106,19 @@ export function iniciales(nombre) {
     .join('');
 }
 
-// `tone` opcional para teñirlo con el color de un estado (tabla de pacientes).
+// Color de identidad de un paciente: fijo por su id, entre tonos fríos (nunca
+// verde/ámbar/rojo). Solo sirve para reconocerlo en la tabla, la actividad y
+// el detalle; no dice nada de su estado.
+const TONOS_IDENTIDAD = ['primary', 'indigo', 'violet', 'cyan', 'sky'];
+
+export function tonoIdentidad(id) {
+  const texto = String(id ?? '');
+  let h = 0;
+  for (let i = 0; i < texto.length; i++) h = (h * 31 + texto.charCodeAt(i)) >>> 0;
+  return TONOS_IDENTIDAD[h % TONOS_IDENTIDAD.length];
+}
+
+// `tone` opcional para teñirlo (color de identidad del paciente).
 export function Avatar({ nombre, size = 36, tone }) {
   return (
     <span

@@ -1,5 +1,5 @@
-import { Users, CalendarCheck, Activity, CalendarX, History, Clock, ChevronRight } from 'lucide-react';
-import { PageHeader, Card, KpiCard } from './ui/components';
+import { Users, CalendarCheck, Activity, CalendarX, CalendarClock, History, Watch, FlaskConical, ChevronRight } from 'lucide-react';
+import { PageHeader, Card, KpiCard, Avatar, tonoIdentidad } from './ui/components';
 import {
   haceTiempo, plural, AccionesEncabezado, AvisosPacientes, TablaPacientes,
 } from './PacientesComun';
@@ -12,9 +12,11 @@ import {
 //
 // Muestra ACTIVIDAD de medición (quién midió y cuándo), no un estado: el
 // semáforo de umbrales fijos de las lecturas viejas se retiró porque no tiene
-// fundamento (DESARROLLO_FUNDAMENTADO.md §2). Todo va en tono primario o
-// neutro, sin verde/ámbar/rojo. Cuando M3 traiga el estado contra la línea
-// base de cada paciente, se agregan sus conteos y su columna encima de esto.
+// fundamento (DESARROLLO_FUNDAMENTADO.md §2). El color organiza por tipo de
+// dato (cada KPI su acento, cada paciente su color de identidad, la recencia
+// en un solo azul) y nunca juzga: sin verde/ámbar/rojo. Cuando M3 traiga el
+// estado contra la línea base de cada paciente, se agregan sus conteos y su
+// columna encima de esto.
 
 const MAX_ACTIVIDAD_RECIENTE = 5;
 
@@ -50,7 +52,8 @@ function Dashboard({ pacientes, loading, perfil, errorAcceso, onSeleccionar, onA
               value={r.total}
               hint={`${r.conSesiones} con al menos una sesión`}
               icon={Users}
-              tone="primary"
+              tone="indigo"
+              barra={porcentaje(r.conSesiones, r.total)}
             />
             <KpiCard
               label={`Midieron en ${DIAS_ACTIVIDAD} días`}
@@ -58,13 +61,14 @@ function Dashboard({ pacientes, loading, perfil, errorAcceso, onSeleccionar, onA
               hint={`${porcentaje(r.midieron, r.total)}% del grupo`}
               icon={CalendarCheck}
               tone="primary"
+              barra={porcentaje(r.midieron, r.total)}
             />
             <KpiCard
               label={`Sesiones en ${DIAS_ACTIVIDAD} días`}
               value={r.sesiones}
               hint="De todo el grupo"
               icon={Activity}
-              tone="primary"
+              tone="cyan"
             />
             <KpiCard
               label={`Sin sesiones en ${DIAS_ACTIVIDAD} días`}
@@ -72,6 +76,7 @@ function Dashboard({ pacientes, loading, perfil, errorAcceso, onSeleccionar, onA
               hint={`${porcentaje(r.sinMedir, r.total)}% del grupo`}
               icon={CalendarX}
               tone="neutral"
+              barra={porcentaje(r.sinMedir, r.total)}
             />
           </div>
           <p className="ui-caption">
@@ -103,49 +108,83 @@ function ActividadReciente({ pacientes, onSeleccionar }) {
   const lista = actividadReciente(pacientes, MAX_ACTIVIDAD_RECIENTE);
 
   return (
-    <Card title="Actividad reciente" icon={History} subtitle="Las sesiones de medición más recientes del grupo">
+    <Card
+      title="Actividad reciente"
+      icon={History}
+      iconTone="primary"
+      subtitle="Las sesiones de medición más recientes del grupo"
+    >
       {lista.length === 0 ? (
         <div className="ui-muted" style={{ fontSize: 'var(--text-sm)' }}>
           Ningún paciente ha hecho una sesión de medición todavía.
         </div>
       ) : (
-        lista.map((p) => (
-          <button key={p.id} type="button" className="ui-list-item tone-primary" onClick={() => onSeleccionar(p)}>
-            <Clock size={18} style={{ color: 'var(--color-primary)' }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="ui-list-title">{p.nombre}</div>
-              <div className="ui-list-time">
-                {haceTiempo(p.ultima_sesion)}
-                {p.ultima_sesion_origen === 'simulacion' && <> · Simulación</>}
-              </div>
-            </div>
-            <ChevronRight size={16} style={{ color: 'var(--color-text-muted)' }} />
-          </button>
-        ))
+        <div className="ui-timeline">
+          {lista.map((p) => {
+            const simulacion = p.ultima_sesion_origen === 'simulacion';
+            const Origen = simulacion ? FlaskConical : Watch;
+            return (
+              <button key={p.id} type="button" className="ui-timeline-item" onClick={() => onSeleccionar(p)}>
+                <Avatar nombre={p.nombre} size={36} tone={tonoIdentidad(p.id)} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="ui-list-title">{p.nombre}</div>
+                  <div className="ui-timeline-meta">
+                    <Origen size={13} />
+                    {haceTiempo(p.ultima_sesion)} · {simulacion ? 'Simulación' : 'Sensor'}
+                  </div>
+                </div>
+                <span className="ui-row-go" aria-hidden="true">
+                  <ChevronRight size={16} />
+                </span>
+              </button>
+            );
+          })}
+        </div>
       )}
     </Card>
   );
 }
 
 // Cuándo fue la última sesión de cada paciente (cada uno cuenta una vez).
-// Reemplaza a la dona del semáforo: agrupa por fecha, no por un estado.
+// Reemplaza a la dona del semáforo: agrupa por fecha, no por un estado, en un
+// solo azul que se aclara con el tiempo.
 function UltimaSesionGrupo({ pacientes, total }) {
+  const grupos = conteoRecencia(pacientes);
   return (
-    <Card title="Última sesión del grupo" icon={CalendarCheck} subtitle="Cada paciente cuenta una vez, según su última sesión">
+    <Card
+      title="Última sesión del grupo"
+      icon={CalendarClock}
+      iconTone="primary"
+      subtitle="Cada paciente cuenta una vez, según su última sesión"
+    >
       {total === 0 ? (
         <div className="ui-muted" style={{ fontSize: 'var(--text-sm)' }}>Sin pacientes vinculados.</div>
       ) : (
-        <div className="ui-legend" style={{ marginTop: 0 }}>
-          {conteoRecencia(pacientes).map((g) => (
-            <div key={g.clave} className={`ui-legend-row tone-${g.clave === 'nunca' ? 'neutral' : 'primary'}`}>
-              <span className="ui-legend-dot" />
-              {g.texto}
-              <span className="ui-legend-value">
-                {g.valor} ({porcentaje(g.valor, total)}%)
-              </span>
-            </div>
-          ))}
-        </div>
+        <>
+          <div
+            className="ui-stackbar"
+            role="img"
+            aria-label={grupos.map((g) => `${g.texto}: ${g.valor}`).join(', ')}
+          >
+            {grupos
+              .filter((g) => g.valor > 0)
+              .map((g) => (
+                <span key={g.clave} className={`rec-${g.clave}`} style={{ flex: g.valor }} />
+              ))}
+          </div>
+          <div className="ui-legend">
+            {grupos.map((g) => (
+              <div key={g.clave} className="ui-legend-row">
+                <span className={`ui-legend-dot rec-${g.clave}`} />
+                {g.texto}
+                <span className="ui-legend-value">
+                  {g.valor}
+                  <span className="ui-legend-pct">{porcentaje(g.valor, total)}%</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </Card>
   );

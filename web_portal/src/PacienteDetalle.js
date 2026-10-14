@@ -1,5 +1,5 @@
 import { ArrowLeft, Info, Mail, RefreshCw, CircleAlert } from 'lucide-react';
-import { Card, Button, Avatar, Alert, Disclaimer } from './ui/components';
+import { Card, Button, Avatar, Alert, Disclaimer, tonoIdentidad } from './ui/components';
 import { haceTiempo } from './PacientesComun';
 import ChatPaciente from './ChatPaciente';
 import EjerciciosPaciente from './EjerciciosPaciente';
@@ -20,7 +20,7 @@ function PacienteDetalle({ paciente, onVolver, recarga, onActualizar, errorAcces
       <Card>
         <div className="ui-detail-header-row">
           <div className="ui-person">
-            <Avatar nombre={paciente.nombre} size={56} tone="neutral" />
+            <Avatar nombre={paciente.nombre} size={56} tone={tonoIdentidad(paciente.id)} />
             <div style={{ minWidth: 0 }}>
               <h1 className="ui-page-title" style={{ fontSize: 'var(--text-xl)' }}>{paciente.nombre}</h1>
               <div className="ui-detail-meta">

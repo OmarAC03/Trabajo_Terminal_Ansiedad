@@ -276,6 +276,32 @@
 .tone-altos { --tone: var(--color-altos); --tone-soft: var(--color-altos-soft); }
 .tone-neutral { --tone: var(--color-text-secondary); --tone-soft: var(--color-surface-muted); }
 .tone-sin-datos { --tone: var(--color-sin-datos); --tone-soft: var(--color-sin-datos-soft); }
+/* Acentos por tipo de dato (tokens.css), nunca por estado. */
+.tone-indigo { --tone: var(--color-indigo); --tone-soft: var(--color-indigo-soft); }
+.tone-violet { --tone: var(--color-violet); --tone-soft: var(--color-violet-soft); }
+.tone-cyan { --tone: var(--color-cyan); --tone-soft: var(--color-cyan-soft); }
+.tone-sky { --tone: var(--color-sky); --tone-soft: var(--color-sky-soft); }
+
+.ui-icon-chip-sm {
+  width: 32px;
+  height: 32px;
+}
+
+/* Barra de proporción del KPI (qué parte del grupo es; no es un nivel). */
+.ui-kpi-bar {
+  margin-top: 12px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  overflow: hidden;
+}
+
+.ui-kpi-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--tone);
+}
 
 .ui-icon-chip[class*='tone-'] { background: var(--tone-soft); color: var(--tone); }
 .ui-kpi-hint[class*='tone-'] { color: var(--tone); }
@@ -524,7 +550,77 @@
 }
 
 .ui-table-row-link:hover {
-  background: var(--color-surface-muted);
+  background: var(--color-primary-soft);
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
+/* Flecha al final de la fila (la fila entera abre el detalle). */
+.ui-row-go {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.15s, transform 0.15s;
+}
+
+.ui-table-row-link:hover .ui-row-go,
+.ui-timeline-item:hover .ui-row-go {
+  color: var(--color-primary);
+  transform: translateX(2px);
+}
+
+.ui-row-go:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* "Última sesión": tiempo relativo en negritas, fecha exacta debajo. */
+.ui-when-rel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.ui-when-abs {
+  margin-top: 2px;
+  padding-left: 17px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* Punto de recencia: un solo azul (hoy → pálido), nunca un semáforo. */
+.ui-rec-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--rec);
+}
+
+.rec-hoy { --rec: var(--color-rec-hoy); }
+.rec-semana { --rec: var(--color-rec-semana); }
+.rec-antes { --rec: var(--color-rec-antes); }
+.rec-nunca { --rec: var(--color-rec-nunca); }
+
+/* Pastilla de conteo (sesiones en 7 días). */
+.ui-pill {
+  display: inline-flex;
+  align-items: center;
+  min-width: 28px;
+  justify-content: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--tone-soft);
+  color: var(--tone);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 .ui-table-row-link:focus-visible {
@@ -568,7 +664,7 @@
   font-size: var(--text-md);
 }
 
-/* Avatar teñido con el color del estado (tabla de pacientes). */
+/* Avatar teñido con un tono (color de identidad del paciente). */
 .ui-avatar[class*='tone-'] {
   background: var(--tone-soft);
   color: var(--tone);
@@ -649,6 +745,71 @@
   color: var(--color-text-muted);
 }
 
+/* Línea de tiempo (Actividad reciente del Dashboard). */
+.ui-timeline {
+  display: flex;
+  flex-direction: column;
+  margin: -6px -8px;
+}
+
+.ui-timeline-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ui-timeline-item + .ui-timeline-item::before {
+  content: '';
+  position: absolute;
+  left: 26px;
+  top: -9px;
+  height: 14px;
+  border-left: 2px dotted var(--color-border-strong);
+}
+
+.ui-timeline-item:hover {
+  background: var(--color-primary-soft);
+}
+
+.ui-timeline-item:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.ui-timeline-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* Barra apilada horizontal (Última sesión del grupo). */
+.ui-stackbar {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.ui-stackbar > span {
+  display: block;
+  height: 100%;
+  background: var(--rec);
+}
+
 /* Dona con el total al centro. */
 .ui-donut {
   position: relative;
@@ -693,6 +854,17 @@
   height: 10px;
   border-radius: 50%;
   background: var(--tone);
+}
+
+.ui-legend-dot[class*='rec-'] {
+  border-radius: 3px;
+  background: var(--rec);
+}
+
+.ui-legend-pct {
+  margin-left: 4px;
+  font-weight: 500;
+  color: var(--color-text-muted);
 }
 
 .ui-legend-value {
