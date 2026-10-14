@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { ArrowLeft, BadgeCheck, Timer, Heart, Droplet, ShieldAlert, CircleAlert, Activity, Info } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Timer, Heart, Droplet, ShieldAlert, CircleAlert, Activity, Info, MessageSquare } from 'lucide-react';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceArea,
 } from 'recharts';
@@ -9,6 +9,7 @@ import { Card, KpiCard, Button, Badge, Alert, Disclaimer } from './ui/components
 import {
   SESIONES_URL, normalizarSesion, serieConCortes, huecosDeSerie, ticksEje,
   porcentajeCalidad, duracionTexto, fechaHora, minSeg,
+  evaSobre10, textoContextoEva, demoraEva,
 } from './sesiones';
 
 // Regla de seguridad de DESARROLLO_FUNDAMENTADO.md §2.3 (la misma que la app).
@@ -132,6 +133,8 @@ function Contenido({ sesion: s }) {
         </Alert>
       )}
 
+      <ReporteSubjetivo sesion={s} />
+
       {serie.length < 2 ? (
         <Card><div className="ui-empty">La sesión no tiene suficientes puntos para graficar.</div></Card>
       ) : (
@@ -151,6 +154,36 @@ function Contenido({ sesion: s }) {
         Datos fisiológicos de apoyo. La interpretación y el diagnóstico corresponden al profesional de salud.
       </Disclaimer>
     </>
+  );
+}
+
+// EVA post-medición (Fase M2): lo que el paciente reportó, sobre 10, con su
+// contexto y cuánto tardó en responder. Antes de las gráficas porque
+// contextualiza la lectura de los datos objetivos; no los cruza ni interpreta
+// (la correlación va con la línea base). Si se omitió también se muestra: la
+// tasa de omisión es un dato del objetivo 5.
+function ReporteSubjetivo({ sesion: s }) {
+  return (
+    <Card title="Reporte subjetivo (EVA)" icon={MessageSquare}>
+      {s.eva_valor == null ? (
+        <div className="ui-muted">El paciente no respondió la EVA en esta sesión.</div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+          <div>
+            <span className="ui-num" style={{ fontSize: 'var(--text-kpi)', fontWeight: 700 }}>{evaSobre10(s.eva_valor)}</span>
+            <span className="ui-unit" style={{ fontSize: 'var(--text-md)' }}>/ 10</span>
+          </div>
+          <div>
+            <div>{textoContextoEva(s.eva_contexto)}</div>
+            <div className="ui-muted" style={{ fontSize: 'var(--text-sm)' }}>{demoraEva(s)}</div>
+          </div>
+        </div>
+      )}
+      <p className="ui-muted" style={{ fontSize: 'var(--text-sm)', margin: '12px 0 0' }}>
+        Escala visual analógica respondida por el paciente al terminar la medición: 0 = nada, 10 = la máxima
+        ansiedad imaginable.
+      </p>
+    </Card>
   );
 }
 

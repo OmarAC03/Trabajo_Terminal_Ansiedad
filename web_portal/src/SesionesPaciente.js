@@ -7,7 +7,7 @@ import { Card, KpiCard, Badge, Alert } from './ui/components';
 import { haceTiempo } from './PacientesComun';
 import {
   SESIONES_URL, normalizarSesion, resumenSesiones, datosTendencia,
-  porcentajeCalidad, duracionTexto, fechaHora,
+  porcentajeCalidad, duracionTexto, fechaHora, evaSobre10,
 } from './sesiones';
 import SesionDetalle from './SesionDetalle';
 
@@ -147,6 +147,7 @@ function TablaSesiones({ sesiones, onSeleccionar }) {
               <th>HRV</th>
               <th>FC</th>
               <th>SpO2</th>
+              <th>EVA</th>
               <th>Calidad de señal</th>
               <th>Origen</th>
             </tr>
@@ -167,6 +168,12 @@ function TablaSesiones({ sesiones, onSeleccionar }) {
                 <td><span className="ui-num">{Math.round(s.hrv_rmssd)}</span><span className="ui-unit">ms</span></td>
                 <td><span className="ui-num">{Math.round(s.bpm_promedio)}</span><span className="ui-unit">lpm</span></td>
                 <td><span className="ui-num">{Math.round(s.spo2_promedio)}</span><span className="ui-unit">%</span></td>
+                {/* EVA: lo que reportó el paciente, sin color ni semáforo; "—" si la omitió. */}
+                <td>
+                  {s.eva_valor == null
+                    ? <span className="ui-muted">—</span>
+                    : <><span className="ui-num">{evaSobre10(s.eva_valor)}</span><span className="ui-unit">/10</span></>}
+                </td>
                 <td><span className="ui-num">{porcentajeCalidad(s.indice_calidad)}</span><span className="ui-unit">%</span></td>
                 <td>{s.origen === 'simulacion' ? <Badge tone="neutral">Simulación</Badge> : <span className="ui-muted">Sensor</span>}</td>
               </tr>

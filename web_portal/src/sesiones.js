@@ -15,7 +15,7 @@ const CAMPOS_NUMERICOS = [
   'hrv_rmssd', 'hrv_min', 'hrv_max',
   'bpm_promedio', 'bpm_min', 'bpm_max',
   'spo2_promedio', 'spo2_min', 'spo2_max',
-  'indice_calidad',
+  'indice_calidad', 'eva_valor',
 ];
 
 /** Fila del backend → mismos campos, con números de verdad y la serie normalizada. */
@@ -117,6 +117,39 @@ export function duracionTexto(segundos) {
   if (segundos < 60) return `${segundos} s`;
   const resto = segundos % 60;
   return resto === 0 ? `${Math.floor(segundos / 60)} min` : `${Math.floor(segundos / 60)} min ${resto} s`;
+}
+
+// --- EVA post-medición (Fase M2) ---
+// Se guarda 0–100 (deslizador continuo de la app) y se muestra al especialista
+// sobre 10 con un decimal, para no perder la resolución del dato. Una EVA
+// omitida no tiene fila: llega con eva_* en null.
+
+/** 63 → "6.3", 100 → "10.0"; null (omitida) → "—" */
+export const evaSobre10 = (valor) => (valor == null ? '—' : (valor / 10).toFixed(1));
+
+// Mismos textos que los chips de la app (ContextoEva en eva_respuesta.dart).
+const CONTEXTOS_EVA = {
+  reposo: 'En reposo',
+  estudiando: 'Estudiando',
+  antes_examen: 'Antes de un examen',
+  despues_estresor: 'Después de una situación estresante',
+  otro: 'Otro',
+};
+
+/** 'antes_examen' → "Antes de un examen"; null → "Sin contexto" */
+export const textoContextoEva = (clave) => (clave == null ? 'Sin contexto' : CONTEXTOS_EVA[clave] ?? clave);
+
+/**
+ * Cuánto después de terminar la medición respondió la EVA. El fin de la
+ * medición es fecha_inicio + duracion_total_seg (la misma referencia que usa
+ * validarVentanaEva en el backend). Una demora negativa (desfase de relojes
+ * entre teléfono y servidor) cuenta como 0. null si se omitió.
+ */
+export function demoraEva(sesion) {
+  if (sesion.eva_fecha == null) return null;
+  const fin = new Date(sesion.fecha_inicio).getTime() + sesion.duracion_total_seg * 1000;
+  const minutos = Math.floor(Math.max(0, new Date(sesion.eva_fecha).getTime() - fin) / 60000);
+  return minutos < 1 ? 'Respondida al terminar' : `Respondida ${minutos} min después`;
 }
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];

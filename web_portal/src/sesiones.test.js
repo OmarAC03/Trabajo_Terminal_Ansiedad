@@ -1,6 +1,7 @@
 import {
   normalizarSesion, resumenSesiones, datosTendencia, serieConCortes, huecosDeSerie,
   porcentajeCalidad, minSeg, duracionTexto, fechaHora, ticksEje,
+  evaSobre10, textoContextoEva, demoraEva,
 } from './sesiones';
 
 // Fila como la manda el backend al especialista: numeric como texto.
@@ -121,5 +122,38 @@ describe('formato', () => {
   test('fechaHora en hora local', () => {
     const local = new Date(2026, 9, 13, 9, 5);
     expect(fechaHora(local)).toBe('13 oct 2026, 9:05');
+  });
+});
+
+describe('EVA (Fase M2)', () => {
+  test('evaSobre10: un decimal; omitida → "—"', () => {
+    expect(evaSobre10(63)).toBe('6.3');
+    expect(evaSobre10(0)).toBe('0.0');
+    expect(evaSobre10(100)).toBe('10.0');
+    expect(evaSobre10(null)).toBe('—');
+    expect(evaSobre10(undefined)).toBe('—');
+  });
+
+  test('normalizarSesion convierte eva_valor y deja null si se omitió', () => {
+    expect(normalizarSesion(fila('a', '2026-10-13T15:30:00Z', { eva_valor: '63' })).eva_valor).toBe(63);
+    expect(normalizarSesion(fila('a', '2026-10-13T15:30:00Z', { eva_valor: null })).eva_valor).toBeNull();
+  });
+
+  test('textoContextoEva: los textos de la app; null → "Sin contexto"', () => {
+    expect(textoContextoEva('reposo')).toBe('En reposo');
+    expect(textoContextoEva('antes_examen')).toBe('Antes de un examen');
+    expect(textoContextoEva('despues_estresor')).toBe('Después de una situación estresante');
+    expect(textoContextoEva(null)).toBe('Sin contexto');
+  });
+
+  test('demoraEva: desde el fin de la medición (inicio + duración)', () => {
+    // Inicio 15:30:00, 214 s → fin 15:33:34.
+    const s = (evaFecha) => ({ fecha_inicio: '2026-10-13T15:30:00Z', duracion_total_seg: 214, eva_fecha: evaFecha });
+    expect(demoraEva(s('2026-10-13T15:34:00Z'))).toBe('Respondida al terminar');
+    expect(demoraEva(s('2026-10-13T15:34:40Z'))).toBe('Respondida 1 min después');
+    expect(demoraEva(s('2026-10-13T15:45:00Z'))).toBe('Respondida 11 min después');
+    // Desfase de relojes: la respuesta "antes" del fin cuenta como 0.
+    expect(demoraEva(s('2026-10-13T15:32:00Z'))).toBe('Respondida al terminar');
+    expect(demoraEva(s(null))).toBeNull();
   });
 });
