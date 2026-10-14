@@ -1,6 +1,5 @@
 import { RefreshCw, Info, Users, CircleAlert } from 'lucide-react';
 import { Card, Button, Badge, Avatar, Alert, Disclaimer } from './ui/components';
-import { getStatusLabel, getStatusTone, getStatusOrden } from './semaforo';
 import CodigoVinculacion from './CodigoVinculacion';
 
 // Piezas compartidas por el Dashboard y la sección Pacientes (Fase A). Solo
@@ -18,16 +17,6 @@ export const haceTiempo = (fecha) => {
 };
 
 export const plural = (n, singular, pluralTexto) => `${n} ${n === 1 ? singular : pluralTexto}`;
-
-// Altos → Elevados → Normal → Sin lecturas; dentro de cada estado, la
-// lectura más reciente primero.
-export const ordenarPorEstado = (pacientes) =>
-  [...pacientes].sort(
-    (a, b) =>
-      getStatusOrden(a.ultimo_estado) - getStatusOrden(b.ultimo_estado) ||
-      new Date(b.ultima_lectura || 0) - new Date(a.ultima_lectura || 0) ||
-      a.nombre.localeCompare(b.nombre)
-  );
 
 // "Tu código" + "Actualizar" en las acciones del encabezado de página.
 export function AccionesEncabezado({ perfil, onActualizar }) {
@@ -53,10 +42,16 @@ export function AvisosPacientes({ errorAcceso }) {
   );
 }
 
-// Tabla de pacientes con su última lectura. Muestra `pacientes` en el orden
-// recibido; `vacio` es el texto cuando la lista llega vacía y `filtros` va
-// entre el encabezado de la tarjeta y la tabla (búsqueda de la sección
-// Pacientes).
+// Tabla de pacientes con su actividad de medición: cuándo fue su última
+// sesión y cuántas hizo en 7 días. Sin estado (el semáforo de umbrales fijos
+// se retiró; la columna vuelve con M3 y la línea base) y sin BPM/SpO2/HRV: un
+// valor absoluto de varios pacientes en una lista invita a compararlos entre
+// sí, y eso es justo lo que DESARROLLO_FUNDAMENTADO.md §2 descarta. Los
+// valores siguen en el detalle de cada paciente.
+//
+// Muestra `pacientes` en el orden recibido; `vacio` es el texto cuando la
+// lista llega vacía y `filtros` va entre el encabezado de la tarjeta y la
+// tabla (búsqueda de la sección Pacientes).
 export function TablaPacientes({ pacientes, onSeleccionar, subtitle, vacio, filtros }) {
   return (
     <Card className="ui-card-flush" title="Pacientes" icon={Users} subtitle={subtitle}>
@@ -69,11 +64,8 @@ export function TablaPacientes({ pacientes, onSeleccionar, subtitle, vacio, filt
             <thead>
               <tr>
                 <th>Paciente</th>
-                <th>BPM</th>
-                <th>SpO2</th>
-                <th>HRV</th>
-                <th>Estado</th>
-                <th>Última lectura</th>
+                <th>Última sesión</th>
+                <th>Sesiones (7 días)</th>
                 <th><span className="sr-only">Acción</span></th>
               </tr>
             </thead>
@@ -82,20 +74,24 @@ export function TablaPacientes({ pacientes, onSeleccionar, subtitle, vacio, filt
                 <tr key={p.id} className="ui-table-row-link" onClick={() => onSeleccionar(p)}>
                   <td>
                     <div className="ui-person">
-                      <Avatar nombre={p.nombre} size={38} tone={getStatusTone(p.ultimo_estado)} />
+                      <Avatar nombre={p.nombre} size={38} tone="neutral" />
                       <div>
                         <div className="ui-person-name">{p.nombre}</div>
                         <div className="ui-person-sub">{p.email}</div>
                       </div>
                     </div>
                   </td>
-                  <td><Valor valor={p.ultimo_bpm} /></td>
-                  <td><Valor valor={p.ultimo_spo2} unidad="%" /></td>
-                  <td><Valor valor={p.ultimo_hrv} unidad="ms" /></td>
                   <td>
-                    <Badge tone={getStatusTone(p.ultimo_estado)}>{getStatusLabel(p.ultimo_estado)}</Badge>
+                    {p.ultima_sesion ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                        {haceTiempo(p.ultima_sesion)}
+                        {p.ultima_sesion_origen === 'simulacion' && <Badge tone="neutral">Simulación</Badge>}
+                      </span>
+                    ) : (
+                      <span className="ui-muted">Sin sesiones</span>
+                    )}
                   </td>
-                  <td className="ui-muted">{p.ultima_lectura ? haceTiempo(p.ultima_lectura) : '—'}</td>
+                  <td><span className="ui-num">{Number(p.sesiones_7d) || 0}</span></td>
                   <td style={{ textAlign: 'right' }}>
                     <Button
                       variant="soft"
@@ -115,15 +111,5 @@ export function TablaPacientes({ pacientes, onSeleccionar, subtitle, vacio, filt
         </div>
       )}
     </Card>
-  );
-}
-
-function Valor({ valor, unidad }) {
-  if (valor == null) return <span className="ui-muted">—</span>;
-  return (
-    <span className="ui-num">
-      {valor}
-      {unidad && <span className="ui-unit">{unidad}</span>}
-    </span>
   );
 }

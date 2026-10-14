@@ -1,3 +1,7 @@
+// SIN USO desde el refactor del Dashboard (2026-10-14): el portal ya no muestra
+// el semáforo de umbrales fijos. Se conserva (con sus pruebas) para M3, que
+// reutilizará estos textos y tonos con el estado calculado contra la línea base.
+//
 // Semáforo de indicadores fisiológicos, compartido por la lista y el detalle
 // de pacientes (mismo criterio que backend/app_ansiedad).
 //

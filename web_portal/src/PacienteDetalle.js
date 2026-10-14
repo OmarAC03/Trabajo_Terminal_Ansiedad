@@ -1,6 +1,5 @@
 import { ArrowLeft, Info, Mail, RefreshCw, CircleAlert } from 'lucide-react';
-import { getStatusLabel, getStatusTone } from './semaforo';
-import { Card, Button, Badge, Avatar, Alert, Disclaimer } from './ui/components';
+import { Card, Button, Avatar, Alert, Disclaimer } from './ui/components';
 import { haceTiempo } from './PacientesComun';
 import ChatPaciente from './ChatPaciente';
 import EjerciciosPaciente from './EjerciciosPaciente';
@@ -21,14 +20,14 @@ function PacienteDetalle({ paciente, onVolver, recarga, onActualizar, errorAcces
       <Card>
         <div className="ui-detail-header-row">
           <div className="ui-person">
-            <Avatar nombre={paciente.nombre} size={56} tone={getStatusTone(paciente.ultimo_estado)} />
+            <Avatar nombre={paciente.nombre} size={56} tone="neutral" />
             <div style={{ minWidth: 0 }}>
               <h1 className="ui-page-title" style={{ fontSize: 'var(--text-xl)' }}>{paciente.nombre}</h1>
               <div className="ui-detail-meta">
                 <span className="ui-detail-email"><Mail size={14} /> {paciente.email}</span>
-                <Badge tone={getStatusTone(paciente.ultimo_estado)}>{getStatusLabel(paciente.ultimo_estado)}</Badge>
+                {/* Actividad, sin el badge del semáforo viejo (vuelve con M3 y la línea base). */}
                 <span className="ui-muted">
-                  {paciente.ultima_lectura ? `Última lectura ${haceTiempo(paciente.ultima_lectura)}` : 'Sin lecturas registradas'}
+                  {paciente.ultima_sesion ? `Última sesión ${haceTiempo(paciente.ultima_sesion)}` : 'Aún sin sesiones de medición'}
                 </span>
               </div>
             </div>

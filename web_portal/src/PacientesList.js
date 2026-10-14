@@ -1,15 +1,13 @@
 import { useState } from 'react';
 import { Search } from 'lucide-react';
 import { PageHeader, Card } from './ui/components';
-import { getStatusLabel, getStatusTone } from './semaforo';
 import { plural, AccionesEncabezado, AvisosPacientes, TablaPacientes } from './PacientesComun';
+import { FILTROS_ACTIVIDAD, coincideFiltroActividad } from './actividad';
 
 // Sección "Pacientes" (Fase A): la tabla completa a todo el ancho, en orden
 // alfabético (como la devuelve GET /api/pacientes), con búsqueda por nombre o
-// email y filtro por estado. Filtra en el navegador; no pide nada nuevo.
-
-// Filtros de estado: null = todos, '' = sin lecturas.
-const FILTROS = [null, 'Alta', 'Moderada', 'Baja', ''];
+// email y filtro por actividad de medición (el filtro por estado del semáforo
+// viejo se retiró). Filtra en el navegador; no pide nada nuevo.
 
 // Minúsculas y sin acentos, para que "maria" encuentre "María".
 const normalizar = (texto) =>
@@ -22,7 +20,7 @@ function PacientesList({ pacientes, loading, perfil, errorAcceso, onSeleccionar,
   const termino = normalizar(busqueda.trim());
   const visibles = pacientes.filter(
     (p) =>
-      (filtro === null || (p.ultimo_estado || '') === filtro) &&
+      coincideFiltroActividad(p, filtro) &&
       (termino === '' || normalizar(p.nombre).includes(termino) || normalizar(p.email).includes(termino))
   );
   const hayFiltro = termino !== '' || filtro !== null;
@@ -40,17 +38,16 @@ function PacientesList({ pacientes, loading, perfil, errorAcceso, onSeleccionar,
           onChange={(e) => setBusqueda(e.target.value)}
         />
       </label>
-      <div className="ui-segmented" role="group" aria-label="Filtrar por estado">
-        {FILTROS.map((f) => (
+      <div className="ui-segmented" role="group" aria-label="Filtrar por actividad">
+        {FILTROS_ACTIVIDAD.map((f) => (
           <button
-            key={String(f)}
+            key={String(f.clave)}
             type="button"
-            className={`ui-segmented-item${filtro === f ? ' is-active' : ''}`}
-            aria-pressed={filtro === f}
-            onClick={() => setFiltro(f)}
+            className={`ui-segmented-item${filtro === f.clave ? ' is-active' : ''}`}
+            aria-pressed={filtro === f.clave}
+            onClick={() => setFiltro(f.clave)}
           >
-            {f !== null && <span className={`ui-legend-dot tone-${getStatusTone(f || null)}`} />}
-            {f === null ? 'Todos' : getStatusLabel(f || null)}
+            {f.texto}
           </button>
         ))}
       </div>

@@ -1,22 +1,22 @@
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
-import { Users, CircleCheck, TriangleAlert, CircleAlert, HeartPulse, ChartPie, ChevronRight } from 'lucide-react';
+import { Users, CalendarCheck, Activity, CalendarX, History, Clock, ChevronRight } from 'lucide-react';
 import { PageHeader, Card, KpiCard } from './ui/components';
-import { getStatusColor, getStatusLabel, getStatusTone } from './semaforo';
 import {
-  haceTiempo, plural, ordenarPorEstado, AccionesEncabezado, AvisosPacientes, TablaPacientes,
+  haceTiempo, plural, AccionesEncabezado, AvisosPacientes, TablaPacientes,
 } from './PacientesComun';
+import {
+  DIAS_ACTIVIDAD, resumenActividad, ordenarPorActividad, actividadReciente, conteoRecencia,
+} from './actividad';
 
-// Dashboard de monitoreo (Fase A). Solo presenta lo que App.js ya trae de
-// GET /api/pacientes (una fila por paciente vinculado, con su última lectura):
-// no pide nada por su cuenta. Los conteos Normal/Elevados/Altos se basan en la
-// ÚLTIMA lectura de cada paciente, que puede ser antigua; por eso la tabla
-// muestra "hace X". Indicadores fisiológicos de apoyo, nunca diagnóstico
-// (MARCO_ALCANCE_Y_LENGUAJE.md).
+// Dashboard de monitoreo. Solo presenta lo que App.js ya trae de
+// GET /api/pacientes: no pide nada por su cuenta.
+//
+// Muestra ACTIVIDAD de medición (quién midió y cuándo), no un estado: el
+// semáforo de umbrales fijos de las lecturas viejas se retiró porque no tiene
+// fundamento (DESARROLLO_FUNDAMENTADO.md §2). Todo va en tono primario o
+// neutro, sin verde/ámbar/rojo. Cuando M3 traiga el estado contra la línea
+// base de cada paciente, se agregan sus conteos y su columna encima de esto.
 
-// Estados en el orden en que se muestran (null = sin lecturas).
-const ESTADOS = ['Baja', 'Moderada', 'Alta', null];
-
-const MAX_LECTURAS_ALTAS = 5;
+const MAX_ACTIVIDAD_RECIENTE = 5;
 
 const fechaDeHoy = () => {
   const texto = new Date().toLocaleDateString('es-MX', {
@@ -27,29 +27,14 @@ const fechaDeHoy = () => {
 
 const porcentaje = (n, total) => (total === 0 ? 0 : Math.round((n / total) * 100));
 
-// "BPM 91 · HRV 24 ms · SpO2 97%" con los valores que existan.
-const resumenLectura = (p) =>
-  [
-    p.ultimo_bpm != null && `BPM ${p.ultimo_bpm}`,
-    p.ultimo_hrv != null && `HRV ${p.ultimo_hrv} ms`,
-    p.ultimo_spo2 != null && `SpO2 ${p.ultimo_spo2}%`,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-
 function Dashboard({ pacientes, loading, perfil, errorAcceso, onSeleccionar, onActualizar }) {
-  const total = pacientes.length;
-  const conteo = (estado) => pacientes.filter((p) => (p.ultimo_estado || null) === estado).length;
-  const normal = conteo('Baja');
-  const elevados = conteo('Moderada');
-  const altos = conteo('Alta');
-  const conLecturas = pacientes.filter((p) => p.ultima_lectura).length;
+  const r = resumenActividad(pacientes);
 
   return (
     <div className="ui-page ui-page-wide">
       <PageHeader
         title="Dashboard de monitoreo"
-        subtitle={`${fechaDeHoy()} · ${plural(total, 'paciente vinculado', 'pacientes vinculados')}`}
+        subtitle={`${fechaDeHoy()} · ${plural(r.total, 'paciente vinculado', 'pacientes vinculados')}`}
         actions={<AccionesEncabezado perfil={perfil} onActualizar={onActualizar} />}
       />
 
@@ -62,48 +47,48 @@ function Dashboard({ pacientes, loading, perfil, errorAcceso, onSeleccionar, onA
           <div className="ui-grid ui-grid-kpi">
             <KpiCard
               label="Pacientes vinculados"
-              value={total}
-              hint={`${conLecturas} con lecturas registradas`}
+              value={r.total}
+              hint={`${r.conSesiones} con al menos una sesión`}
               icon={Users}
               tone="primary"
             />
             <KpiCard
-              label="Normal"
-              value={normal}
-              hint={`${porcentaje(normal, total)}% del grupo`}
-              hintTone="normal"
-              icon={CircleCheck}
-              tone="normal"
+              label={`Midieron en ${DIAS_ACTIVIDAD} días`}
+              value={r.midieron}
+              hint={`${porcentaje(r.midieron, r.total)}% del grupo`}
+              icon={CalendarCheck}
+              tone="primary"
             />
             <KpiCard
-              label="Elevados"
-              value={elevados}
-              hint={`${porcentaje(elevados, total)}% del grupo`}
-              hintTone="elevados"
-              icon={TriangleAlert}
-              tone="elevados"
+              label={`Sesiones en ${DIAS_ACTIVIDAD} días`}
+              value={r.sesiones}
+              hint="De todo el grupo"
+              icon={Activity}
+              tone="primary"
             />
             <KpiCard
-              label="Altos"
-              value={altos}
-              hint={`${porcentaje(altos, total)}% del grupo`}
-              hintTone="altos"
-              icon={CircleAlert}
-              tone="altos"
+              label={`Sin sesiones en ${DIAS_ACTIVIDAD} días`}
+              value={r.sinMedir}
+              hint={`${porcentaje(r.sinMedir, r.total)}% del grupo`}
+              icon={CalendarX}
+              tone="neutral"
             />
           </div>
-          <p className="ui-caption">Conteos según los indicadores fisiológicos de la última lectura de cada paciente.</p>
+          <p className="ui-caption">
+            Actividad de medición, no un estado. La clasificación de los indicadores (Normal / Elevados / Altos)
+            llegará con la línea base de cada paciente.
+          </p>
 
           <div className="ui-dashboard-cols">
             <TablaPacientes
-              pacientes={ordenarPorEstado(pacientes)}
+              pacientes={ordenarPorActividad(pacientes)}
               onSeleccionar={onSeleccionar}
-              subtitle="Ordenados por indicadores de la última lectura · se actualiza cada 15 s"
+              subtitle="Última sesión más reciente primero · se actualiza cada 15 s"
               vacio="Todavía no tienes pacientes vinculados. Comparte tu código para que se vinculen desde la app."
             />
             <div className="ui-stack">
-              <LecturasAltas pacientes={pacientes} onSeleccionar={onSeleccionar} />
-              <Distribucion pacientes={pacientes} total={total} />
+              <ActividadReciente pacientes={pacientes} onSeleccionar={onSeleccionar} />
+              <UltimaSesionGrupo pacientes={pacientes} total={r.total} />
             </div>
           </div>
         </>
@@ -112,29 +97,27 @@ function Dashboard({ pacientes, loading, perfil, errorAcceso, onSeleccionar, onA
   );
 }
 
-// Pacientes cuya última lectura fue Altos, la más reciente primero. No es un
-// sistema de alertas (no se activan ni se "atienden"): es la misma última
-// lectura de la tabla, filtrada.
-function LecturasAltas({ pacientes, onSeleccionar }) {
-  const lista = pacientes
-    .filter((p) => p.ultimo_estado === 'Alta')
-    .sort((a, b) => new Date(b.ultima_lectura) - new Date(a.ultima_lectura))
-    .slice(0, MAX_LECTURAS_ALTAS);
+// Los pacientes que midieron más recientemente. No es un sistema de alertas:
+// solo dice quién midió y cuándo.
+function ActividadReciente({ pacientes, onSeleccionar }) {
+  const lista = actividadReciente(pacientes, MAX_ACTIVIDAD_RECIENTE);
 
   return (
-    <Card title="Últimas lecturas altas" icon={HeartPulse} subtitle="Pacientes cuya última lectura fue Altos">
+    <Card title="Actividad reciente" icon={History} subtitle="Las sesiones de medición más recientes del grupo">
       {lista.length === 0 ? (
         <div className="ui-muted" style={{ fontSize: 'var(--text-sm)' }}>
-          Ningún paciente tiene su última lectura en Altos.
+          Ningún paciente ha hecho una sesión de medición todavía.
         </div>
       ) : (
         lista.map((p) => (
-          <button key={p.id} type="button" className="ui-list-item tone-altos" onClick={() => onSeleccionar(p)}>
-            <CircleAlert size={18} />
+          <button key={p.id} type="button" className="ui-list-item tone-primary" onClick={() => onSeleccionar(p)}>
+            <Clock size={18} style={{ color: 'var(--color-primary)' }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="ui-list-title">{p.nombre}</div>
-              {resumenLectura(p) && <div className="ui-list-sub">{resumenLectura(p)}</div>}
-              <div className="ui-list-time">{haceTiempo(p.ultima_lectura)}</div>
+              <div className="ui-list-time">
+                {haceTiempo(p.ultima_sesion)}
+                {p.ultima_sesion_origen === 'simulacion' && <> · Simulación</>}
+              </div>
             </div>
             <ChevronRight size={16} style={{ color: 'var(--color-text-muted)' }} />
           </button>
@@ -144,60 +127,25 @@ function LecturasAltas({ pacientes, onSeleccionar }) {
   );
 }
 
-function Distribucion({ pacientes, total }) {
-  const datos = ESTADOS.map((estado) => ({
-    estado,
-    nombre: getStatusLabel(estado),
-    valor: pacientes.filter((p) => (p.ultimo_estado || null) === estado).length,
-  }));
-
+// Cuándo fue la última sesión de cada paciente (cada uno cuenta una vez).
+// Reemplaza a la dona del semáforo: agrupa por fecha, no por un estado.
+function UltimaSesionGrupo({ pacientes, total }) {
   return (
-    <Card title="Distribución del grupo" icon={ChartPie} subtitle="Según la última lectura de cada paciente">
+    <Card title="Última sesión del grupo" icon={CalendarCheck} subtitle="Cada paciente cuenta una vez, según su última sesión">
       {total === 0 ? (
         <div className="ui-muted" style={{ fontSize: 'var(--text-sm)' }}>Sin pacientes vinculados.</div>
       ) : (
-        <>
-          <div className="ui-donut">
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie
-                  data={datos.filter((d) => d.valor > 0)}
-                  dataKey="valor"
-                  nameKey="nombre"
-                  innerRadius={62}
-                  outerRadius={86}
-                  startAngle={90}
-                  endAngle={-270}
-                  paddingAngle={2}
-                  stroke="none"
-                  isAnimationActive={false}
-                >
-                  {datos
-                    .filter((d) => d.valor > 0)
-                    .map((d) => (
-                      <Cell key={d.nombre} fill={getStatusColor(d.estado)} />
-                    ))}
-                </Pie>
-                <Tooltip formatter={(valor) => plural(valor, 'paciente', 'pacientes')} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="ui-donut-center">
-              <span className="ui-donut-total">{total}</span>
-              <span className="ui-muted" style={{ fontSize: 'var(--text-xs)' }}>total</span>
+        <div className="ui-legend" style={{ marginTop: 0 }}>
+          {conteoRecencia(pacientes).map((g) => (
+            <div key={g.clave} className={`ui-legend-row tone-${g.clave === 'nunca' ? 'neutral' : 'primary'}`}>
+              <span className="ui-legend-dot" />
+              {g.texto}
+              <span className="ui-legend-value">
+                {g.valor} ({porcentaje(g.valor, total)}%)
+              </span>
             </div>
-          </div>
-          <div className="ui-legend">
-            {datos.map((d) => (
-              <div key={d.nombre} className={`ui-legend-row tone-${getStatusTone(d.estado)}`}>
-                <span className="ui-legend-dot" />
-                {d.nombre}
-                <span className="ui-legend-value">
-                  {d.valor} ({porcentaje(d.valor, total)}%)
-                </span>
-              </div>
-            ))}
-          </div>
-        </>
+          ))}
+        </div>
       )}
     </Card>
   );
