@@ -2,6 +2,7 @@ import 'dart:convert';
 import '../app_config.dart';
 import '../api_client.dart';
 import '../logger.dart';
+import '../models/eva_respuesta.dart';
 import '../models/sesion_detalle.dart';
 import '../models/sesion_medicion.dart';
 import '../models/sesion_resumen.dart';
@@ -56,6 +57,25 @@ class SesionRepository {
   Future<SesionResumen?> obtenerUltimaSesion(String pacienteId) async {
     final sesiones = await obtenerSesiones(pacienteId, limite: 1);
     return sesiones.isEmpty ? null : sesiones.first;
+  }
+
+  /// Guarda la EVA de una sesión (Fase M2). Un 409 (ya había respuesta, p. ej.
+  /// un reintento después de un envío que sí llegó) cuenta como guardada.
+  Future<void> enviarEva(String sesionId, EvaRespuesta eva) async {
+    final res = await ApiClient.post(
+      Uri.parse(AppConfig.urlEvaSesion(sesionId)),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode(eva.toJson()),
+    );
+
+    if (res.exito || res.statusCode == 409) return;
+    if (res.statusCode == 400) {
+      // El cuerpo ya se arma con las reglas de validarEva: un 400 aquí es,
+      // casi siempre, la ventana de 15 min cerrada.
+      AppLogger.warning('El backend rechazó la EVA: ${res.body}', tag: 'sesiones');
+      throw RepositoryException('Ya no es posible guardar esta respuesta: solo se puede responder justo después de medir.');
+    }
+    throw RepositoryException(res.mensajeUsuario);
   }
 
   /// Detalle con la serie. Lanza [SesionNoEncontrada] si el backend responde 404.

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:app_ansiedad/models/eva_respuesta.dart';
 import 'package:app_ansiedad/models/sesion_detalle.dart';
 import 'package:app_ansiedad/models/sesion_medicion.dart';
 import 'package:app_ansiedad/models/sesion_resumen.dart';
@@ -61,6 +62,9 @@ class RepoFalso implements SesionRepository {
 
   @override
   Future<String> enviarSesion(SesionMedicion sesion) => throw UnimplementedError();
+
+  @override
+  Future<void> enviarEva(String sesionId, EvaRespuesta eva) => throw UnimplementedError();
 }
 
 void main() {

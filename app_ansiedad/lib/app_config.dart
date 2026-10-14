@@ -27,6 +27,7 @@ class AppConfig {
   static String urlPendienteVisto(String seccion) => '$backendUrl/api/pendientes/$seccion/visto';
   static String get urlSesiones => '$backendUrl/api/sesiones';
   static String urlSesionesPaciente(String pacienteId) => '$backendUrl/api/sesiones/$pacienteId';
+  static String urlEvaSesion(String sesionId) => '$backendUrl/api/sesiones/$sesionId/eva';
 }
 
 /// Parámetros de la sesión de medición (Fase M1b, DISENO_FLUJO_MEDICION.md §3).
