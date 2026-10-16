@@ -15,7 +15,10 @@ import {
 // Regla de seguridad de DESARROLLO_FUNDAMENTADO.md §2.3 (la misma que la app).
 const SPO2_UMBRAL_SEGURIDAD = 94;
 
-const COLORES = { bpm: '#2563eb', hrv: '#d97706', spo2: '#16a34a' };
+// Un color por métrica, de la paleta por tipo de dato de tokens.css (FC =
+// --color-primary, HRV = --color-cyan, SpO2 = --color-sky). Nunca verde/ámbar/
+// rojo: son del semáforo y aquí no se clasifica nada.
+const COLORES = { bpm: '#2563eb', hrv: '#0891b2', spo2: '#0284c7' };
 const EJE = { fontSize: 11, fill: '#94a3b8' };
 
 // Detalle de una sesión para el especialista (Fase M1, portal). Muestra lo que
@@ -108,7 +111,7 @@ function Contenido({ sesion: s }) {
           value={<>{Math.round(s.hrv_rmssd)}<span className="ui-unit" style={{ fontSize: 'var(--text-md)' }}>ms</span></>}
           hint={`Mín ${Math.round(s.hrv_min)} · Máx ${Math.round(s.hrv_max)} ms`}
           icon={Timer}
-          tone="primary"
+          tone="cyan"
         />
         <KpiCard
           label="FC promedio"
@@ -122,7 +125,7 @@ function Contenido({ sesion: s }) {
           value={<>{Math.round(s.spo2_promedio)}<span className="ui-unit" style={{ fontSize: 'var(--text-md)' }}>%</span></>}
           hint={`Mín ${s.spo2_min} · Máx ${s.spo2_max} %`}
           icon={Droplet}
-          tone="primary"
+          tone="sky"
         />
       </div>
 

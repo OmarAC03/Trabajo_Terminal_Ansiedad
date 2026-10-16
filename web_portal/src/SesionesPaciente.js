@@ -11,8 +11,9 @@ import {
 } from './sesiones';
 import SesionDetalle from './SesionDetalle';
 
-// Colores de gráfica de GUIA_ESTILO_PORTAL.md (los mismos de PacienteDetalle).
-const COLORES = { bpm: '#2563eb', hrv: '#d97706' };
+// Mismos colores por métrica que SesionDetalle.js (FC = --color-primary,
+// HRV = --color-cyan); sin colores del semáforo.
+const COLORES = { bpm: '#2563eb', hrv: '#0891b2' };
 const EJE = { fontSize: 11, fill: '#94a3b8' };
 
 // Sesiones de medición del paciente (Fase M1, portal): indicadores de los
@@ -94,7 +95,7 @@ function Kpis({ resumen }) {
   return (
     <div className="ui-grid ui-grid-kpi">
       <KpiCard label="Sesiones" value={resumen.total} hint="Últimos 30 días" icon={ClipboardList} tone="primary" />
-      <KpiCard label="HRV promedio (RMSSD)" value={conUnidad(resumen.hrvPromedio, 'ms')} hint="Últimos 30 días" icon={Timer} tone="primary" />
+      <KpiCard label="HRV promedio (RMSSD)" value={conUnidad(resumen.hrvPromedio, 'ms')} hint="Últimos 30 días" icon={Timer} tone="cyan" />
       <KpiCard label="FC promedio" value={conUnidad(resumen.bpmPromedio, 'lpm')} hint="Últimos 30 días" icon={Heart} tone="primary" />
       <KpiCard
         label="Última medición"
