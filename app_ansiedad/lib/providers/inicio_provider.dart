@@ -1,12 +1,14 @@
 import 'package:flutter/foundation.dart';
 import '../app_config.dart';
 import '../logger.dart';
+import '../models/calibracion.dart';
 import '../models/sesion_resumen.dart';
 import '../repositories/sesion_repository.dart';
 
 enum EstadoInicio { cargando, listo, error }
 
-/// Estado de la pantalla de Inicio (Fase M1c): la última sesión guardada.
+/// Estado de la pantalla de Inicio (Fase M1c): la última sesión guardada y,
+/// desde M3, la calibración de la línea base por origen (para la mascota).
 ///
 /// "Sin mediciones" (lista vacía) y "error" (sin red, Render sin responder)
 /// son estados distintos: un error nunca debe mostrarse como primer uso.
@@ -37,6 +39,12 @@ class InicioProvider extends ChangeNotifier {
   bool _enCurso = false;
   bool get recargando => _enCurso;
 
+  Map<String, Calibracion> _calibraciones = const {};
+
+  /// Calibración de hoy del origen dado ('simulacion' | 'sensor'), o null si
+  /// no se pudo cargar. Solo etapa y "día X de 7": nunca el estado.
+  Calibracion? calibracionDe(String origen) => _calibraciones[origen];
+
   bool get sinMediciones => _estado == EstadoInicio.listo && _ultima == null;
 
   /// Regla de seguridad §2.3 sobre la última sesión.
@@ -49,6 +57,9 @@ class InicioProvider extends ChangeNotifier {
     if (_estado != EstadoInicio.listo) _estado = EstadoInicio.cargando;
     notifyListeners();
 
+    // La calibración va en paralelo y no es indispensable: si falla, Inicio se
+    // ve como antes de M3 (sin el mensaje de la mascota) y no muestra error.
+    final calibraciones = _cargarCalibraciones();
     try {
       _ultima = await _repo.obtenerUltimaSesion(pacienteId);
       _estado = EstadoInicio.listo;
@@ -58,8 +69,17 @@ class InicioProvider extends ChangeNotifier {
       AppLogger.error('Error inesperado al cargar la última sesión', tag: 'inicio', error: e, stackTrace: stackTrace);
       _falla('Ocurrió un error inesperado.');
     }
+    await calibraciones;
     _enCurso = false;
     if (!_desechado) notifyListeners();
+  }
+
+  Future<void> _cargarCalibraciones() async {
+    try {
+      _calibraciones = await _repo.obtenerCalibraciones(pacienteId);
+    } catch (e) {
+      AppLogger.warning('No se pudo cargar la línea base', tag: 'inicio', error: e);
+    }
   }
 
   void _falla(String mensaje) {

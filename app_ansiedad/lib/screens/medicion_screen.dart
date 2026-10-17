@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../app_config.dart';
+import '../medicion/mensajes_mascota.dart';
 import '../models/eva_respuesta.dart';
 import '../models/sesion_medicion.dart';
 import '../providers/alerta_provider.dart';
 import '../providers/medicion_provider.dart';
 import '../ui/app_colors.dart';
+import '../ui/progreso_calibracion.dart';
 import '../ui/widgets.dart';
 
 /// Medición guiada (Fase M1b): pantalla completa, encima de la barra inferior.
@@ -13,13 +15,18 @@ import '../ui/widgets.dart';
 /// Principio de UX (DISENO_FLUJO_MEDICION.md §10): durante la captura el
 /// paciente solo ve un anillo que avanza con señal buena y una guía positiva
 /// en ámbar; nunca valores en vivo ni un índice de confiabilidad. Al terminar
-/// ve sus promedios con el disclaimer, sin semáforo.
+/// ve sus promedios con el disclaimer, sin semáforo, y la mascota celebra el
+/// hábito con el "día X de 7" de su línea base (Fase M3): nunca una etiqueta
+/// del estado, ni banda, ni z (regla de oro).
 ///
 /// Recibe el [AlertaProvider] del Monitor porque ahí vive la fuente de
 /// lecturas (sensor o simulación) y el botón de prueba "Forzar mala señal".
 class MedicionScreen extends StatefulWidget {
   final AlertaProvider alerta;
-  const MedicionScreen({super.key, required this.alerta});
+
+  /// Ver [MedicionProvider.yaHabiaMedidoHoy].
+  final bool yaHabiaMedidoHoy;
+  const MedicionScreen({super.key, required this.alerta, this.yaHabiaMedidoHoy = false});
 
   @override
   State<MedicionScreen> createState() => _MedicionScreenState();
@@ -36,6 +43,7 @@ class _MedicionScreenState extends State<MedicionScreen> with WidgetsBindingObse
       fuente: widget.alerta.lecturas,
       origen: simulacion ? OrigenSesion.simulacion : OrigenSesion.sensor,
       alComenzar: simulacion ? widget.alerta.simularColocacionDedo : null,
+      yaHabiaMedidoHoy: widget.yaHabiaMedidoHoy,
     );
     WidgetsBinding.instance.addObserver(this);
   }
@@ -276,6 +284,11 @@ class _Captura extends StatelessWidget {
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.texto),
                 ),
         ),
+        // Con mala señal, la mascota acompaña con calma (nunca un regaño).
+        if (enGuia) ...[
+          const SizedBox(height: 16),
+          const MascotaConMensaje(mensajeMalaSenal, tamano: 56),
+        ],
         if (alerta.modoSimulacion) ...[
           const SizedBox(height: 32),
           OutlinedButton.icon(
@@ -358,13 +371,19 @@ class _Completada extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = p.sesion!;
     final evaPendiente = p.estadoEva == EstadoEva.pendiente;
+    final guardada = p.estadoEnvio == EstadoEnvio.enviada;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _EstadoEnvio(p),
         const SizedBox(height: 16),
-        Image.asset('assets/mascota/mascota_celebrando.png', height: 110),
-        const SizedBox(height: 12),
+        // Con la EVA pendiente (o la sesión aún subiéndose), la mascota grande
+        // celebrando; ya con resultados y la sesión guardada, la expresión y el
+        // mensaje de su etapa de calibración (Fase M3).
+        if (evaPendiente || !guardada) ...[
+          Image.asset('assets/mascota/mascota_celebrando.png', height: 110),
+          const SizedBox(height: 12),
+        ],
         const Text(
           'Medición completada',
           textAlign: TextAlign.center,
@@ -373,6 +392,21 @@ class _Completada extends StatelessWidget {
         if (evaPendiente) ...[
           const SizedBox(height: 12),
           const _BurbujaMascota('¡Bien hecho! Antes de ver tus resultados, ¿me cuentas cómo te sientes?'),
+        ],
+        if (!evaPendiente && guardada) ...[
+          const SizedBox(height: 16),
+          MascotaConMensaje(
+            mensajeResultado(
+              evaluacion: p.evaluacion,
+              calibracion: p.calibracion,
+              yaHabiaMedidoHoy: p.yaHabiaMedidoHoy,
+            ),
+            tamano: 72,
+          ),
+          if (p.calibracion != null && mostrarProgreso(p.calibracion!)) ...[
+            const SizedBox(height: 14),
+            ProgresoCalibracion(p.calibracion!),
+          ],
         ],
         const SizedBox(height: 20),
         _Eva(p),
@@ -723,8 +757,8 @@ class _NoCompletada extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(Icons.replay_circle_filled_rounded, size: 64, color: AppColors.guia),
-        const SizedBox(height: 12),
+        const MascotaConMensaje(mensajeNoCompletada, tamano: 72),
+        const SizedBox(height: 16),
         const Text(
           'Intentémoslo de nuevo',
           textAlign: TextAlign.center,

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:app_ansiedad/contenido/textos_educativos.dart';
 import 'package:app_ansiedad/medicion/aviso_sesiones.dart';
+import 'package:app_ansiedad/models/calibracion.dart';
 import 'package:app_ansiedad/models/eva_respuesta.dart';
 import 'package:app_ansiedad/models/sesion_detalle.dart';
 import 'package:app_ansiedad/models/sesion_medicion.dart';
@@ -31,7 +32,17 @@ Map<String, dynamic> filaBackend({String spo2 = '97.4'}) => {
 /// Repositorio falso: responde lo que se le indique en cada llamada.
 class RepoFalso implements SesionRepository {
   final List<Object?> respuestas; // SesionResumen, null o una excepción
-  RepoFalso(this.respuestas);
+
+  /// Lo que responde la línea base: un mapa o una excepción (por defecto, vacío).
+  final Object calibraciones;
+  RepoFalso(this.respuestas, {this.calibraciones = const <String, Calibracion>{}});
+
+  @override
+  Future<Map<String, Calibracion>> obtenerCalibraciones(String pacienteId) async {
+    final r = calibraciones;
+    if (r is Exception) throw r;
+    return r as Map<String, Calibracion>;
+  }
 
   @override
   Future<SesionResumen?> obtenerUltimaSesion(String pacienteId) async {
@@ -41,7 +52,7 @@ class RepoFalso implements SesionRepository {
   }
 
   @override
-  Future<String> enviarSesion(SesionMedicion sesion) => throw UnimplementedError();
+  Future<SesionGuardada> enviarSesion(SesionMedicion sesion) => throw UnimplementedError();
 
   @override
   Future<void> enviarEva(String sesionId, EvaRespuesta eva) => throw UnimplementedError();
@@ -103,6 +114,25 @@ void main() {
       await p.cargar();
       expect(p.estado, EstadoInicio.listo);
       expect(p.sinMediciones, isTrue);
+    });
+
+    test('M3: carga la calibración por origen junto con la última sesión', () async {
+      final cal = Calibracion.fromJson({'origen': 'simulacion', 'etapa': 'preliminar', 'dia_calibracion': 5});
+      final p = InicioProvider(pacienteId: 'p', repo: RepoFalso([sesion], calibraciones: {'simulacion': cal}));
+      await p.cargar();
+      expect(p.calibracionDe('simulacion'), same(cal));
+      expect(p.calibracionDe('sensor'), isNull);
+    });
+
+    test('M3: si la línea base falla, Inicio sigue listo y sin error', () async {
+      final p = InicioProvider(
+        pacienteId: 'p',
+        repo: RepoFalso([sesion], calibraciones: RepositoryException('Sin conexión')),
+      );
+      await p.cargar();
+      expect(p.estado, EstadoInicio.listo);
+      expect(p.errorMsg, isNull);
+      expect(p.calibracionDe('simulacion'), isNull);
     });
 
     test('un error NUNCA se muestra como primer uso', () async {

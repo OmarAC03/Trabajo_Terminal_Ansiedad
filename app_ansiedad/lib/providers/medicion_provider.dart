@@ -5,6 +5,7 @@ import '../app_config.dart';
 import '../logger.dart';
 import '../medicion/aviso_sesiones.dart';
 import '../medicion/calculo_sesion.dart';
+import '../models/calibracion.dart';
 import '../models/eva_respuesta.dart';
 import '../models/lectura_cruda.dart';
 import '../models/sesion_medicion.dart';
@@ -39,6 +40,10 @@ class MedicionProvider extends ChangeNotifier {
   /// Se llama al tocar "Comenzar" (en simulación: colocar el dedo).
   final VoidCallback? alComenzar;
 
+  /// El paciente ya había medido hoy antes de esta medición (lo sabe Inicio):
+  /// la mascota no la llama "primera" aunque la base vaya en el día 1.
+  final bool yaHabiaMedidoHoy;
+
   /// Mantener la pantalla encendida durante la captura (wakelock_plus). Se
   /// puede sustituir en las pruebas, donde no hay plataforma.
   final Future<void> Function(bool encender) _pantallaEncendida;
@@ -47,6 +52,7 @@ class MedicionProvider extends ChangeNotifier {
     required Stream<LecturaCruda> fuente,
     required this.origen,
     this.alComenzar,
+    this.yaHabiaMedidoHoy = false,
     SesionRepository? repo,
     Future<void> Function(bool encender)? pantallaEncendida,
   })  : _fuente = fuente,
@@ -76,6 +82,14 @@ class MedicionProvider extends ChangeNotifier {
 
   /// Id que el backend asignó a la sesión (necesario para guardar la EVA).
   String? _sesionId;
+
+  /// Etapa de la sesión y calibración de su origen que devolvió el backend al
+  /// guardarla (Fase M3, vista del paciente: nunca el estado). null mientras
+  /// no se guarda, o si el backend no las pudo calcular.
+  EvaluacionSesion? _evaluacion;
+  EvaluacionSesion? get evaluacion => _evaluacion;
+  Calibracion? _calibracion;
+  Calibracion? get calibracion => _calibracion;
 
   EstadoEva _estadoEva = EstadoEva.pendiente;
   EstadoEva get estadoEva => _estadoEva;
@@ -129,6 +143,8 @@ class MedicionProvider extends ChangeNotifier {
     _invalidosSeguidos = 0;
     _sesion = null;
     _sesionId = null;
+    _evaluacion = null;
+    _calibracion = null;
     _estadoEnvio = null;
     _errorEnvio = null;
     _estadoEva = EstadoEva.pendiente;
@@ -224,9 +240,11 @@ class MedicionProvider extends ChangeNotifier {
     _errorEnvio = null;
     notifyListeners();
     try {
-      final id = await _repo.enviarSesion(s);
-      AppLogger.info('Sesión de medición guardada ($id)', tag: 'medicion');
-      _sesionId = id;
+      final guardada = await _repo.enviarSesion(s);
+      AppLogger.info('Sesión de medición guardada (${guardada.id})', tag: 'medicion');
+      _sesionId = guardada.id;
+      _evaluacion = guardada.evaluacion;
+      _calibracion = guardada.calibracion;
       _estadoEnvio = EstadoEnvio.enviada;
       // Inicio e Historial se recargan solos con la sesión nueva.
       AvisoSesiones.notificarGuardada();

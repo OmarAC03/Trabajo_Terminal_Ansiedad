@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:app_ansiedad/app_config.dart';
+import 'package:app_ansiedad/models/calibracion.dart';
 import 'package:app_ansiedad/models/eva_respuesta.dart';
 import 'package:app_ansiedad/models/lectura_cruda.dart';
 import 'package:app_ansiedad/models/sesion_detalle.dart';
@@ -24,11 +25,12 @@ class RepoFalso implements SesionRepository {
   late final _evas = [...evas];
 
   @override
-  Future<String> enviarSesion(SesionMedicion sesion) async {
+  Future<SesionGuardada> enviarSesion(SesionMedicion sesion) async {
     final r = _sesiones.removeAt(0);
     if (r is Exception) throw r;
-    if (r is Completer<String>) return r.future;
-    return r as String;
+    if (r is Completer<String>) return SesionGuardada(id: await r.future);
+    if (r is SesionGuardada) return r;
+    return SesionGuardada(id: r as String);
   }
 
   @override
@@ -46,6 +48,9 @@ class RepoFalso implements SesionRepository {
 
   @override
   Future<SesionDetalle> obtenerDetalle(String pacienteId, String sesionId) => throw UnimplementedError();
+
+  @override
+  Future<Map<String, Calibracion>> obtenerCalibraciones(String pacienteId) => throw UnimplementedError();
 }
 
 /// Lleva una medición hasta "completada" con lecturas válidas (sin esperar
@@ -193,6 +198,19 @@ void main() {
       expect(p2.estadoEva, EstadoEva.omitida);
       expect(p2.puedeTerminar, isTrue);
       p2.dispose();
+    });
+
+    test('M3: guarda la etapa y la calibración que devuelve el backend al subir la sesión', () async {
+      final guardada = SesionGuardada.fromData({
+        'id': 's1',
+        'evaluacion': {'etapa': 'preliminar', 'motivo_sin_estado': null},
+        'calibracion': {'origen': 'simulacion', 'etapa': 'preliminar', 'dia_calibracion': 4, 'medido_hoy': true},
+      });
+      final p = await medicionCompleta(RepoFalso(sesiones: [guardada]));
+      await esperar();
+      expect(p.estadoEnvio, EstadoEnvio.enviada);
+      expect(p.evaluacion!.etapa, EtapaBase.preliminar);
+      expect(p.calibracion!.diaCalibracion, 4);
     });
 
     test('una vez respondida no se puede responder otra vez (no editable)', () async {

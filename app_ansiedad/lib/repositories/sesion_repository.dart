@@ -2,6 +2,7 @@ import 'dart:convert';
 import '../app_config.dart';
 import '../api_client.dart';
 import '../logger.dart';
+import '../models/calibracion.dart';
 import '../models/eva_respuesta.dart';
 import '../models/sesion_detalle.dart';
 import '../models/sesion_medicion.dart';
@@ -21,8 +22,10 @@ class SesionRepository {
   /// Máximo que acepta el backend en `?limite=` (sin paginación por ahora).
   static const int limiteMaximo = 200;
 
-  /// Sube una sesión completa y devuelve el id que le asignó el backend.
-  Future<String> enviarSesion(SesionMedicion sesion) async {
+  /// Sube una sesión completa. Devuelve el id que le asignó el backend y,
+  /// desde M3, la etapa de la sesión y la calibración de su origen (vista del
+  /// paciente, sin etiqueta del estado; null si el backend no las calculó).
+  Future<SesionGuardada> enviarSesion(SesionMedicion sesion) async {
     final res = await ApiClient.post(
       Uri.parse(AppConfig.urlSesiones),
       headers: {"Content-Type": "application/json"},
@@ -39,7 +42,17 @@ class SesionRepository {
     }
 
     final Map<String, dynamic> body = jsonDecode(res.body ?? '{}');
-    return (body['data']?['id'] ?? '').toString();
+    final data = body['data'];
+    return SesionGuardada.fromData(data is Map ? Map<String, dynamic>.from(data) : const {});
+  }
+
+  /// Calibración de la línea base hoy, por origen ('simulacion' | 'sensor'),
+  /// de `GET /api/linea-base/:id` (Fase M3). Solo la etapa y el "día X de 7".
+  Future<Map<String, Calibracion>> obtenerCalibraciones(String pacienteId) async {
+    final res = await ApiClient.get(Uri.parse(AppConfig.urlLineaBase(pacienteId)));
+    if (!res.exito) throw RepositoryException(res.mensajeUsuario);
+    final Map<String, dynamic> body = jsonDecode(res.body ?? '{}');
+    return Calibracion.deOrigenes(body['origenes']);
   }
 
   /// Sesiones del paciente, de la más reciente a la más antigua (sin serie).

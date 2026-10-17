@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../app_config.dart';
 import 'app_colors.dart';
 
 /// Componentes visuales compartidos (equivalente a `web_portal/src/ui/components.js`).
@@ -361,36 +360,6 @@ class TarjetaMetrica extends StatelessWidget {
             child: Text(valor, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: color)),
           ),
           Text(unidad, style: const TextStyle(fontSize: 11, color: AppColors.textoSecundario)),
-        ],
-      ),
-    );
-  }
-}
-
-/// Badge del semáforo con su fondo suave. Recibe el texto CRUDO de la BD
-/// ('Alta' | 'Moderada' | 'Baja') y muestra la etiqueta visible
-/// (Altos / Elevados / Normal); null → "Sin lecturas".
-class BadgeEstado extends StatelessWidget {
-  final String? estadoDB;
-  const BadgeEstado(this.estadoDB, {super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final sinDato = estadoDB == null;
-    final estado = EstadoAnsiedadInfo.desdeTexto(estadoDB);
-    final color = sinDato ? AppColors.sinLecturas : estado.color;
-    final fondo = sinDato ? AppColors.sinLecturasFondo : estado.colorFondo;
-    final texto = sinDato ? 'Sin lecturas' : estado.textoUI;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: fondo, borderRadius: BorderRadius.circular(999)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-          const SizedBox(width: 6),
-          Text(texto, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
         ],
       ),
     );

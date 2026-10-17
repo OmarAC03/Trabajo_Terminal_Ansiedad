@@ -74,8 +74,6 @@ class TextosEducativos {
   static const sobreLaMedicion =
       'Medimos en reposo unos minutos para obtener un dato confiable de tu estado fisiológico de hoy.';
 
-  static const primerUso = 'Aún no has hecho tu primera medición. Toca el botón para empezar.';
-
   /// Fuente: DESARROLLO_FUNDAMENTADO.md §2.3 (regla de seguridad, textual).
   static const avisoSpo2Bajo =
       'Confirma con un oxímetro y consulta a tu especialista. No se relaciona con la ansiedad.';

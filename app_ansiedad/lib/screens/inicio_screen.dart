@@ -5,18 +5,24 @@ import '../app_config.dart';
 import '../contenido/textos_educativos.dart';
 import '../logger.dart';
 import '../medicion/aviso_sesiones.dart';
+import '../medicion/mensajes_mascota.dart';
+import '../models/calibracion.dart';
+import '../models/sesion_medicion.dart';
 import '../providers/alerta_provider.dart';
 import '../providers/inicio_provider.dart';
 import '../repositories/perfil_repository.dart';
 import '../ui/app_colors.dart';
 import '../ui/fila_indicador.dart';
 import '../ui/formato_fecha.dart';
+import '../ui/progreso_calibracion.dart';
 import '../ui/widgets.dart';
 import 'medicion_screen.dart';
 
 /// Pantalla principal del paciente (Fase M1c). Reemplaza al Monitor en vivo:
 /// muestra la ÚLTIMA sesión guardada (no lecturas en vivo), explica cada
-/// indicador, da consejos fijos y lleva a la medición guiada.
+/// indicador, da consejos fijos y lleva a la medición guiada. Desde M3, la
+/// mascota acompaña la calibración de la línea base ("día X de 7") sin decir
+/// nunca el estado: ni etiqueta, ni banda, ni z (regla de oro).
 ///
 /// Nunca se ve rota: sin mediciones muestra un mensaje de primer uso; si el
 /// GET falla, un aviso con "Reintentar" (nunca como primer uso). El botón, los
@@ -43,15 +49,21 @@ class InicioScreen extends StatelessWidget {
 class _InicioView extends StatelessWidget {
   const _InicioView();
 
-  void _iniciarMedicion(BuildContext context) {
+  void _iniciarMedicion(BuildContext context, {required bool yaHabiaMedidoHoy}) {
     final alerta = context.read<AlertaProvider>();
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => MedicionScreen(alerta: alerta)));
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => MedicionScreen(alerta: alerta, yaHabiaMedidoHoy: yaHabiaMedidoHoy),
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
     final inicio = context.watch<InicioProvider>();
     final alerta = context.watch<AlertaProvider>();
+    // La base es la del origen con el que se va a medir (simulación o sensor).
+    final origen = (alerta.modoSimulacion ? OrigenSesion.simulacion : OrigenSesion.sensor).valor;
+    final calibracion = inicio.calibracionDe(origen);
+    final mensaje = mensajeInicio(sinMediciones: inicio.sinMediciones, calibracion: calibracion);
 
     return Scaffold(
       backgroundColor: AppColors.fondo,
@@ -62,7 +74,7 @@ class _InicioView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Encabezado(inicio: inicio, alerta: alerta),
+              _Encabezado(inicio: inicio, alerta: alerta, avatar: mensaje?.ruta),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
                 child: Column(
@@ -70,7 +82,7 @@ class _InicioView extends StatelessWidget {
                   children: [
                     _BotonMedicion(
                       habilitado: alerta.modoSimulacion,
-                      onTap: () => _iniciarMedicion(context),
+                      onTap: () => _iniciarMedicion(context, yaHabiaMedidoHoy: calibracion?.medidoHoy ?? false),
                     ),
                     if (!alerta.modoSimulacion) ...[
                       const SizedBox(height: 8),
@@ -81,8 +93,12 @@ class _InicioView extends StatelessWidget {
                       ),
                     ],
                     const SizedBox(height: 24),
-                    if (inicio.sinMediciones) ...[
-                      const _PrimerUso(),
+                    if (mensaje != null) ...[
+                      _ConociendoTuRitmo(
+                        mensaje: mensaje,
+                        calibracion: inicio.sinMediciones ? null : calibracion,
+                        primerUso: inicio.sinMediciones,
+                      ),
                       const SizedBox(height: 16),
                     ],
                     _Indicadores(inicio),
@@ -115,7 +131,10 @@ class _InicioView extends StatelessWidget {
 class _Encabezado extends StatefulWidget {
   final InicioProvider inicio;
   final AlertaProvider alerta;
-  const _Encabezado({required this.inicio, required this.alerta});
+
+  /// Expresión de la mascota según su mensaje (M3); null = la de antes.
+  final String? avatar;
+  const _Encabezado({required this.inicio, required this.alerta, this.avatar});
 
   @override
   State<_Encabezado> createState() => _EncabezadoState();
@@ -176,7 +195,8 @@ class _EncabezadoState extends State<_Encabezado> {
   @override
   Widget build(BuildContext context) {
     final ahora = DateTime.now();
-    final mascota = widget.inicio.sinMediciones ? 'mascota_saludando.png' : 'mascota_reposo.png';
+    final mascota = widget.avatar ??
+        'assets/mascota/${widget.inicio.sinMediciones ? 'mascota_saludando.png' : 'mascota_reposo.png'}';
 
     return Container(
       decoration: const BoxDecoration(
@@ -224,7 +244,7 @@ class _EncabezadoState extends State<_Encabezado> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Image.asset('assets/mascota/$mascota', fit: BoxFit.contain),
+                child: Image.asset(mascota, fit: BoxFit.contain),
               ),
             ],
           ),
@@ -339,26 +359,40 @@ class _BotonMedicion extends StatelessWidget {
 
 // --- Primer uso ---
 
-class _PrimerUso extends StatelessWidget {
-  const _PrimerUso();
+/// "Conociendo tu ritmo" (Fase M3): la mascota con el mensaje de su etapa y,
+/// mientras la base no se consolida, los 7 puntos del "día X de 7". En el
+/// primer uso es la bienvenida (reemplaza a la tarjeta de primer uso y
+/// conserva su texto educativo). Celebra el hábito, nunca el valor.
+class _ConociendoTuRitmo extends StatelessWidget {
+  final MensajeMascota mensaje;
+  final Calibracion? calibracion;
+  final bool primerUso;
+  const _ConociendoTuRitmo({required this.mensaje, this.calibracion, this.primerUso = false});
 
   @override
   Widget build(BuildContext context) {
-    return const Tarjeta(
-      color: AppColors.primarioSuave,
-      colorBorde: AppColors.primarioSuave,
+    final c = calibracion;
+    return Tarjeta(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            TextosEducativos.primerUso,
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.texto, height: 1.35),
+          const Text(
+            'Conociendo tu ritmo',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.texto),
           ),
-          SizedBox(height: 6),
-          Text(
-            TextosEducativos.sobreLaMedicion,
-            style: TextStyle(fontSize: 13, color: AppColors.textoAyuda, height: 1.35),
-          ),
+          const SizedBox(height: 12),
+          MascotaConMensaje(mensaje),
+          if (c != null && mostrarProgreso(c)) ...[
+            const SizedBox(height: 14),
+            ProgresoCalibracion(c),
+          ],
+          if (primerUso) ...[
+            const SizedBox(height: 12),
+            const Text(
+              TextosEducativos.sobreLaMedicion,
+              style: TextStyle(fontSize: 13, color: AppColors.textoAyuda, height: 1.35),
+            ),
+          ],
         ],
       ),
     );

@@ -3,10 +3,10 @@ import 'ui/app_colors.dart';
 
 /// Configuración central de la app.
 ///
-/// Antes, la URL del backend y los estados de ansiedad estaban copiados a mano
-/// en varios archivos. Cualquier cambio (ej. mover el backend a otro dominio)
-/// obligaba a buscar y reemplazar en todos lados, con riesgo de olvidar alguno.
-/// Ahora viven en un único lugar.
+/// Antes, la URL del backend estaba copiada a mano en varios archivos.
+/// Cualquier cambio (ej. mover el backend a otro dominio) obligaba a buscar y
+/// reemplazar en todos lados, con riesgo de olvidar alguno. Ahora vive en un
+/// único lugar.
 class AppConfig {
   AppConfig._(); // no instanciable
 
@@ -28,6 +28,7 @@ class AppConfig {
   static String get urlSesiones => '$backendUrl/api/sesiones';
   static String urlSesionesPaciente(String pacienteId) => '$backendUrl/api/sesiones/$pacienteId';
   static String urlEvaSesion(String sesionId) => '$backendUrl/api/sesiones/$sesionId/eva';
+  static String urlLineaBase(String pacienteId) => '$backendUrl/api/linea-base/$pacienteId';
 }
 
 /// Parámetros de la sesión de medición (Fase M1b, DISENO_FLUJO_MEDICION.md §3).
@@ -67,105 +68,6 @@ class ConfigMedicion {
   /// este valor en una sesión con buena señal → aviso de confirmar con un
   /// oxímetro. No es una interpretación de ansiedad.
   static const double spo2UmbralSeguridad = 94;
-}
-
-/// Los tres niveles de ansiedad que maneja el sistema.
-///
-/// Antes eran strings sueltos ("Alta", "Moderada", "Baja") repetidos en Alerta
-/// e Historial, propensos a errores de tipeo y con los colores duplicados en
-/// cada pantalla. Este enum los unifica: un solo lugar define el texto que se
-/// guarda en la base de datos y el color con que se pinta.
-enum EstadoAnsiedad {
-  baja,
-  moderada,
-  alta,
-}
-
-extension EstadoAnsiedadInfo on EstadoAnsiedad {
-  /// El texto EXACTO que viaja al backend y se guarda en Supabase.
-  /// No cambiar sin migrar los datos existentes.
-  String get textoDB {
-    switch (this) {
-      case EstadoAnsiedad.alta:
-        return 'Alta';
-      case EstadoAnsiedad.moderada:
-        return 'Moderada';
-      case EstadoAnsiedad.baja:
-        return 'Baja';
-    }
-  }
-
-  /// El texto que VE el usuario (ver MARCO_ALCANCE_Y_LENGUAJE.md, sección 2).
-  /// El sistema reporta indicadores fisiológicos, no un diagnóstico de
-  /// ansiedad; por eso la etiqueta visible difiere de [textoDB].
-  String get textoUI {
-    switch (this) {
-      case EstadoAnsiedad.alta:
-        return 'Altos';
-      case EstadoAnsiedad.moderada:
-        return 'Elevados';
-      case EstadoAnsiedad.baja:
-        return 'Normal';
-    }
-  }
-
-  /// Colores del semáforo de GUIA_ESTILO_APP.md (los mismos del portal).
-  Color get color {
-    switch (this) {
-      case EstadoAnsiedad.alta:
-        return AppColors.altos;
-      case EstadoAnsiedad.moderada:
-        return AppColors.elevados;
-      case EstadoAnsiedad.baja:
-        return AppColors.normal;
-    }
-  }
-
-  /// Fondo suave que acompaña a [color] en badges y tarjetas.
-  Color get colorFondo {
-    switch (this) {
-      case EstadoAnsiedad.alta:
-        return AppColors.altosFondo;
-      case EstadoAnsiedad.moderada:
-        return AppColors.elevadosFondo;
-      case EstadoAnsiedad.baja:
-        return AppColors.normalFondo;
-    }
-  }
-
-  /// Score numérico representativo del estado (usado al enviar lecturas).
-  double get scoreRepresentativo {
-    switch (this) {
-      case EstadoAnsiedad.alta:
-        return 8.5;
-      case EstadoAnsiedad.moderada:
-        return 6.0;
-      case EstadoAnsiedad.baja:
-        return 4.0;
-    }
-  }
-
-  /// Convierte el texto que viene de la base de datos al enum.
-  /// Si el valor no coincide con ninguno conocido, asume 'baja' como default
-  /// seguro (en vez de reventar).
-  static EstadoAnsiedad desdeTexto(String? texto) {
-    switch (texto) {
-      case 'Alta':
-        return EstadoAnsiedad.alta;
-      case 'Moderada':
-        return EstadoAnsiedad.moderada;
-      case 'Baja':
-      default:
-        return EstadoAnsiedad.baja;
-    }
-  }
-
-  /// Color a partir de un texto crudo de la BD, sin tener que instanciar el
-  /// enum manualmente. Atajo cómodo para las pantallas.
-  static Color colorDesdeTexto(String? texto) => desdeTexto(texto).color;
-
-  /// Etiqueta visible a partir de un texto crudo de la BD.
-  static String textoUIDesdeTexto(String? texto) => desdeTexto(texto).textoUI;
 }
 
 /// Avisos de alcance mostrados en las pantallas con datos del paciente
