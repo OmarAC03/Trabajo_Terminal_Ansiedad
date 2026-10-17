@@ -6,8 +6,9 @@ import {
 } from 'lucide-react';
 import { auth } from './firebase';
 import { PageHeader, Card, Button, Badge, Avatar, Field, Alert, Disclaimer } from './ui/components';
+import { API_BASE } from './config';
 
-const USUARIOS_URL = 'https://tt-ansiedad-backend.onrender.com/api/usuarios';
+const USUARIOS_URL = `${API_BASE}/api/usuarios`;
 const MIN_PASSWORD = 6; // mínimo que exige Firebase Auth
 
 // Traduce los códigos de error de Firebase al cambiar la contraseña.

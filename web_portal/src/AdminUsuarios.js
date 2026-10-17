@@ -7,8 +7,9 @@ import { auth } from './firebase';
 import { PageHeader, Card, KpiCard, Button, Badge, Avatar, Alert, Disclaimer } from './ui/components';
 import { plural } from './PacientesComun';
 import EditarUsuario from './EditarUsuario';
+import { API_BASE } from './config';
 
-const ADMIN_USUARIOS_URL = 'https://tt-ansiedad-backend.onrender.com/api/admin/usuarios';
+const ADMIN_USUARIOS_URL = `${API_BASE}/api/admin/usuarios`;
 
 // Sección "Usuarios" del admin (Fase C, paso 1): todas las cuentas de
 // GET /api/admin/usuarios con búsqueda y filtros por rol y estado, en el

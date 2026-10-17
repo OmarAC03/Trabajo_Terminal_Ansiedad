@@ -4,8 +4,9 @@ import { io } from 'socket.io-client';
 import { CircleAlert, MessageCircle, Send } from 'lucide-react';
 import { auth } from './firebase';
 import { Alert, Button, Card } from './ui/components';
+import { API_BASE } from './config';
 
-const BACKEND_URL = "https://tt-ansiedad-backend.onrender.com";
+const BACKEND_URL = API_BASE;
 
 // Agrega mensajes sin duplicar (el historial y el socket pueden traer el
 // mismo mensaje si llega justo mientras se carga) y en orden cronológico.

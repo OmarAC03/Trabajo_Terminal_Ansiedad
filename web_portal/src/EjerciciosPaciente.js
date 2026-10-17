@@ -4,8 +4,9 @@ import { CircleAlert, ClipboardList, Eye, EyeOff, Info, Send } from 'lucide-reac
 import { auth } from './firebase';
 import { TECNICAS, tituloTecnica } from './tecnicas';
 import { Alert, Badge, Button, Card, Disclaimer, Select, Textarea } from './ui/components';
+import { API_BASE } from './config';
 
-const EJERCICIOS_URL = "https://tt-ansiedad-backend.onrender.com/api/ejercicios";
+const EJERCICIOS_URL = `${API_BASE}/api/ejercicios`;
 
 // Valor del <select> para "escribir uno propio" (no es un slug de técnica).
 const PERSONALIZADO = '__personalizado__';

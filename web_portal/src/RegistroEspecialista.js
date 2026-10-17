@@ -5,8 +5,9 @@ import { CircleAlert, UserPlus } from 'lucide-react';
 import { auth } from './firebase';
 import AuthLayout from './ui/AuthLayout';
 import { Alert, Button, Field } from './ui/components';
+import { API_BASE } from './config';
 
-const API_URL = "https://tt-ansiedad-backend.onrender.com/api/especialistas";
+const API_URL = `${API_BASE}/api/especialistas`;
 
 const ERRORES_FIREBASE = {
   'auth/email-already-in-use': 'Ya existe una cuenta con ese correo.',

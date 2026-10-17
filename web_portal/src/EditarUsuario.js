@@ -3,8 +3,9 @@ import axios from 'axios';
 import { Pencil, Save, X, ArrowLeft, Check, CircleAlert, TriangleAlert } from 'lucide-react';
 import { auth } from './firebase';
 import { Card, Button, Field, Select, Alert } from './ui/components';
+import { API_BASE } from './config';
 
-const ADMIN_USUARIOS_URL = 'https://tt-ansiedad-backend.onrender.com/api/admin/usuarios';
+const ADMIN_USUARIOS_URL = `${API_BASE}/api/admin/usuarios`;
 
 // Mismos límites que valida el backend (validarEdicionAdmin): las columnas de
 // `usuarios` son varchar(100). Aquí solo se avisa antes de enviar; la regla

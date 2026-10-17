@@ -5,7 +5,9 @@
 // enteros y los valores dentro de `serie` (jsonb) llegan como número. Aquí se
 // convierte todo con Number(...), como ya se hace con las lecturas.
 
-export const SESIONES_URL = 'https://tt-ansiedad-backend.onrender.com/api/sesiones';
+import { API_BASE } from './config';
+
+export const SESIONES_URL = `${API_BASE}/api/sesiones`;
 
 // Malla de la serie que arma la app (ConfigMedicion.intervaloSerieSeg).
 export const PASO_SERIE_SEG = 5;

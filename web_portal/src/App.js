@@ -12,9 +12,10 @@ import PerfilEspecialista from './PerfilEspecialista';
 import Dashboard from './Dashboard';
 import AdminApp from './AdminApp';
 import Layout from './ui/Layout';
+import { API_BASE } from './config';
 
-const API_URL = "https://tt-ansiedad-backend.onrender.com/api/pacientes";
-const USUARIOS_URL = "https://tt-ansiedad-backend.onrender.com/api/usuarios";
+const API_URL = `${API_BASE}/api/pacientes`;
+const USUARIOS_URL = `${API_BASE}/api/usuarios`;
 
 function App() {
   // undefined = todavía no sabemos si hay sesión, null = no hay sesión.
