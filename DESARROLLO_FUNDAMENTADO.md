@@ -69,17 +69,34 @@ Ahora: el estado se basa en **cuánto se desvía la HRV actual de la línea base
 paciente**, con la FC como apoyo. El SpO2 queda fuera (solo seguridad).
 
 ### 2.2 Cómo se calcula (lógica, no diagnóstico)
-1. Transformar RMSSD con logaritmo natural (Ln RMSSD) — su distribución es asimétrica.
-2. Comparar el Ln RMSSD de la sesión contra la **media móvil de 7 días** de la línea base del
-   paciente y su banda individual (p. ej. media ± 0,5–1 desviación estándar intraindividual).
-3. Clasificar el **indicador fisiológico** (lenguaje de "indicadores", no de diagnóstico):
-   - **Dentro de su rango habitual** (verde / "Normal")
-   - **Por debajo de su rango habitual** (naranja / "Elevados" = más activación de lo usual)
-   - **Muy por debajo de su rango habitual** (rojo / "Altos")
-   - La FC fuera de su rango habitual refuerza la señal.
-4. **Mientras no haya línea base** (primeros 7–14 días): mostrar el estado provisional con rangos
-   generales de referencia + aviso visible **"Calibrando tu perfil (día X de 14)"**. (Decisión A,
-   opción a.)
+Implementado en la Fase M3 (`backend/linea_base.js`, versión de parámetros `m3-v1`).
+
+1. Transformar RMSSD con logaritmo natural (Ln RMSSD) — su distribución es asimétrica. Las
+   sesiones de un mismo **día local** (hora de México) se promedian: el día cuenta una vez.
+2. Comparar el Ln RMSSD de la sesión contra la **media móvil de los últimos 7 días con medición
+   anteriores al día de la sesión** (el propio día no entra), dentro de los 30 días naturales
+   previos (lo más viejo vence) y **solo del mismo origen** (simulación y sensor tienen bases
+   separadas). `z = (Ln RMSSD − media) / DE intraindividual`, con un piso de la DE de 0,10 Ln
+   (**provisional, sin fuente**) para que pocos días casi iguales no marquen todo como cambio.
+3. Clasificar el **indicador fisiológico** (lenguaje de "indicadores", no de diagnóstico), con
+   una banda `k1` que va de **1,5 DE con 3 días a 1,0 DE con 7** (en línea recta) y `k2 = k1 + 1`:
+   - **Dentro de su rango habitual o por encima** (verde / "Normal"): `z ≥ −k1`. Una HRV más alta
+     de lo usual también es Normal (más variabilidad = mejor regulación, §1.1).
+   - **Por debajo de su rango habitual** (naranja / "Elevados" = más activación de lo usual):
+     `−k2 ≤ z < −k1`.
+   - **Muy por debajo de su rango habitual** (rojo / "Altos"): `z < −k2`.
+   - La FC tiene su propia base (sin logaritmo, piso de 3 lpm, provisional) y **solo acompaña**:
+     se marca si queda por encima de lo habitual, pero nunca cambia el estado.
+4. **Mientras no haya línea base** (menos de 3 días con medición): **no hay estado**. No se usan
+   rangos generales de referencia: contradirían §2.1 (la variabilidad entre personas es justo lo
+   que hace fallar los umbrales fijos). La base es **preliminar de 3 a 6 días** (banda más
+   tolerante) y **consolidada con 7**; el primer estado llega al día 4. *(Sustituye a la
+   Decisión A, opción a: estado provisional con rangos generales y "día X de 14".)*
+5. **Calidad mínima:** una sesión con menos de **60 %** de segundos con señal válida (los 180 s
+   limpios en ≤ 300 s; **provisional**) se guarda, pero no recibe estado ni entra a la base.
+6. **Quién ve qué:** el **especialista** ve la etiqueta (Normal / Elevados / Altos), la z y la
+   banda en el portal. El **paciente nunca ve la etiqueta**: la app solo le muestra el mensaje
+   de la mascota según la etapa de calibración (acompañamiento, no veredicto).
 
 ### 2.3 Reglas de seguridad (independientes de la fórmula)
 - SpO2 &lt;94% sostenido con buena señal → aviso "Confirma con un oxímetro y consulta a tu
@@ -101,10 +118,13 @@ Toda medición sigue este protocolo (de la evidencia sobre HRV confiable):
 | Duración de registro | 3–5 min (mínimo 2 min de señal limpia válida) | Task Force 1996; Munoz et al. 2015 |
 | Momento | Misma hora (p. ej. matutino) | Comparabilidad día a día |
 | Antes de medir | Sin cafeína ni ejercicio 1–2 h antes | Confusores conocidos de la HRV |
-| Calidad de señal | Garantizada en origen (guía al paciente) | No se entrega medición dudosa (ver doc. de flujo) |
+| Calidad de señal | Garantizada en origen (guía al paciente); para la línea base, ≥ 60 % de segundos válidos (provisional) | No se entrega medición dudosa (ver doc. de flujo); la que queda bajo el umbral no se compara (§2.2) |
 
-**Línea base individual:** 7–14 días con ≥5–7 mediciones válidas, a la misma hora y postura.
-Se actualiza de forma continua (media móvil de 7 días).
+**Línea base individual:** preliminar desde **3 días distintos** con medición válida y
+**consolidada con 7**, idealmente a la misma hora y postura. Se actualiza de forma continua
+(media móvil de los últimos 7 días con medición, dentro de 30 días; ver §2.2). Los días con
+estado "Altos" **sí entran a la base**: la media es adaptativa y el portal muestra cómo cambia
+la banda de una sesión a otra.
 
 ---
 
