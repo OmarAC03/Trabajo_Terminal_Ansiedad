@@ -1,7 +1,8 @@
-import { RefreshCw, Info, Users, CircleAlert, ChevronRight } from 'lucide-react';
+import { RefreshCw, Info, Users, CircleAlert, ChevronRight, ArrowUp } from 'lucide-react';
 import { Card, Button, Badge, Avatar, Alert, Disclaimer, tonoIdentidad } from './ui/components';
 import CodigoVinculacion from './CodigoVinculacion';
 import { grupoRecencia } from './actividad';
+import { etiquetaEvaluacion, evaluacionUltimaSesion, textoEtapa } from './semaforo';
 
 // Piezas compartidas por el Dashboard y la sección Pacientes (Fase A). Solo
 // presentan lo que App.js ya trae de GET /api/pacientes.
@@ -35,6 +36,31 @@ export function AccionesEncabezado({ perfil, onActualizar }) {
   );
 }
 
+// Estado de una sesión contra la línea base del paciente (Fase M3, solo
+// especialista): Normal / Elevados / Altos con su color, o en gris el motivo
+// por el que no hay estado (Calibrando / Calidad insuficiente). `conEtapa`
+// pone debajo la etapa de la base; "FC ↑" si la FC quedó por encima de lo
+// habitual (solo acompaña, no cambia el estado).
+export function BadgeEstado({ evaluacion, conEtapa = false }) {
+  const e = etiquetaEvaluacion(evaluacion);
+  return (
+    <div>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <Badge tone={e.tono} dot={e.conEstado}>{e.texto}</Badge>
+        {evaluacion?.fc_por_encima && (
+          <span className="ui-muted" title="FC por encima de su rango habitual (solo acompaña, no cambia el estado)"
+            style={{ display: 'inline-flex', alignItems: 'center', fontSize: 'var(--text-xs)', fontWeight: 600 }}>
+            FC<ArrowUp size={12} />
+          </span>
+        )}
+      </span>
+      {conEtapa && evaluacion?.etapa && e.texto !== textoEtapa(evaluacion.etapa) && (
+        <div className="ui-when-abs">{textoEtapa(evaluacion.etapa)}</div>
+      )}
+    </div>
+  );
+}
+
 // Aviso de 403 (si lo hay) + disclaimer de alcance (sección 3 del marco).
 export function AvisosPacientes({ errorAcceso }) {
   return (
@@ -49,9 +75,9 @@ export function AvisosPacientes({ errorAcceso }) {
   );
 }
 
-// Tabla de pacientes con su actividad de medición: cuándo fue su última
-// sesión y cuántas hizo en 7 días. Sin estado (el semáforo de umbrales fijos
-// se retiró; la columna vuelve con M3 y la línea base) y sin BPM/SpO2/HRV: un
+// Tabla de pacientes con su actividad de medición (cuándo fue su última
+// sesión y cuántas hizo en 7 días) y, desde M3, el estado de esa última
+// sesión contra la línea base de CADA paciente. Sin BPM/SpO2/HRV: un
 // valor absoluto de varios pacientes en una lista invita a compararlos entre
 // sí, y eso es justo lo que DESARROLLO_FUNDAMENTADO.md §2 descarta. Los
 // valores siguen en el detalle de cada paciente.
@@ -72,6 +98,7 @@ export function TablaPacientes({ pacientes, onSeleccionar, subtitle, vacio, filt
               <tr>
                 <th>Paciente</th>
                 <th>Última sesión</th>
+                <th>Estado (última sesión)</th>
                 <th>Sesiones (7 días)</th>
                 <th><span className="sr-only">Acción</span></th>
               </tr>
@@ -104,6 +131,11 @@ export function TablaPacientes({ pacientes, onSeleccionar, subtitle, vacio, filt
                         Sin sesiones
                       </span>
                     )}
+                  </td>
+                  <td>
+                    {p.ultima_sesion
+                      ? <BadgeEstado evaluacion={evaluacionUltimaSesion(p)} conEtapa />
+                      : <span className="ui-muted">—</span>}
                   </td>
                   <td>
                     {Number(p.sesiones_7d) > 0 ? (

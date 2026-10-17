@@ -8,6 +8,7 @@
 import { API_BASE } from './config';
 
 export const SESIONES_URL = `${API_BASE}/api/sesiones`;
+export const LINEA_BASE_URL = `${API_BASE}/api/linea-base`;
 
 // Malla de la serie que arma la app (ConfigMedicion.intervaloSerieSeg).
 export const PASO_SERIE_SEG = 5;
@@ -56,17 +57,63 @@ export function resumenSesiones(sesiones, { dias = 30, ahora = Date.now() } = {}
   };
 }
 
-/** Datos de la gráfica "HRV y FC por sesión": últimos `dias` días, de la más antigua a la más reciente. */
-export function datosTendencia(sesiones, { dias = 30, ahora = Date.now() } = {}) {
+/**
+ * Datos de la gráfica "HRV y FC por sesión": últimos `dias` días, de la más
+ * antigua a la más reciente; solo del `origen` dado, si se da (cada origen
+ * tiene su propia línea base, Fase M3).
+ *
+ * Cada punto lleva la banda de SU sesión (el rango habitual contra los días
+ * anteriores a ella, `evaluacion.banda.rango_hrv_ms`): así la franja muestra
+ * cómo se ajusta la base de una sesión a otra. `banda` es [min, max] para un
+ * Area de rango de Recharts; null mientras se calibra (la franja se corta).
+ */
+export function datosTendencia(sesiones, { dias = 30, ahora = Date.now(), origen } = {}) {
   const corte = ahora - dias * 24 * 60 * 60 * 1000;
   return sesiones
     .filter((s) => new Date(s.fecha_inicio).getTime() >= corte)
+    .filter((s) => origen == null || s.origen === origen)
     .sort((a, b) => new Date(a.fecha_inicio) - new Date(b.fecha_inicio))
-    .map((s) => ({
-      x: fechaCorta(s.fecha_inicio),
-      hrv: s.hrv_rmssd,
-      bpm: s.bpm_promedio,
-    }));
+    .map((s) => {
+      const ev = s.evaluacion || null;
+      const rango = ev?.banda?.rango_hrv_ms;
+      return {
+        x: fechaCorta(s.fecha_inicio),
+        fecha: s.fecha_inicio,
+        hrv: s.hrv_rmssd,
+        bpm: s.bpm_promedio,
+        banda: rango ? [rango.min, rango.max] : null,
+        estado: ev?.estado ?? null,
+        etapa: ev?.etapa ?? null,
+        motivo_sin_estado: ev?.motivo_sin_estado ?? null,
+      };
+    });
+}
+
+const ORDEN_ORIGENES = ['simulacion', 'sensor'];
+
+/** Orígenes con al menos una sesión, en orden fijo (simulación, sensor). */
+export const origenesPresentes = (sesiones) =>
+  ORDEN_ORIGENES.filter((o) => sesiones.some((s) => s.origen === o));
+
+/** Origen de la sesión más reciente (el que se muestra por defecto); null sin sesiones. */
+export function origenMasReciente(sesiones) {
+  if (sesiones.length === 0) return null;
+  return sesiones.reduce((a, b) => (new Date(b.fecha_inicio) > new Date(a.fecha_inicio) ? b : a)).origen;
+}
+
+/** 'simulacion' → "Simulación", 'sensor' → "Sensor". */
+export const textoOrigen = (origen) => (origen === 'simulacion' ? 'Simulación' : 'Sensor');
+
+/**
+ * Dominio del eje Y de una gráfica que debe mostrar los datos Y la franja del
+ * rango habitual completa (si no, Recharts la recorta): [mín − margen,
+ * máx + margen], redondeado a enteros. Ignora null (huecos de la serie).
+ */
+export function dominioConBanda(valores, banda, margen = 5) {
+  const todos = valores.filter((v) => v != null && Number.isFinite(v));
+  if (banda) todos.push(banda.min, banda.max);
+  if (todos.length === 0) return [0, 'auto'];
+  return [Math.max(0, Math.floor(Math.min(...todos) - margen)), Math.ceil(Math.max(...todos) + margen)];
 }
 
 /**

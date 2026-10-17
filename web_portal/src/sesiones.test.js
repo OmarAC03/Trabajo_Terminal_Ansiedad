@@ -2,6 +2,7 @@ import {
   normalizarSesion, resumenSesiones, datosTendencia, serieConCortes, huecosDeSerie,
   porcentajeCalidad, minSeg, duracionTexto, fechaHora, ticksEje,
   evaSobre10, textoContextoEva, demoraEva,
+  origenesPresentes, origenMasReciente, textoOrigen, dominioConBanda,
 } from './sesiones';
 
 // Fila como la manda el backend al especialista: numeric como texto.
@@ -155,5 +156,54 @@ describe('EVA (Fase M2)', () => {
     // Desfase de relojes: la respuesta "antes" del fin cuenta como 0.
     expect(demoraEva(s('2026-10-13T15:32:00Z'))).toBe('Respondida al terminar');
     expect(demoraEva(s(null))).toBeNull();
+  });
+});
+
+// Fase M3: la evaluación contra la línea base que manda el backend al
+// especialista (ya es número: se calcula en JS, no sale de un numeric).
+describe('línea base en la tendencia (M3)', () => {
+  const ahora = new Date('2026-10-16T18:00:00Z').getTime();
+  const banda = (min, max) => ({ n: 5, rango_hrv_ms: { min, max } });
+  const sesiones = [
+    fila('sim1', '2026-10-10T14:00:00Z', {
+      evaluacion: { estado: null, etapa: 'calibrando', motivo_sin_estado: 'calibrando', banda: null },
+    }),
+    fila('sen1', '2026-10-12T14:00:00Z', {
+      origen: 'sensor', hrv_rmssd: '61',
+      evaluacion: { estado: null, etapa: 'calibrando', motivo_sin_estado: 'calibrando', banda: null },
+    }),
+    fila('sim2', '2026-10-14T14:00:00Z', {
+      hrv_rmssd: '33.5',
+      evaluacion: { estado: 'altos', etapa: 'consolidada', motivo_sin_estado: null, banda: banda(41.8, 51) },
+    }),
+    // Sesión sin evaluación (backend sin el paso 2): no rompe la gráfica.
+    fila('vieja', '2026-10-15T14:00:00Z'),
+  ].map(normalizarSesion);
+
+  test('cada punto lleva su banda, estado y etapa; null mientras se calibra', () => {
+    const datos = datosTendencia(sesiones, { ahora, origen: 'simulacion' });
+    expect(datos.map((d) => d.hrv)).toEqual([42.46, 33.5, 42.46]);
+    expect(datos[0]).toMatchObject({ banda: null, estado: null, etapa: 'calibrando', motivo_sin_estado: 'calibrando' });
+    expect(datos[1]).toMatchObject({ banda: [41.8, 51], estado: 'altos', etapa: 'consolidada' });
+    expect(datos[2]).toMatchObject({ banda: null, estado: null, etapa: null });
+  });
+
+  test('filtra por origen; sin origen trae todas', () => {
+    expect(datosTendencia(sesiones, { ahora, origen: 'sensor' }).map((d) => d.hrv)).toEqual([61]);
+    expect(datosTendencia(sesiones, { ahora })).toHaveLength(4);
+  });
+
+  test('orígenes presentes y el de la sesión más reciente', () => {
+    expect(origenesPresentes(sesiones)).toEqual(['simulacion', 'sensor']);
+    expect(origenesPresentes(sesiones.filter((s) => s.origen === 'sensor'))).toEqual(['sensor']);
+    expect(origenMasReciente(sesiones)).toBe('simulacion');
+    expect(origenMasReciente([])).toBeNull();
+    expect(textoOrigen('sensor')).toBe('Sensor');
+  });
+
+  test('dominioConBanda: el eje cubre los datos y la franja completa', () => {
+    expect(dominioConBanda([40, 45, null], { min: 41.8, max: 51 })).toEqual([35, 56]);
+    expect(dominioConBanda([40, 45], null)).toEqual([35, 50]);
+    expect(dominioConBanda([2], null)).toEqual([0, 7]);
   });
 });

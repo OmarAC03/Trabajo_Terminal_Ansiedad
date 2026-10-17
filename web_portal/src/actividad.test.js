@@ -1,6 +1,6 @@
 import {
   resumenActividad, ordenarPorActividad, actividadReciente, grupoRecencia, conteoRecencia,
-  coincideFiltroActividad,
+  coincideFiltroActividad, conteoEstado,
 } from './actividad';
 
 // "Ahora" fijo en hora local: 14 oct 2026, 12:00.
@@ -73,5 +73,23 @@ describe('filtro de actividad', () => {
     expect(nombres('midieron')).toEqual(['Beatriz', 'Ana']);
     expect(nombres('sin-medir')).toEqual(['Carlos', 'Viejo', 'Diana']);
     expect(nombres(null)).toHaveLength(5);
+  });
+});
+
+describe('estado de la última sesión (M3)', () => {
+  test('cuenta por estado; sin estado junta calibrando, calidad baja y nunca midió', () => {
+    const conEstado = [
+      { id: 'a', ultima_sesion: haceHoras(1), ultima_sesion_estado: 'altos' },
+      { id: 'b', ultima_sesion: haceHoras(2), ultima_sesion_estado: 'normal' },
+      { id: 'c', ultima_sesion: haceHoras(3), ultima_sesion_estado: 'normal' },
+      { id: 'd', ultima_sesion: haceHoras(4), ultima_sesion_estado: null, ultima_sesion_motivo_sin_estado: 'calibrando' },
+      { id: 'e', ultima_sesion: haceHoras(5), ultima_sesion_estado: null, ultima_sesion_motivo_sin_estado: 'calidad_baja' },
+      { id: 'f', ultima_sesion: null, ultima_sesion_estado: null },
+      // Fila sin los campos de M3 (backend sin el paso 2): cuenta como sin estado.
+      { id: 'g', ultima_sesion: haceHoras(6) },
+    ];
+    expect(conteoEstado(conEstado).map((g) => [g.clave, g.valor])).toEqual([
+      ['normal', 2], ['elevados', 0], ['altos', 1], ['sin-datos', 4],
+    ]);
   });
 });

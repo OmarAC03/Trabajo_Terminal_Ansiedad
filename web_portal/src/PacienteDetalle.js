@@ -1,6 +1,7 @@
 import { ArrowLeft, Info, Mail, RefreshCw, CircleAlert } from 'lucide-react';
 import { Card, Button, Avatar, Alert, Disclaimer, tonoIdentidad } from './ui/components';
-import { haceTiempo } from './PacientesComun';
+import { haceTiempo, BadgeEstado } from './PacientesComun';
+import { evaluacionUltimaSesion } from './semaforo';
 import ChatPaciente from './ChatPaciente';
 import EjerciciosPaciente from './EjerciciosPaciente';
 import SesionesPaciente from './SesionesPaciente';
@@ -25,10 +26,11 @@ function PacienteDetalle({ paciente, onVolver, recarga, onActualizar, errorAcces
               <h1 className="ui-page-title" style={{ fontSize: 'var(--text-xl)' }}>{paciente.nombre}</h1>
               <div className="ui-detail-meta">
                 <span className="ui-detail-email"><Mail size={14} /> {paciente.email}</span>
-                {/* Actividad, sin el badge del semáforo viejo (vuelve con M3 y la línea base). */}
+                {/* Actividad + estado de la última sesión contra su línea base (M3). */}
                 <span className="ui-muted">
                   {paciente.ultima_sesion ? `Última sesión ${haceTiempo(paciente.ultima_sesion)}` : 'Aún sin sesiones de medición'}
                 </span>
+                {paciente.ultima_sesion && <BadgeEstado evaluacion={evaluacionUltimaSesion(paciente)} />}
               </div>
             </div>
           </div>

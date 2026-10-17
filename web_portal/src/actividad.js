@@ -77,3 +77,23 @@ export function coincideFiltroActividad(paciente, filtro) {
   if (filtro === 'sin-medir') return sesiones7d(paciente) === 0;
   return true;
 }
+
+// --- Estado de la última sesión (Fase M3) ---
+// Contra la línea base de CADA paciente (campos `ultima_sesion_estado` de
+// GET /api/pacientes). Solo cuenta: no reordena la lista por gravedad (el
+// Dashboard sigue ordenado por actividad, decisión de M3 paso 4).
+// "Sin estado" junta a quien se calibra, a quien tuvo calidad insuficiente y
+// a quien nunca midió.
+export const GRUPOS_ESTADO = [
+  { clave: 'normal', texto: 'Normal' },
+  { clave: 'elevados', texto: 'Elevados' },
+  { clave: 'altos', texto: 'Altos' },
+  { clave: 'sin-datos', texto: 'Sin estado' },
+];
+
+const grupoEstado = (p) =>
+  (['normal', 'elevados', 'altos'].includes(p.ultima_sesion_estado) ? p.ultima_sesion_estado : 'sin-datos');
+
+/** Cuántos pacientes hay en cada estado según su última sesión. */
+export const conteoEstado = (pacientes) =>
+  GRUPOS_ESTADO.map((g) => ({ ...g, valor: pacientes.filter((p) => grupoEstado(p) === g.clave).length }));

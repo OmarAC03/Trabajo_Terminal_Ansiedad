@@ -1,23 +1,27 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { ArrowLeft, BadgeCheck, Timer, Heart, Droplet, ShieldAlert, CircleAlert, Activity, Info, MessageSquare } from 'lucide-react';
+import {
+  ArrowLeft, BadgeCheck, Timer, Heart, Droplet, ShieldAlert, CircleAlert, Activity, Info, MessageSquare, Target,
+} from 'lucide-react';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceArea,
 } from 'recharts';
 import { auth } from './firebase';
 import { Card, KpiCard, Button, Badge, Alert, Disclaimer } from './ui/components';
+import { BadgeEstado } from './PacientesComun';
 import {
-  SESIONES_URL, normalizarSesion, serieConCortes, huecosDeSerie, ticksEje,
+  SESIONES_URL, normalizarSesion, serieConCortes, huecosDeSerie, ticksEje, dominioConBanda,
   porcentajeCalidad, duracionTexto, fechaHora, minSeg,
   evaSobre10, textoContextoEva, demoraEva,
 } from './sesiones';
+import { textoEtapa } from './semaforo';
 
 // Regla de seguridad de DESARROLLO_FUNDAMENTADO.md §2.3 (la misma que la app).
 const SPO2_UMBRAL_SEGURIDAD = 94;
 
 // Un color por métrica, de la paleta por tipo de dato de tokens.css (FC =
 // --color-primary, HRV = --color-cyan, SpO2 = --color-sky). Nunca verde/ámbar/
-// rojo: son del semáforo y aquí no se clasifica nada.
+// rojo en las gráficas: son del estado, que va solo en su tarjeta (M3).
 const COLORES = { bpm: '#2563eb', hrv: '#0891b2', spo2: '#0284c7' };
 const EJE = { fontSize: 11, fill: '#94a3b8' };
 
@@ -86,6 +90,8 @@ function Contenido({ sesion: s }) {
   const huecos = huecosDeSerie(serie);
   const datos = serieConCortes(serie);
   const ultimoT = serie.length ? serie[serie.length - 1].t : 0;
+  const rangoHrv = s.evaluacion?.banda?.rango_hrv_ms || null;
+  const calidadBaja = s.evaluacion?.motivo_sin_estado === 'calidad_baja';
 
   return (
     <>
@@ -96,14 +102,17 @@ function Contenido({ sesion: s }) {
         actions={s.origen === 'simulacion' ? <Badge tone="neutral">Simulación</Badge> : <Badge tone="neutral">Sensor</Badge>}
       >
         {/* Sello de calidad: tono neutro, nunca alarma (DISENO_FLUJO_MEDICION.md §3).
-            Toda sesión guardada cumplió el mínimo de señal válida; no hay umbral
-            de "calidad baja" porque no tenemos fundamento para fijarlo. */}
+            Toda sesión guardada cumplió el mínimo de señal válida. Desde M3, la
+            que queda bajo el umbral de calidad de la línea base (0.60,
+            provisional) se guarda pero no se compara ni entra a la base. */}
         <Alert tone="neutral" icon={BadgeCheck}>
-          <strong>Medición válida</strong>
+          <strong>{calidadBaja ? 'Medición guardada, sin comparar' : 'Medición válida'}</strong>
           {' · '}Calidad de señal {porcentajeCalidad(s.indice_calidad)} %
           {' · '}{s.duracion_valida_seg} s válidos de {s.duracion_total_seg} s
         </Alert>
       </Card>
+
+      {s.evaluacion && <ComparacionLineaBase sesion={s} evaluacion={s.evaluacion} />}
 
       <div className="ui-grid ui-grid-kpi">
         <KpiCard
@@ -143,12 +152,22 @@ function Contenido({ sesion: s }) {
       ) : (
         <>
           <GraficaSerie titulo="Frecuencia cardiaca (lpm)" campo="bpm" color={COLORES.bpm} datos={datos} huecos={huecos} ultimoT={ultimoT} />
-          <GraficaSerie titulo="HRV, RMSSD de ventana móvil de 30 s (ms)" campo="hrv" color={COLORES.hrv} datos={datos} huecos={huecos} ultimoT={ultimoT} />
+          <GraficaSerie
+            titulo="HRV, RMSSD de ventana móvil de 30 s (ms)"
+            campo="hrv"
+            color={COLORES.hrv}
+            datos={datos}
+            huecos={huecos}
+            ultimoT={ultimoT}
+            banda={rangoHrv}
+            dominioY={dominioConBanda(datos.map((p) => p.hrv), rangoHrv)}
+          />
           <GraficaSerie titulo="SpO2 (%)" campo="spo2" color={COLORES.spo2} datos={datos} huecos={huecos} ultimoT={ultimoT} dominioY={['dataMin - 2', 100]} />
           <p className="ui-muted" style={{ fontSize: 'var(--text-sm)', margin: 0 }}>
             {huecos.length === 0
               ? 'Señal válida durante toda la sesión.'
               : `Franjas grises: tramos sin señal válida (${huecos.length} ${huecos.length === 1 ? 'tramo' : 'tramos'}). La línea se corta ahí; esos segundos no entran en el cálculo.`}
+            {rangoHrv && ` Franja cian en la HRV: su rango habitual (${rangoHrv.min.toFixed(1)}–${rangoHrv.max.toFixed(1)} ms); lo que se compara con él es el RMSSD de la sesión completa, no cada punto.`}
           </p>
         </>
       )}
@@ -190,16 +209,66 @@ function ReporteSubjetivo({ sesion: s }) {
   );
 }
 
+// Estado de esta sesión contra la línea base del paciente (Fase M3, solo
+// especialista): etiqueta, etapa y de dónde sale. Sin estado, el motivo.
+function ComparacionLineaBase({ sesion: s, evaluacion: ev }) {
+  const b = ev.banda;
+  return (
+    <Card title="Comparación con su línea base" icon={Target} iconTone="cyan">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <BadgeEstado evaluacion={ev} />
+        <span className="ui-muted" style={{ fontSize: 'var(--text-sm)' }}>
+          Base {textoEtapa(ev.etapa).toLowerCase()}
+          {ev.n != null && ` · ${ev.n} ${ev.n === 1 ? 'día' : 'días'} con medición antes de esta sesión`}
+        </span>
+      </div>
+
+      {ev.estado && b ? (
+        <div className="ui-stack" style={{ gap: 4, marginTop: 12, fontSize: 'var(--text-md)' }}>
+          <div>
+            HRV de la sesión <strong>{Math.round(s.hrv_rmssd)} ms</strong>
+            {' · '}rango habitual {b.rango_hrv_ms.min.toFixed(1)}–{b.rango_hrv_ms.max.toFixed(1)} ms
+          </div>
+          <div className="ui-muted" style={{ fontSize: 'var(--text-sm)' }}>
+            Distancia a su media: z = {ev.z.toFixed(2)} (Elevados bajo −{b.k1.toFixed(2)}, Altos bajo −{b.k2.toFixed(2)};
+            por encima de la banda también es Normal)
+          </div>
+          <div>
+            FC promedio <strong>{Math.round(s.bpm_promedio)} lpm</strong>
+            {' · '}habitual hasta {Math.round(b.fc_limite_superior)} lpm
+            {ev.fc_por_encima && <span className="ui-muted"> · por encima (solo acompaña, no cambia el estado)</span>}
+          </div>
+        </div>
+      ) : (
+        <p className="ui-muted" style={{ margin: '12px 0 0', fontSize: 'var(--text-sm)' }}>
+          {ev.motivo_sin_estado === 'calidad_baja'
+            ? 'La señal de esta sesión no alcanzó la calidad mínima para compararla (60 % de segundos válidos): no recibe estado ni entra a la línea base.'
+            : 'La línea base aún se calibra: hacen falta 3 días con medición antes de la sesión para compararla.'}
+        </p>
+      )}
+
+      <p className="ui-muted" style={{ fontSize: 'var(--text-sm)', margin: '12px 0 0' }}>
+        Comparado con su propia línea base: la media de sus últimos 7 días con medición (ln RMSSD). Indicador
+        de apoyo, no un diagnóstico.
+      </p>
+    </Card>
+  );
+}
+
 // Un parámetro contra el tiempo de la sesión (eje en m:ss), con la línea
 // cortada en los huecos (puntos null, connectNulls apagado) y una franja gris
-// en cada tramo sin señal válida.
-function GraficaSerie({ titulo, campo, color, datos, huecos, ultimoT, dominioY = ['dataMin - 5', 'dataMax + 5'] }) {
+// en cada tramo sin señal válida. `banda` (opcional, {min, max}): franja
+// horizontal con el rango habitual del paciente (solo en la HRV, M3).
+function GraficaSerie({ titulo, campo, color, datos, huecos, ultimoT, banda, dominioY = ['dataMin - 5', 'dataMax + 5'] }) {
   return (
     <Card title={titulo}>
       <div style={{ width: '100%', height: 200 }}>
         <ResponsiveContainer>
           <LineChart data={datos} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
             <CartesianGrid stroke="#e2e8f0" vertical={false} />
+            {banda && (
+              <ReferenceArea y1={banda.min} y2={banda.max} fill={color} fillOpacity={0.12} strokeOpacity={0} ifOverflow="extendDomain" />
+            )}
             {huecos.map((h) => (
               <ReferenceArea key={h.desde} x1={h.desde} x2={h.hasta} fill="#94a3b8" fillOpacity={0.15} strokeOpacity={0} />
             ))}

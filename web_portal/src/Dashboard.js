@@ -1,22 +1,25 @@
-import { Users, CalendarCheck, Activity, CalendarX, CalendarClock, History, Watch, FlaskConical, ChevronRight } from 'lucide-react';
+import {
+  Users, CalendarCheck, Activity, CalendarX, CalendarClock, History, Watch, FlaskConical, ChevronRight, Target,
+} from 'lucide-react';
 import { PageHeader, Card, KpiCard, Avatar, tonoIdentidad } from './ui/components';
 import {
   haceTiempo, plural, AccionesEncabezado, AvisosPacientes, TablaPacientes,
 } from './PacientesComun';
 import {
-  DIAS_ACTIVIDAD, resumenActividad, ordenarPorActividad, actividadReciente, conteoRecencia,
+  DIAS_ACTIVIDAD, resumenActividad, ordenarPorActividad, actividadReciente, conteoRecencia, conteoEstado,
 } from './actividad';
 
 // Dashboard de monitoreo. Solo presenta lo que App.js ya trae de
 // GET /api/pacientes: no pide nada por su cuenta.
 //
-// Muestra ACTIVIDAD de medición (quién midió y cuándo), no un estado: el
-// semáforo de umbrales fijos de las lecturas viejas se retiró porque no tiene
-// fundamento (DESARROLLO_FUNDAMENTADO.md §2). El color organiza por tipo de
-// dato (cada KPI su acento, cada paciente su color de identidad, la recencia
-// en un solo azul) y nunca juzga: sin verde/ámbar/rojo. Cuando M3 traiga el
-// estado contra la línea base de cada paciente, se agregan sus conteos y su
-// columna encima de esto.
+// Muestra ACTIVIDAD de medición (quién midió y cuándo) y, desde M3, el estado
+// de la última sesión de cada paciente contra SU línea base (columna de la
+// tabla + tarjeta "Estado de la última sesión"). El semáforo de umbrales fijos
+// de las lecturas viejas se retiró porque no tiene fundamento
+// (DESARROLLO_FUNDAMENTADO.md §2). El color organiza por tipo de dato (cada
+// KPI su acento, cada paciente su color de identidad, la recencia en un solo
+// azul); verde/ámbar/rojo solo para el estado. La lista NO se reordena por
+// gravedad: sigue por actividad (decisión de M3 paso 4).
 
 const MAX_ACTIVIDAD_RECIENTE = 5;
 
@@ -80,8 +83,8 @@ function Dashboard({ pacientes, loading, perfil, errorAcceso, onSeleccionar, onA
             />
           </div>
           <p className="ui-caption">
-            Actividad de medición, no un estado. La clasificación de los indicadores (Normal / Elevados / Altos)
-            llegará con la línea base de cada paciente.
+            Los indicadores de arriba son actividad de medición. El estado (Normal / Elevados / Altos) es el de la
+            última sesión de cada paciente comparada con su propia línea base; no es un diagnóstico.
           </p>
 
           <div className="ui-dashboard-cols">
@@ -92,6 +95,7 @@ function Dashboard({ pacientes, loading, perfil, errorAcceso, onSeleccionar, onA
               vacio="Todavía no tienes pacientes vinculados. Comparte tu código para que se vinculen desde la app."
             />
             <div className="ui-stack">
+              <EstadoUltimaSesion pacientes={pacientes} total={r.total} />
               <ActividadReciente pacientes={pacientes} onSeleccionar={onSeleccionar} />
               <UltimaSesionGrupo pacientes={pacientes} total={r.total} />
             </div>
@@ -140,6 +144,53 @@ function ActividadReciente({ pacientes, onSeleccionar }) {
             );
           })}
         </div>
+      )}
+    </Card>
+  );
+}
+
+// Cuántos pacientes hay en cada estado según su última sesión, contra la
+// línea base de cada uno. Misma forma que "Última sesión del grupo".
+function EstadoUltimaSesion({ pacientes, total }) {
+  const grupos = conteoEstado(pacientes);
+  return (
+    <Card
+      title="Estado de la última sesión"
+      icon={Target}
+      iconTone="cyan"
+      subtitle="Contra la línea base de cada paciente"
+    >
+      {total === 0 ? (
+        <div className="ui-muted" style={{ fontSize: 'var(--text-sm)' }}>Sin pacientes vinculados.</div>
+      ) : (
+        <>
+          <div
+            className="ui-stackbar"
+            role="img"
+            aria-label={grupos.map((g) => `${g.texto}: ${g.valor}`).join(', ')}
+          >
+            {grupos
+              .filter((g) => g.valor > 0)
+              .map((g) => (
+                <span key={g.clave} className={`tone-${g.clave}`} style={{ flex: g.valor }} />
+              ))}
+          </div>
+          <div className="ui-legend">
+            {grupos.map((g) => (
+              <div key={g.clave} className="ui-legend-row">
+                <span className={`ui-legend-dot tone-${g.clave}`} />
+                {g.texto}
+                <span className="ui-legend-value">
+                  {g.valor}
+                  <span className="ui-legend-pct">{porcentaje(g.valor, total)}%</span>
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="ui-muted" style={{ fontSize: 'var(--text-sm)', margin: '12px 0 0' }}>
+            Sin estado: calibrando su línea base, señal bajo la calidad mínima o sin sesiones.
+          </p>
+        </>
       )}
     </Card>
   );
