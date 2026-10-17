@@ -1,7 +1,15 @@
-# Pruebas por comando de /api/sesiones (Fase M1a) y de la EVA post-medicion
-# (Fase M2, seccion 9) contra el backend LOCAL.
+# Pruebas por comando de /api/sesiones (Fase M1a), de la EVA post-medicion
+# (Fase M2, seccion 9) y de la linea base + estado (Fase M3, seccion 11)
+# contra el backend LOCAL.
 # Uso: .\backend\pruebas\prueba_sesiones.ps1   (con el backend corriendo en otra ventana)
 # Los tokens se obtienen solos con correo + contrasena (no se guardan).
+#
+# Escribe sesiones: PACIENTE A y ESPECIALISTA E deben ser las cuentas de
+# prueba ("PRUEBA - Test M3" y su especialista "PRUEBA ..."); el script se
+# niega con cualquier otra. Antes de correrlo, sembrar la cuenta con la
+# semilla COMPLETA en Supabase (la seccion 11 espera sus estados):
+#   node pruebas/semilla_m3.js limpiar   (si ya tiene sesiones)
+#   node pruebas/semilla_m3.js sql
 
 $Base = 'http://localhost:3000'
 $FirebaseKey = 'AIzaSyBT8DdafzQLg89kmcHQ-J5A3q1Ak6fQO3o'  # la misma API key publica del portal
@@ -94,6 +102,20 @@ $adm  = Obtener-Cuenta 'ADMIN'
 $pacB = Obtener-Cuenta 'PACIENTE B (otro paciente)' -Opcional
 $A = $pac.uid
 $creadas = @()
+
+# Candado: este script crea sesiones, y desde M3 solo se escribe en la cuenta
+# de prueba (las de verdad alimentan la linea base de pacientes reales).
+function Nombre-De($cuenta) {
+  $r = Llamar 'GET' "/api/usuarios/$($cuenta.uid)" $cuenta.token $null
+  if ($r.status -ne 200) { return $null }
+  return ($r.texto | ConvertFrom-Json).nombre
+}
+$nombreA = Nombre-De $pac
+$nombreE = Nombre-De $esp
+if ($nombreA -ne 'PRUEBA - Test M3' -or -not ("$nombreE".StartsWith('PRUEBA'))) {
+  Write-Host "Alto: A debe ser 'PRUEBA - Test M3' (es '$nombreA') y E un especialista 'PRUEBA ...' (es '$nombreE'). No se escribio nada." -ForegroundColor Red
+  exit 1
+}
 
 # Para la seccion 10: sesiones_7d de A ANTES de crear las sesiones de prueba.
 $r = Llamar 'GET' '/api/pacientes' $esp.token $null
@@ -286,6 +308,144 @@ $sinSesiones = @($filas | Where-Object { $null -eq $_.ultima_sesion })
 Write-Host "        Pacientes del especialista sin sesiones: $($sinSesiones.Count) (si es 0, el caso null/null/0 no se ejercito con datos reales)"
 Caso 'GET /api/pacientes como paciente -> 403' 403 (Llamar 'GET' '/api/pacientes' $pac.token $null)
 Caso 'GET /api/pacientes como admin -> 403' 403 (Llamar 'GET' '/api/pacientes' $adm.token $null)
+
+Write-Host "`n--- 11. Linea base y estado (Fase M3, con la semilla completa) ---"
+# Lo que espera la semilla segun `node pruebas/semilla_m3.js demo`, por RMSSD
+# (unico en la semilla). No depende del dia en que se sembro: cada sesion se
+# compara solo con los dias anteriores a ella.
+$esperadoSemilla = @(
+  @{ hrv = 48.2; origen = 'simulacion'; etapa = 'calibrando';  estado = $null;      motivo = 'calibrando';   fc = $null }
+  @{ hrv = 44.6; origen = 'simulacion'; etapa = 'calibrando';  estado = $null;      motivo = 'calibrando';   fc = $null }
+  @{ hrv = 51.3; origen = 'simulacion'; etapa = 'calibrando';  estado = $null;      motivo = 'calibrando';   fc = $null }
+  @{ hrv = 46.9; origen = 'simulacion'; etapa = 'preliminar';  estado = 'normal';   motivo = $null;          fc = $false }
+  @{ hrv = 43.1; origen = 'simulacion'; etapa = 'preliminar';  estado = 'normal';   motivo = $null;          fc = $false }
+  @{ hrv = 39.8; origen = 'simulacion'; etapa = 'preliminar';  estado = 'elevados'; motivo = $null;          fc = $true }
+  @{ hrv = 49.5; origen = 'simulacion'; etapa = 'preliminar';  estado = 'normal';   motivo = $null;          fc = $false }
+  @{ hrv = 45.7; origen = 'simulacion'; etapa = 'preliminar';  estado = 'normal';   motivo = $null;          fc = $false }
+  @{ hrv = 28.0; origen = 'simulacion'; etapa = 'preliminar';  estado = $null;      motivo = 'calidad_baja'; fc = $null }
+  @{ hrv = 33.5; origen = 'simulacion'; etapa = 'consolidada'; estado = 'altos';    motivo = $null;          fc = $true }
+  @{ hrv = 47.8; origen = 'simulacion'; etapa = 'consolidada'; estado = 'normal';   motivo = $null;          fc = $false }
+  @{ hrv = 61.0; origen = 'sensor';     etapa = 'calibrando';  estado = $null;      motivo = 'calibrando';   fc = $null }
+  @{ hrv = 24.0; origen = 'simulacion'; etapa = 'consolidada'; estado = 'altos';    motivo = $null;          fc = $true }
+  @{ hrv = 50.4; origen = 'simulacion'; etapa = 'consolidada'; estado = 'normal';   motivo = $null;          fc = $false }
+)
+$EtiquetaEnTexto = '"(normal|elevados|altos)"'
+
+# El paciente nunca recibe la etiqueta ni lo que la delata.
+function Sin-Etiqueta($ev) {
+  foreach ($c in 'estado', 'z', 'fc_por_encima', 'banda', 'n') {
+    if (Tiene $ev $c) { return "la evaluacion del paciente trae '$c'" }
+  }
+  if (-not (Tiene $ev 'etapa') -or -not (Tiene $ev 'motivo_sin_estado')) { return 'falta etapa o motivo_sin_estado' }
+  $true
+}
+
+$r = Llamar 'GET' "/api/linea-base/$A" $pac.token $null
+Caso 'Linea base como paciente -> 200, dia X de 7, sin banda ni etiqueta' 200 $r {
+  if ($r.texto -match $EtiquetaEnTexto) { return 'el texto trae una etiqueta de estado' }
+  $o = ($r.texto | ConvertFrom-Json).origenes
+  $sim = $o.simulacion; $sen = $o.sensor
+  foreach ($x in $sim, $sen) { foreach ($c in 'banda', 'n') { if (Tiene $x $c) { return "trae '$c'" } } }
+  if ($sim.etapa -ne 'consolidada' -or [int]$sim.dia_calibracion -ne 7 -or $sim.medido_hoy -ne $true) {
+    return "simulacion: etapa=$($sim.etapa) dia=$($sim.dia_calibracion) medido_hoy=$($sim.medido_hoy) (esperado consolidada, 7, True)"
+  }
+  if ($sen.etapa -ne 'calibrando' -or [int]$sen.dias_con_medicion -ne 1 -or [int]$sen.dia_calibracion -ne 2) {
+    return "sensor: etapa=$($sen.etapa) dias=$($sen.dias_con_medicion) dia=$($sen.dia_calibracion) (esperado calibrando, 1, 2)"
+  }
+  $true
+}
+$r = Llamar 'GET' "/api/linea-base/$A" $esp.token $null
+Caso 'Linea base como especialista -> 200 con banda (sensor sin banda)' 200 $r {
+  $o = ($r.texto | ConvertFrom-Json).origenes
+  $b = $o.simulacion.banda
+  if (-not $b -or [int]$b.n -ne 7) { return "banda de simulacion: $($b | ConvertTo-Json -Compress)" }
+  if ([double]$b.rango_hrv_ms.min -ge [double]$b.rango_hrv_ms.max) { return 'rango_hrv_ms invertido' }
+  if (-not (Tiene $o.sensor 'banda') -or $null -ne $o.sensor.banda) { return 'el sensor (calibrando) deberia traer banda = null' }
+  $true
+}
+Caso 'Linea base como especialista NO vinculado -> 403' 403 (Llamar 'GET' "/api/linea-base/$A" $esp2.token $null)
+Caso 'Linea base como admin -> 403' 403 (Llamar 'GET' "/api/linea-base/$A" $adm.token $null)
+Caso 'Linea base de otro paciente pedida por A -> 403' 403 (Llamar 'GET' "/api/linea-base/$([guid]::NewGuid())" $pac.token $null)
+
+$r = Llamar 'GET' "/api/sesiones/$A" $pac.token $null
+Caso 'Lista como paciente -> cada sesion con etapa, sin etiqueta' 200 $r {
+  if ($r.texto -match $EtiquetaEnTexto) { return 'el texto trae una etiqueta de estado' }
+  foreach ($x in @(Lista-Json $r.texto)) {
+    if (-not $x.evaluacion) { return "la sesion $($x.id) no trae evaluacion" }
+    $res = Sin-Etiqueta $x.evaluacion; if ($res -ne $true) { return $res }
+  }
+  $true
+}
+
+$r = Llamar 'GET' "/api/sesiones/$A" $esp.token $null
+$listaEsp = if ($r.status -eq 200) { @(Lista-Json $r.texto) } else { @() }
+Caso 'Lista como especialista -> estados de la semilla (3 etapas, calidad baja, sensor aparte)' 200 $r {
+  foreach ($e in $esperadoSemilla) {
+    $fila = $listaEsp | Where-Object { $_.origen -eq $e.origen -and [double]$_.hrv_rmssd -eq $e.hrv }
+    if (-not $fila) { return "no esta la sesion sembrada de RMSSD $($e.hrv) ($($e.origen)): corriste la semilla completa?" }
+    $ev = $fila.evaluacion
+    if ($ev.etapa -ne $e.etapa -or $ev.estado -ne $e.estado -or $ev.motivo_sin_estado -ne $e.motivo -or $ev.fc_por_encima -ne $e.fc) {
+      return "RMSSD $($e.hrv): etapa=$($ev.etapa) estado=$($ev.estado) motivo=$($ev.motivo_sin_estado) fc=$($ev.fc_por_encima) (esperado $($e.etapa)/$($e.estado)/$($e.motivo)/$($e.fc))"
+    }
+    if ($null -ne $e.estado -and ($null -eq $ev.z -or $null -eq $ev.banda)) { return "RMSSD $($e.hrv): con estado pero sin z o banda" }
+  }
+  $true
+}
+
+$altos = $listaEsp | Where-Object { [double]$_.hrv_rmssd -eq 33.5 } | Select-Object -First 1
+if ($altos) {
+  $r = Llamar 'GET' "/api/sesiones/$A/$($altos.id)" $esp.token $null
+  Caso 'Detalle como especialista -> estado altos con banda' 200 $r {
+    $ev = ($r.texto | ConvertFrom-Json).evaluacion
+    if ($ev.estado -eq 'altos' -and $ev.banda -and [int]$ev.n -eq 7) { $true } else { "evaluacion: $($ev | ConvertTo-Json -Compress)" }
+  }
+  $r = Llamar 'GET' "/api/sesiones/$A/$($altos.id)" $pac.token $null
+  Caso 'Detalle como paciente -> etapa consolidada, sin etiqueta' 200 $r {
+    if ($r.texto -match $EtiquetaEnTexto) { return 'el texto trae una etiqueta de estado' }
+    $ev = ($r.texto | ConvertFrom-Json).evaluacion
+    if ($ev.etapa -ne 'consolidada') { return "etapa=$($ev.etapa)" }
+    Sin-Etiqueta $ev
+  }
+} else { Write-Host '        (se omite el detalle: no esta la sesion sembrada de RMSSD 33.5)' -ForegroundColor Yellow }
+
+$r = Llamar 'POST' '/api/sesiones' $pac.token (Sesion-Valida)
+$idM3 = if ($r.status -eq 201) { ($r.texto | ConvertFrom-Json).data.id } else { $null }
+if ($idM3) { $creadas += $idM3 }
+Caso 'POST como paciente -> 201 con etapa y calibracion, sin etiqueta' 201 $r {
+  if ($r.texto -match $EtiquetaEnTexto) { return 'el texto trae una etiqueta de estado' }
+  $d = ($r.texto | ConvertFrom-Json).data
+  if (-not $d.evaluacion -or -not $d.calibracion) { return 'falta evaluacion o calibracion' }
+  $res = Sin-Etiqueta $d.evaluacion; if ($res -ne $true) { return $res }
+  if ($d.evaluacion.etapa -ne 'consolidada' -or $null -ne $d.evaluacion.motivo_sin_estado) {
+    return "evaluacion: etapa=$($d.evaluacion.etapa) motivo=$($d.evaluacion.motivo_sin_estado)"
+  }
+  $c = $d.calibracion
+  if ((Tiene $c 'banda') -or $c.origen -ne 'simulacion' -or $c.medido_hoy -ne $true -or [int]$c.dia_calibracion -ne 7) {
+    return "calibracion: $($c | ConvertTo-Json -Compress)"
+  }
+  $true
+}
+
+$r = Llamar 'GET' '/api/pacientes' $esp.token $null
+$filas = if ($r.status -eq 200) { @(Lista-Json $r.texto) } else { @() }
+Caso 'GET /api/pacientes -> estado y etapa de la ultima sesion' 200 $r {
+  foreach ($x in $filas) {
+    foreach ($c in 'ultima_sesion_id', 'ultima_sesion_estado', 'ultima_sesion_etapa', 'ultima_sesion_motivo_sin_estado', 'ultima_sesion_fc_por_encima') {
+      if (-not (Tiene $x $c)) { return "la fila de $($x.nombre) no trae $c" }
+    }
+    if ($null -eq $x.ultima_sesion -and ($null -ne $x.ultima_sesion_estado -or $null -ne $x.ultima_sesion_etapa)) {
+      return "$($x.nombre): sin sesiones pero con estado/etapa"
+    }
+  }
+  $filaA = $filas | Where-Object { $_.id -eq $A }
+  if (-not $filaA) { return 'A no aparece en la lista' }
+  if ($idM3 -and $filaA.ultima_sesion_id -ne $idM3) { return "ultima_sesion_id=$($filaA.ultima_sesion_id) (esperado $idM3)" }
+  if ($filaA.ultima_sesion_etapa -ne 'consolidada' -or @('normal', 'elevados', 'altos') -notcontains $filaA.ultima_sesion_estado) {
+    return "A: etapa=$($filaA.ultima_sesion_etapa) estado=$($filaA.ultima_sesion_estado)"
+  }
+  Write-Host "        Ultima sesion de A (RMSSD 42.46): $($filaA.ultima_sesion_estado), FC por encima: $($filaA.ultima_sesion_fc_por_encima)"
+  $true
+}
 
 Write-Host "`n=== Resultado: $script:ok OK, $script:fallas FALLA ===" -ForegroundColor $(if ($script:fallas -eq 0) { 'Green' } else { 'Red' })
 if ($creadas.Count -gt 0) {

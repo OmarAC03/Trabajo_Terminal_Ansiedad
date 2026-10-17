@@ -403,6 +403,7 @@ function validarVentanaEva(fechaInicio, duracionTotalSeg, ahora = Date.now()) {
 }
 
 module.exports = {
+  ORIGENES_SESION,
   validarSesion,
   validarEva,
   validarVentanaEva,

@@ -10,6 +10,8 @@ const logger = require('./logger');
 const { AuthError, ValidationError, HttpError } = require('./errors');
 const { inicializarFirebaseAdmin, requiereAuth, requiereAuthSocket, requiereAdmin } = require('./auth');
 const { crearAdminRouter } = require('./admin');
+const { CONFIG_LINEA_BASE } = require('./linea_base');
+const { evaluarFilas, calibracionPara } = require('./linea_base_vista');
 const {
   validarLectura,
   validarUsuarioNuevo,
@@ -21,6 +23,7 @@ const {
   validarSesion,
   validarEva,
   validarVentanaEva,
+  ORIGENES_SESION,
 } = require('./validation');
 
 const app = express();
@@ -241,6 +244,60 @@ function columnasSesionPara(req) {
   return req.rol === 'especialista' ? COLUMNAS_SESION_ESPECIALISTA : COLUMNAS_SESION_PACIENTE;
 }
 
+// --- LÍNEA BASE Y ESTADO (Fase M3) ---
+// El estado se calcula al leer (linea_base.js), no se guarda: así un cambio
+// de parámetros (CONFIG_LINEA_BASE.version) no deja estados viejos en la
+// base. Qué ve cada rol lo decide linea_base_vista.js: el paciente recibe la
+// etapa, nunca la etiqueta.
+//
+// Columnas que necesita el cálculo. Incluyen `indice_calidad`, pero estas
+// filas NUNCA se devuelven tal cual: solo alimentan la evaluación.
+const COLUMNAS_BASE = 's.id, s.fecha_inicio, s.origen, s.hrv_rmssd, s.bpm_promedio, s.indice_calidad';
+// Días previos a pedir a la base: el vencimiento de linea_base.js + 2 de
+// margen (el corte de linea_base.js es por día local, el de SQL por instante).
+const DIAS_HISTORIA_BASE = CONFIG_LINEA_BASE.diasVencimiento + 2;
+
+// Sesiones del paciente desde DIAS_HISTORIA_BASE días antes de `desde` y,
+// si se da, hasta `hasta` (las posteriores no cambian la base de nadie).
+async function sesionesParaBase(pacienteId, desde, hasta = null) {
+  const result = await pool.query(`
+    SELECT ${COLUMNAS_BASE}
+    FROM sesiones_medicion s
+    WHERE s.paciente_id = $1
+      AND s.fecha_inicio >= $2::timestamptz - make_interval(days => $3::int)
+      AND ($4::timestamptz IS NULL OR s.fecha_inicio <= $4::timestamptz)
+    ORDER BY s.fecha_inicio ASC;
+  `, [pacienteId, desde, DIAS_HISTORIA_BASE, hasta]);
+  return result.rows;
+}
+
+// Agrega `evaluacion` a cada fila de sesión (lista o detalle).
+async function conEvaluacion(req, pacienteId, filas) {
+  if (filas.length === 0) return filas;
+  const fechas = filas.map((f) => new Date(f.fecha_inicio).getTime());
+  const base = await sesionesParaBase(
+    pacienteId, new Date(Math.min(...fechas)), new Date(Math.max(...fechas))
+  );
+  const evaluaciones = evaluarFilas(filas, base, req.rol === 'especialista');
+  return filas.map((f) => ({ ...f, evaluacion: evaluaciones.get(f.id) || null }));
+}
+
+// GET /api/linea-base/:pacienteId — calibración de hoy por origen
+// (simulación y sensor tienen bases separadas). La banda, solo al especialista.
+app.get('/api/linea-base/:pacienteId', async (req, res) => {
+  const { pacienteId } = req.params;
+  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver la línea base de este paciente.');
+
+  const ahora = new Date();
+  const sesiones = await sesionesParaBase(pacienteId, ahora);
+  const esEspecialista = req.rol === 'especialista';
+  const origenes = {};
+  for (const origen of ORIGENES_SESION) {
+    origenes[origen] = calibracionPara(sesiones, origen, esEspecialista, ahora);
+  }
+  res.status(200).json({ version: CONFIG_LINEA_BASE.version, origenes });
+});
+
 // POST /api/sesiones — solo el paciente, sobre sí mismo. paciente_id sale del
 // token (validarSesion rechaza el campo en el cuerpo). La respuesta no
 // devuelve la sesión completa ni el índice de calidad.
@@ -271,13 +328,35 @@ app.post('/api/sesiones', async (req, res) => {
     datos.indice_calidad, JSON.stringify(datos.serie), datos.origen,
   ];
   const result = await pool.query(query, values);
+  const guardada = result.rows[0];
 
   logger.info('Sesión de medición guardada', {
     paciente_id: req.uid,
     origen: datos.origen,
     duracion_valida_seg: datos.duracion_valida_seg,
   });
-  res.status(201).json({ mensaje: 'Sesión guardada con éxito', data: result.rows[0] });
+
+  // Etapa de la sesión y calibración de su origen, para que el resultado de
+  // la app arme el mensaje de la mascota sin otra petición (vista del
+  // paciente: sin etiqueta). La sesión YA está guardada: si este cálculo
+  // falla, se responde 201 con null en vez de un 500 que invitaría a la app
+  // a reintentar y duplicarla.
+  let evaluacion = null;
+  let calibracion = null;
+  try {
+    const ahora = new Date();
+    const base = await sesionesParaBase(req.uid, guardada.fecha_inicio);
+    evaluacion = evaluarFilas([guardada], base, false).get(guardada.id) || null;
+    calibracion = calibracionPara(base, datos.origen, false, ahora);
+  } catch (error) {
+    logger.error('No se pudo calcular la línea base de la sesión recién guardada', {
+      paciente_id: req.uid, sesion_id: guardada.id, detalle: error.message,
+    });
+  }
+  res.status(201).json({
+    mensaje: 'Sesión guardada con éxito',
+    data: { ...guardada, evaluacion, calibracion },
+  });
 });
 
 // GET /api/sesiones/:pacienteId?limite=50 — lista ligera (sin serie), más
@@ -297,7 +376,7 @@ app.get('/api/sesiones/:pacienteId', async (req, res) => {
     LIMIT $2;
   `;
   const result = await pool.query(query, [pacienteId, limite]);
-  res.status(200).json(result.rows);
+  res.status(200).json(await conEvaluacion(req, pacienteId, result.rows));
 });
 
 // GET /api/sesiones/:pacienteId/:sesionId — detalle con la serie. Una sesión
@@ -319,7 +398,8 @@ app.get('/api/sesiones/:pacienteId/:sesionId', async (req, res) => {
   if (result.rowCount === 0) {
     throw new HttpError('Sesión no encontrada.', 404);
   }
-  res.status(200).json(result.rows[0]);
+  const [detalle] = await conEvaluacion(req, pacienteId, result.rows);
+  res.status(200).json(detalle);
 });
 
 // POST /api/sesiones/:sesionId/eva — EVA post-medición (Fase M2). Solo el
@@ -679,7 +759,9 @@ const DIAS_ACTIVIDAD = 7;
 //
 // Por paciente: su actividad de sesiones de medición (`ultima_sesion`,
 // `ultima_sesion_origen`, `sesiones_7d`; null/null/0 si nunca midió), que es
-// lo que muestra el Dashboard: actividad, no un estado. Los campos de la
+// lo que muestra el Dashboard, y desde M3 el estado de esa última sesión
+// contra la base individual (`ultima_sesion_estado`, `_etapa`,
+// `_motivo_sin_estado`, `_fc_por_encima`; null si nunca midió). Los campos de la
 // última lectura vieja (`ultimo_estado`, `ultima_lectura`, `ultimo_*`) siguen
 // solo por compatibilidad mientras se despliega el portal nuevo; su semáforo
 // de umbrales fijos no tiene fundamento (DESARROLLO_FUNDAMENTADO.md §2) y se
@@ -695,6 +777,7 @@ app.get('/api/pacientes', async (req, res) => {
       lu.estado_ansiedad AS ultimo_estado,
       lu.fecha_medicion AS ultima_lectura,
       lu.bpm AS ultimo_bpm, lu.spo2 AS ultimo_spo2, lu.hrv AS ultimo_hrv,
+      us.id AS ultima_sesion_id,
       us.fecha_inicio AS ultima_sesion,
       us.origen AS ultima_sesion_origen,
       s7.total AS sesiones_7d
@@ -707,10 +790,10 @@ app.get('/api/pacientes', async (req, res) => {
       LIMIT 1
     ) lu ON true
     LEFT JOIN LATERAL (
-      SELECT s.fecha_inicio, s.origen
+      SELECT s.id, s.fecha_inicio, s.origen
       FROM sesiones_medicion s
       WHERE s.paciente_id = u.id
-      ORDER BY s.fecha_inicio DESC
+      ORDER BY s.fecha_inicio DESC, s.id DESC
       LIMIT 1
     ) us ON true
     -- count(*) sin GROUP BY siempre da una fila (0 si no hay sesiones); ::int
@@ -724,7 +807,41 @@ app.get('/api/pacientes', async (req, res) => {
     ORDER BY u.nombre ASC;
   `;
   const result = await pool.query(query, [req.uid, DIAS_ACTIVIDAD]);
-  res.status(200).json(result.rows);
+
+  // Estado de la última sesión de cada paciente (Fase M3): en UNA consulta,
+  // las sesiones de todos sus pacientes desde DIAS_HISTORIA_BASE días antes
+  // de la última de cada uno.
+  const base = await pool.query(`
+    SELECT s.paciente_id, ${COLUMNAS_BASE}
+    FROM usuarios u
+    JOIN LATERAL (
+      SELECT max(fecha_inicio) AS ultima FROM sesiones_medicion WHERE paciente_id = u.id
+    ) ul ON ul.ultima IS NOT NULL
+    JOIN sesiones_medicion s
+      ON s.paciente_id = u.id AND s.fecha_inicio >= ul.ultima - make_interval(days => $2::int)
+    WHERE u.rol = 'paciente' AND u.especialista_id = $1
+    ORDER BY s.fecha_inicio ASC;
+  `, [req.uid, DIAS_HISTORIA_BASE]);
+  const basePorPaciente = new Map();
+  for (const fila of base.rows) {
+    if (!basePorPaciente.has(fila.paciente_id)) basePorPaciente.set(fila.paciente_id, []);
+    basePorPaciente.get(fila.paciente_id).push(fila);
+  }
+
+  const pacientes = result.rows.map((p) => {
+    const evaluacion = p.ultima_sesion_id
+      ? evaluarFilas([{ id: p.ultima_sesion_id }], basePorPaciente.get(p.id) || [], true)
+        .get(p.ultima_sesion_id) || null
+      : null;
+    return {
+      ...p,
+      ultima_sesion_estado: evaluacion ? evaluacion.estado : null,
+      ultima_sesion_etapa: evaluacion ? evaluacion.etapa : null,
+      ultima_sesion_motivo_sin_estado: evaluacion ? evaluacion.motivo_sin_estado : null,
+      ultima_sesion_fc_por_encima: evaluacion ? evaluacion.fc_por_encima : null,
+    };
+  });
+  res.status(200).json(pacientes);
 });
 
 // Editar el nombre del perfil propio (único campo editable desde la app y el
