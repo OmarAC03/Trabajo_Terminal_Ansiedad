@@ -359,7 +359,8 @@ class _BotonMedicion extends StatelessWidget {
 
 // --- Primer uso ---
 
-/// "Conociendo tu ritmo" (Fase M3): la mascota con el mensaje de su etapa y,
+/// "Conociendo tu ritmo" (Fase M3): el mensaje de la mascota según su etapa
+/// (la mascota misma va en el encabezado, para no repetirla) y,
 /// mientras la base no se consolida, los 7 puntos del "día X de 7". En el
 /// primer uso es la bienvenida (reemplaza a la tarjeta de primer uso y
 /// conserva su texto educativo). Celebra el hábito, nunca el valor.
@@ -381,7 +382,8 @@ class _ConociendoTuRitmo extends StatelessWidget {
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.texto),
           ),
           const SizedBox(height: 12),
-          MascotaConMensaje(mensaje),
+          // La mascota con la expresión de la etapa ya está en el encabezado.
+          MascotaConMensaje(mensaje, mostrarAvatar: false),
           if (c != null && mostrarProgreso(c)) ...[
             const SizedBox(height: 14),
             ProgresoCalibracion(c),

@@ -55,15 +55,21 @@ class MascotaConMensaje extends StatelessWidget {
   final MensajeMascota mensaje;
   final double tamano;
 
-  const MascotaConMensaje(this.mensaje, {super.key, this.tamano = 64});
+  /// En false solo se dibuja la burbuja: Inicio ya muestra esa misma
+  /// expresión en su encabezado y no se repite la mascota.
+  final bool mostrarAvatar;
+
+  const MascotaConMensaje(this.mensaje, {super.key, this.tamano = 64, this.mostrarAvatar = true});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Image.asset(mensaje.ruta, width: tamano, height: tamano, fit: BoxFit.contain),
-        const SizedBox(width: 10),
+        if (mostrarAvatar) ...[
+          Image.asset(mensaje.ruta, width: tamano, height: tamano, fit: BoxFit.contain),
+          const SizedBox(width: 10),
+        ],
         Expanded(
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
