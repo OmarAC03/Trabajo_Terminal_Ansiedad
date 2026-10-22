@@ -207,8 +207,14 @@ todo el proyecto.
 - **Fase M5 — GAD-7 periódico + análisis cruzado en el portal.** GAD-7 cada 2–4 semanas; el
   portal muestra la sesión interpretada (objetivo + subjetivo + línea base) y marca GAD-7 ≥10.
 - **Fase M6 — Textos educativos + sección de metodología.** El "por qué funciona" en app y portal.
-- **Fase M7 — Validación (objetivo 5 / aportación de la tesis).** Comparar el MAX30102 contra
-  Polar H10 / oxímetro certificado en 15–30 estudiantes; documentar sesgo y límites de acuerdo.
+- **Fase M7 — Sensor físico.**
+  - **M7a — Integración del sensor** (en curso desde 2026-10-21): la app mide con el ESP32 real
+    por Bluetooth clásico (SPP); el firmware manda los RR crudos según `CONTRATO_SENSOR.md`.
+  - **M7b — Validación (objetivo 5 / aportación de la tesis).** Comparar el MAX30102 contra
+    Polar H10 / oxímetro certificado en 15–30 estudiantes; documentar sesgo y límites de acuerdo.
+
+> Estado (2026-10-21): M1, M2 y M3 hechas; M4–M6 pendientes; M7a en curso. Esta es la numeración
+> vigente; `DISENO_FLUJO_MEDICION.md` §7 ya está alineado a ella.
 
 > Nota: M1 y M3 dependen en parte del firmware (calidad de señal, lecturas continuas) — coordinar
 > con el compañero del hardware.

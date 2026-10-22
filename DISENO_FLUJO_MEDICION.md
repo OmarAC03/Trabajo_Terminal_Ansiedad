@@ -230,19 +230,27 @@ antes de codificar. Áreas afectadas:
 
 ## 7. Cómo lo construimos (fases sugeridas)
 
-No se puede hacer todo de golpe. Propuesta de orden, de lo más fundamental a lo más visible:
+> **Numeración vigente (alineada el 2026-10-21):** la de `DESARROLLO_FUNDAMENTADO.md` §7, que es
+> la que se implementó. La propuesta original de este documento ponía las rutinas en M3, la línea
+> base en M4 y la validación en M5; se reordenó así:
 
-1. **Fase M1 — Modelo de datos y sesión de medición.** Definir y crear las estructuras (rutinas,
-   sesiones, cuestionario). Cambiar la app para que capture una *sesión* con control de calidad
-   en vez de una lectura suelta. Es la base; sin esto lo demás no se sostiene.
-2. **Fase M2 — Cuestionario de contexto.** Agregar el cuestionario post-medición en la app y
-   guardarlo con la sesión.
-3. **Fase M3 — Rutinas del especialista.** El especialista prescribe rutinas desde el portal; el
-   paciente las recibe en la app.
-4. **Fase M4 — Línea base y análisis cruzado.** Calcular la línea base del paciente y mostrar al
-   especialista la sesión interpretada (objetivo ↔ subjetivo ↔ línea base).
-5. **Fase M5 — Validación (objetivo 5).** La prueba piloto: comparar el sensor contra un
-   pulsioxímetro comercial, registrar reposo vs. estresor, documentar la confiabilidad.
+1. **Fase M1 — Modelo de datos y sesión de medición** (✅ hecha: M1a backend, M1b captura, M1c
+   sesiones en app y portal). Capturar una *sesión* con control de calidad en vez de una lectura
+   suelta. Es la base; sin esto lo demás no se sostiene.
+2. **Fase M2 — EVA post-medición + contexto** (✅ hecha). El cuestionario post-medición en la app,
+   guardado con la sesión.
+3. **Fase M3 — Línea base + estado** (✅ hecha). Línea base individual y estado de la sesión como
+   desviación de esa base, visible solo para el especialista.
+4. **Fase M4 — Rutinas del especialista** (pendiente). El especialista prescribe rutinas desde el
+   portal; el paciente las recibe en la app.
+5. **Fase M5 — GAD-7 periódico + análisis cruzado** (pendiente). La sesión interpretada
+   (objetivo ↔ subjetivo ↔ línea base) en el portal.
+6. **Fase M6 — Textos educativos + metodología** (pendiente).
+7. **Fase M7 — Sensor físico:**
+   - **M7a — Integración del sensor** (en curso; en conversación, "Fase D"): la app mide con el
+     ESP32 real por Bluetooth clásico. Contrato de datos en `CONTRATO_SENSOR.md`.
+   - **M7b — Validación (objetivo 5).** La prueba piloto: comparar el sensor contra un equipo de
+     referencia, registrar reposo vs. estresor, documentar la confiabilidad.
 
 > Nota: el muestreo dinámico de la Fase M1 y el indicador de calidad de señal dependen también
 > del firmware — hay que coordinarlo con tu compañero del hardware.
