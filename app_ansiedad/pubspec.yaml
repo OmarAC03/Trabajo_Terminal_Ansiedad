@@ -38,7 +38,7 @@ dependencies:
   socket_io_client: ^3.0.2
   firebase_core: ^2.27.0
   firebase_auth: ^4.17.4
-  flutter_bluetooth_serial: ^0.4.0
+  flutter_classic_bluetooth: 1.7.0
   permission_handler: ^12.0.1
   fl_chart: ^1.2.0
   provider: ^6.1.2

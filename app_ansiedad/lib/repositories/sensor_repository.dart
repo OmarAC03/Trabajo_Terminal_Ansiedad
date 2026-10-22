@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
+import 'package:flutter_classic_bluetooth/flutter_classic_bluetooth.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 /// Nombre del dispositivo Bluetooth vinculado que expone el sensor ESP32.
@@ -20,11 +20,12 @@ class SensorException implements Exception {
 
 /// Encapsula el acceso a Bluetooth Serial del sensor biométrico (ESP32).
 ///
-/// La UI/provider no habla directo con `flutter_bluetooth_serial`: le pide a
-/// este repositorio que conecte y escucha el stream de líneas JSON crudas
-/// que va soltando el sensor.
+/// La UI/provider no habla directo con `flutter_classic_bluetooth` (Bluetooth
+/// clásico, SPP): le pide a este repositorio que conecte y escucha el stream
+/// de líneas JSON crudas que va soltando el sensor.
 class SensorRepository {
-  BluetoothConnection? _connection;
+  final FlutterClassicBluetooth _bluetooth = FlutterClassicBluetooth();
+  BtcConnection? _connection;
   String _bufferDatos = "";
 
   Future<bool> _solicitarPermisos() async {
@@ -46,8 +47,8 @@ class SensorRepository {
       throw SensorException(ErrorSensor.permisos, "Se requieren permisos de Bluetooth para el sensor.");
     }
 
-    final bondedDevices = await FlutterBluetoothSerial.instance.getBondedDevices();
-    BluetoothDevice? esp32;
+    final bondedDevices = await _bluetooth.getPairedDevices();
+    BtcDevice? esp32;
     for (final d in bondedDevices) {
       if (d.name != null && d.name!.contains(_nombreDispositivoSensor)) {
         esp32 = d;
@@ -59,10 +60,12 @@ class SensorRepository {
       throw SensorException(ErrorSensor.noVinculado, 'Vincula "$_nombreDispositivoSensor" en los ajustes del celular.');
     }
 
-    _connection = await BluetoothConnection.toAddress(esp32.address);
+    // Perfil SPP (el UUID por defecto del plugin), igual que SerialBT del ESP32.
+    final connection = await _bluetooth.connect(address: esp32.address);
+    _connection = connection;
 
     final controller = StreamController<String>();
-    _connection!.input!.listen((Uint8List data) {
+    connection.input.listen((Uint8List data) {
       _bufferDatos += ascii.decode(data);
       if (_bufferDatos.contains('\n')) {
         final lineas = _bufferDatos.split('\n');
@@ -78,7 +81,9 @@ class SensorRepository {
   }
 
   void desconectar() {
-    _connection?.dispose();
+    // close() es asíncrono; no se espera (la firma sigue siendo síncrona) y
+    // un error al cerrar una conexión que ya se cayó no importa.
+    _connection?.close().catchError((_) {});
     _connection = null;
     _bufferDatos = "";
   }
