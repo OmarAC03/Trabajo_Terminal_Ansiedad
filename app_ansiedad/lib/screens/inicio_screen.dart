@@ -1,10 +1,12 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../app_config.dart';
 import '../contenido/textos_educativos.dart';
 import '../logger.dart';
 import '../medicion/aviso_sesiones.dart';
+import '../medicion/estado_sensor.dart';
 import '../medicion/mensajes_mascota.dart';
 import '../models/calibracion.dart';
 import '../models/sesion_medicion.dart';
@@ -81,16 +83,20 @@ class _InicioView extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _BotonMedicion(
-                      habilitado: alerta.modoSimulacion,
+                      habilitado: alerta.puedeMedir,
                       onTap: () => _iniciarMedicion(context, yaHabiaMedidoHoy: calibracion?.medidoHoy ?? false),
                     ),
-                    if (!alerta.modoSimulacion) ...[
+                    if (alerta.fuente == FuenteLecturas.ninguna) ...[
                       const SizedBox(height: 8),
                       const Text(
-                        'Activa la simulación (arriba) para iniciar una medición.',
+                        'Elige "Simulación" o "Sensor" (arriba) para iniciar una medición.',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 12, color: AppColors.textoAyuda),
                       ),
+                    ],
+                    if (alerta.fuente == FuenteLecturas.sensor) ...[
+                      const SizedBox(height: 12),
+                      _EstadoSensor(alerta),
                     ],
                     const SizedBox(height: 24),
                     if (mensaje != null) ...[
@@ -254,45 +260,140 @@ class _EncabezadoState extends State<_Encabezado> {
   }
 }
 
-/// Chip translúcido con la fuente de lecturas y el interruptor de simulación.
+/// Chip translúcido para elegir la fuente de lecturas: Simulación o Sensor
+/// (Fase M7a). Mientras se busca el sensor no se puede cambiar.
 class _ChipFuente extends StatelessWidget {
   final AlertaProvider alerta;
   const _ChipFuente(this.alerta);
 
   @override
   Widget build(BuildContext context) {
-    final sim = alerta.modoSimulacion;
+    final bloqueado = alerta.ocupado;
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _OpcionFuente(
+            texto: 'Simulación',
+            icono: Icons.science,
+            activa: alerta.fuente == FuenteLecturas.simulacion,
+            onTap: bloqueado ? null : alerta.elegirSimulacion,
+          ),
+          _OpcionFuente(
+            texto: 'Sensor',
+            icono: alerta.fuente == FuenteLecturas.sensor && alerta.estadoSensor == EstadoSensor.listo
+                ? Icons.sensors
+                : Icons.sensors_off,
+            activa: alerta.fuente == FuenteLecturas.sensor,
+            onTap: bloqueado ? null : alerta.elegirSensor,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OpcionFuente extends StatelessWidget {
+  final String texto;
+  final IconData icono;
+  final bool activa;
+  final VoidCallback? onTap;
+  const _OpcionFuente({required this.texto, required this.icono, required this.activa, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = activa ? AppColors.primarioOscuro : Colors.white;
     return Material(
-      color: Colors.white.withValues(alpha: 0.15),
+      color: activa ? Colors.white : Colors.transparent,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
-        onTap: alerta.isScanning ? null : alerta.toggleSimulacion,
+        onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 4, 4, 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(sim ? Icons.science : Icons.sensors_off, color: Colors.white, size: 14),
-              const SizedBox(width: 6),
-              Text(
-                sim ? 'Simulación activa' : 'Sin sensor',
-                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(width: 2),
-              Transform.scale(
-                scale: 0.7,
-                child: Switch(
-                  value: sim,
-                  onChanged: alerta.isScanning ? null : (_) => alerta.toggleSimulacion(),
-                  activeThumbColor: Colors.white,
-                  activeTrackColor: Colors.white.withValues(alpha: 0.45),
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              Icon(icono, color: color, size: 14),
+              const SizedBox(width: 5),
+              Text(texto, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Cómo va la conexión con el sensor, bajo el botón de medir (Fase M7a). Solo
+/// habla de la conexión (nunca de valores ni etiquetas) y ofrece "Reintentar"
+/// cuando algo falló; sin permisos, también abrir los ajustes de la app.
+class _EstadoSensor extends StatelessWidget {
+  final AlertaProvider alerta;
+  const _EstadoSensor(this.alerta);
+
+  @override
+  Widget build(BuildContext context) {
+    final estado = alerta.estadoSensor;
+    final listo = estado == EstadoSensor.listo;
+    final ocupado = sensorOcupado(estado);
+    final color = listo || ocupado ? AppColors.primario : AppColors.guia;
+    final fondo = listo || ocupado ? AppColors.primarioSuave : AppColors.guiaFondo;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: fondo,
+        borderRadius: BorderRadius.circular(AppColors.radio),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              if (ocupado)
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: color),
+                )
+              else
+                Icon(listo ? Icons.bluetooth_connected : Icons.bluetooth_disabled, color: color, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  textoEstadoSensor(estado),
+                  style: TextStyle(fontSize: 13, color: color, height: 1.35, fontWeight: FontWeight.w600),
                 ),
               ),
             ],
           ),
-        ),
+          if (sensorReintentable(estado)) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              children: [
+                if (estado == EstadoSensor.sinPermisos)
+                  TextButton(
+                    onPressed: () => openAppSettings(),
+                    child: const Text('Abrir ajustes'),
+                  ),
+                TextButton.icon(
+                  onPressed: alerta.elegirSensor,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Reintentar'),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }

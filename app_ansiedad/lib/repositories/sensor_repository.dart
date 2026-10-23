@@ -2,10 +2,11 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter_classic_bluetooth/flutter_classic_bluetooth.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../medicion/estado_sensor.dart' show nombreSensor;
 import 'lector_lineas.dart';
 
 /// Nombre del dispositivo Bluetooth vinculado que expone el sensor ESP32.
-const _nombreDispositivoSensor = "TT_SENSOR_CLASICO";
+const _nombreDispositivoSensor = nombreSensor;
 
 enum ErrorSensor { permisos, noVinculado }
 
@@ -61,7 +62,8 @@ class SensorRepository {
     }
 
     // Perfil SPP (el UUID por defecto del plugin), igual que SerialBT del ESP32.
-    final connection = await _bluetooth.connect(address: esp32.address);
+    // Con tiempo límite: un sensor apagado o lejos no deja la app "buscando".
+    final connection = await _bluetooth.connect(address: esp32.address, timeout: const Duration(seconds: 15));
     _connection = connection;
 
     _lector.reiniciar();
