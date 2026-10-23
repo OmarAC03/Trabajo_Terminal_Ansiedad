@@ -70,6 +70,8 @@ class AcumuladorSesion {
   /// Registra la lectura del siguiente segundo y dice si fue válida.
   MotivoSenal agregar(LecturaCruda lectura) {
     final t = _segundos.length;
+    // Paquetes perdidos antes de esta lectura: es un hueco aunque no se vea.
+    if (lectura.cortaCadenaRr) _rrAnterior = null;
     final motivo = _clasificar(lectura);
     if (motivo != MotivoSenal.valida) {
       _segundos.add(const _Segundo(false, 0, 0));

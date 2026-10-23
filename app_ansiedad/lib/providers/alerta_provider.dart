@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../logger.dart';
 import '../models/lectura_cruda.dart';
+import '../repositories/interprete_sensor.dart';
 import '../repositories/sensor_repository.dart';
 import '../repositories/simulador_sensor.dart';
 
@@ -44,8 +44,13 @@ class AlertaProvider extends ChangeNotifier {
   final StreamController<LecturaCruda> _lecturas = StreamController<LecturaCruda>.broadcast();
   Stream<LecturaCruda> get lecturas => _lecturas.stream;
 
-  /// Última lectura del sensor, para conservar campos que un paquete no traiga.
-  LecturaCruda _ultimaSensor = LecturaCruda(bpm: 0, spo2: 0, hrv: 0);
+  /// Aplica el contrato del sensor (CONTRATO_SENSOR.md) a cada línea: lectura
+  /// estricta, huecos en `seq`, firmware viejo y una lectura por segundo.
+  final InterpreteSensor _interprete = InterpreteSensor();
+
+  /// Si el firmware del sensor conectado habla el contrato. La medición con
+  /// el sensor solo se ofrece cuando es [EstadoFirmware.compatible] (paso 4).
+  EstadoFirmware get firmware => _interprete.firmware;
 
   bool get forzandoMalaSenal => _simulador.forzarMalaSenal;
 
@@ -80,6 +85,7 @@ class AlertaProvider extends ChangeNotifier {
 
     try {
       final stream = await _sensorRepo.conectar();
+      _interprete.reiniciar(); // el firmware se vuelve a verificar en cada conexión
       _sensorConectado = true;
       _isScanning = false;
       notifyListeners();
@@ -102,14 +108,14 @@ class AlertaProvider extends ChangeNotifier {
   }
 
   void _procesarLineaCruda(String linea) {
-    try {
-      final datos = jsonDecode(linea) as Map<String, dynamic>;
-      _ultimaSensor = LecturaCruda.fromJson(datos, anterior: _ultimaSensor);
-      _lecturas.add(_ultimaSensor);
-    } catch (e) {
-      // Línea corrupta del sensor: se ignora y se espera la siguiente. Nivel
-      // debug (no error): es ruido esperado del serial, no una falla real.
-      AppLogger.debug('Línea de sensor descartada: $e', tag: 'alerta');
+    final antes = _interprete.firmware;
+    final lectura = _interprete.procesar(linea);
+    if (lectura != null) _lecturas.add(lectura);
+    if (_interprete.firmware != antes) {
+      if (_interprete.firmware == EstadoFirmware.noCompatible) {
+        AppLogger.warning('Firmware del sensor no compatible con el contrato v1', tag: 'alerta');
+      }
+      notifyListeners();
     }
   }
 

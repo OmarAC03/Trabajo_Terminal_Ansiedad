@@ -239,25 +239,26 @@ void main() {
     });
   });
 
-  group('LecturaCruda.fromJson', () {
-    final anterior = LecturaCruda(bpm: 70, spo2: 97, hrv: 40);
+  // La lectura del paquete del sensor (antes LecturaCruda.fromJson, que
+  // heredaba valores y daba dedo/estable por buenos) ahora es estricta y vive
+  // en InterpreteSensor: test/interprete_sensor_test.dart.
 
-    test('lee rr, dedo y estable cuando vienen', () {
-      final l = LecturaCruda.fromJson(
-        {'bpm': 72, 'spo2': 98, 'rr': [810, 830.0], 'dedo': false, 'estable': false},
-        anterior: anterior,
-      );
-      expect(l.rr, [810, 830]);
-      expect(l.dedo, isFalse);
-      expect(l.estable, isFalse);
-    });
+  group('cortaCadenaRr (paquetes perdidos del sensor)', () {
+    test('el primer RR de la lectura no se resta contra el último anterior', () {
+      SesionMedicion rmssd({required bool corta}) {
+        final a = AcumuladorSesion(fechaInicio: DateTime.now());
+        a.agregar(LecturaCruda(bpm: 75, spo2: 98, hrv: 0, rr: [800, 820]));
+        a.agregar(LecturaCruda(bpm: 75, spo2: 98, hrv: 0, rr: [850, 860], cortaCadenaRr: corta));
+        while (!a.completa) {
+          a.agregar(LecturaCruda(bpm: 75, spo2: 98, hrv: 0));
+        }
+        return a.construir(origen: OrigenSesion.sensor);
+      }
 
-    test('firmware actual (sin esos campos) conserva los valores por defecto', () {
-      final l = LecturaCruda.fromJson({'bpm': 72}, anterior: anterior);
-      expect(l.rr, isEmpty);
-      expect(l.dedo, isTrue);
-      expect(l.estable, isTrue);
-      expect(l.spo2, 97);
+      // Sin corte: diferencias 20, 30, 10 → √(1400/3) = 21.60.
+      expect(rmssd(corta: false).hrvRmssd, 21.6);
+      // Con corte: 820 → 850 no cuenta; quedan 20 y 10 → √250 = 15.81.
+      expect(rmssd(corta: true).hrvRmssd, 15.81);
     });
   });
 }

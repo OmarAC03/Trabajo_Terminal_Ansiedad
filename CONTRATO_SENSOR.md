@@ -128,9 +128,11 @@ Si un segundo no es válido, la cadena de RR se corta: el RMSSD nunca resta dos 
 un segundo malo o por un paquete perdido. La medición termina cuando junta **180 segundos
 válidos** (tope: 10 minutos).
 
-**Firmware no compatible:** si al conectar los primeros paquetes no traen `"v":1` y `rr`
-(por ejemplo, el firmware actual que manda `hrv` ya calculado), la app muestra "Firmware no
-compatible" y no ofrece la medición con el sensor.
+**Firmware no compatible:** al conectar, el primer paquete con `"v":1` deja al sensor como
+compatible. Si llegan **3 paquetes JSON seguidos sin `v`** (por ejemplo, el firmware anterior que
+manda `hrv` ya calculado) o uno con otra versión de `v`, la app lo marca como "Firmware no
+compatible" y no ofrece la medición con el sensor. Las líneas que no son JSON (ruido del serial)
+no cuentan. Se vuelve a verificar en cada conexión.
 
 ## 6. Cambios a este contrato
 
