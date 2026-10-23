@@ -402,11 +402,39 @@ function validarVentanaEva(fechaInicio, duracionTotalSeg, ahora = Date.now()) {
   }
 }
 
+// --- GAD-7 (Fase M5a) ---
+// El paciente manda solo sus respuestas. `paciente_id` sale del token y
+// `version` la pone el servidor; el puntaje no se manda ni se guarda (se
+// calcula al leer). Cualquier otro campo → 400.
+const CAMPOS_GAD7 = ['items', 'dificultad'];
+const ITEMS_GAD7 = 7;
+
+function validarGad7(body) {
+  if (!esObjetoPlano(body)) {
+    throw new ValidationError('El cuerpo debe ser un objeto con las respuestas del GAD-7.');
+  }
+  const desconocidos = Object.keys(body).filter((campo) => !CAMPOS_GAD7.includes(campo));
+  if (desconocidos.length > 0) {
+    throw new ValidationError(`Campos no permitidos: ${desconocidos.join(', ')}.`);
+  }
+  if (!Array.isArray(body.items) || body.items.length !== ITEMS_GAD7) {
+    throw new ValidationError(`El campo "items" debe ser un arreglo con las ${ITEMS_GAD7} respuestas.`);
+  }
+  const items = body.items.map((v, i) => requerirEnteroEnRango(v, `items[${i}]`, { min: 0, max: 3 }));
+
+  let dificultad = null;
+  if (body.dificultad !== undefined && body.dificultad !== null) {
+    dificultad = requerirEnteroEnRango(body.dificultad, 'dificultad', { min: 0, max: 3 });
+  }
+  return { items, dificultad };
+}
+
 module.exports = {
   ORIGENES_SESION,
   validarSesion,
   validarEva,
   validarVentanaEva,
+  validarGad7,
   validarEdicionAdmin,
   validarLectura,
   validarUsuarioNuevo,

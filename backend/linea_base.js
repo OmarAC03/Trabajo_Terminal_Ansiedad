@@ -235,6 +235,7 @@ module.exports = {
   ETAPAS,
   ESTADOS,
   diaLocal,
+  sumarDias,
   lineaBaseAntesDe,
   evaluarSesion,
   evaluarSesiones,
