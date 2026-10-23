@@ -23,7 +23,7 @@ const reciente = fila('2026-10-10', [2, 2, 2, 1, 1, 1, 3], { dificultad: 2 }); /
 const filas = [vieja, reciente];
 const ahora = new Date('2026-10-22T12:00:00-06:00');
 
-const CAMPOS_ESTADO = ['toca', 'proxima_fecha', 'dias_restantes', 'ultima_respuesta', 'intervalo_dias'];
+const CAMPOS_ESTADO = ['toca', 'proxima_fecha', 'dias_restantes', 'ultima_respuesta', 'intervalo_dias', 'vinculado'];
 
 // Nada de esto puede aparecer en lo que recibe el paciente (claves ni valores).
 const PROHIBIDAS = [
@@ -39,7 +39,7 @@ function assertSinPalabrasProhibidas(objeto) {
 }
 
 test('paciente: solo el estado, con sus 5 campos y nada más', () => {
-  const v = vistaGad7(filas, false, ahora);
+  const v = vistaGad7(filas, false, true, ahora);
   assert.deepEqual(Object.keys(v), ['estado']);
   assert.deepEqual(Object.keys(v.estado).sort(), [...CAMPOS_ESTADO].sort());
   assert.deepEqual(v.estado, {
@@ -48,30 +48,32 @@ test('paciente: solo el estado, con sus 5 campos y nada más', () => {
     dias_restantes: 2,
     ultima_respuesta: reciente.fecha_respuesta,
     intervalo_dias: 14,
+    vinculado: true,
   });
 });
 
 test('paciente: ninguna palabra prohibida, ni con resultado grave ni sin respuestas', () => {
   const grave = fila('2026-10-21', [3, 3, 3, 3, 3, 3, 3], { dificultad: 3 });
   for (const lista of [filas, [grave], []]) {
-    assertSinPalabrasProhibidas(vistaGad7(lista, false, ahora));
+    assertSinPalabrasProhibidas(vistaGad7(lista, false, true, ahora));
   }
   assertSinPalabrasProhibidas(guardadaParaPaciente(grave, [grave], ahora));
 });
 
 test('paciente sin respuestas: le toca hoy y no hay última respuesta', () => {
-  assert.deepEqual(vistaGad7([], false, ahora).estado, {
+  assert.deepEqual(vistaGad7([], false, true, ahora).estado, {
     toca: true,
     proxima_fecha: '2026-10-22',
     dias_restantes: 0,
     ultima_respuesta: null,
     intervalo_dias: 14,
+    vinculado: true,
   });
 });
 
 test('especialista: estado + historial completo, del más reciente al más viejo', () => {
-  const v = vistaGad7(filas, true, ahora);
-  assert.deepEqual(v.estado, vistaGad7(filas, false, ahora).estado);
+  const v = vistaGad7(filas, true, true, ahora);
+  assert.deepEqual(v.estado, vistaGad7(filas, false, true, ahora).estado);
   assert.deepEqual(v.respuestas.map((r) => r.id), [reciente.id, vieja.id]);
   assert.deepEqual(v.respuestas[0], {
     id: reciente.id,
@@ -91,7 +93,7 @@ test('especialista: estado + historial completo, del más reciente al más viejo
 
 test('una columna nueva en la tabla no se filtra a ningún rol', () => {
   const conExtra = { ...reciente, nota_interna: 'secreta', paciente_id: 'paciente-1' };
-  const texto = JSON.stringify([vistaGad7([conExtra], false, ahora), vistaGad7([conExtra], true, ahora)]);
+  const texto = JSON.stringify([vistaGad7([conExtra], false, true, ahora), vistaGad7([conExtra], true, true, ahora)]);
   assert.ok(!texto.includes('nota_interna'));
   assert.ok(!texto.includes('paciente_id'));
 });
@@ -106,6 +108,18 @@ test('guardada (POST): id, fecha y el nuevo estado, ya sin tocarle', () => {
 });
 
 test('el estado toma la respuesta más reciente aunque las filas vengan desordenadas', () => {
-  assert.equal(estadoPara([reciente, vieja], ahora).ultima_respuesta, reciente.fecha_respuesta);
-  assert.equal(estadoPara([vieja, reciente], ahora).ultima_respuesta, reciente.fecha_respuesta);
+  assert.equal(estadoPara([reciente, vieja], true, ahora).ultima_respuesta, reciente.fecha_respuesta);
+  assert.equal(estadoPara([vieja, reciente], true, ahora).ultima_respuesta, reciente.fecha_respuesta);
+});
+
+test('paciente sin especialista: vinculado false (la app no muestra la tarjeta)', () => {
+  const e = vistaGad7([], false, false, ahora).estado;
+  assert.equal(e.vinculado, false);
+  assert.equal(e.toca, true); // el intervalo no depende del vínculo; el POST sí lo exige
+  assertSinPalabrasProhibidas(vistaGad7([], false, false, ahora));
+});
+
+test('la respuesta del POST siempre es de un paciente vinculado', () => {
+  const nueva = fila('2026-10-22', [0, 0, 0, 0, 0, 0, 0]);
+  assert.equal(guardadaParaPaciente(nueva, [nueva], ahora).estado.vinculado, true);
 });

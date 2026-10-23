@@ -12,6 +12,8 @@ const { inicializarFirebaseAdmin, requiereAuth, requiereAuthSocket, requiereAdmi
 const { crearAdminRouter } = require('./admin');
 const { CONFIG_LINEA_BASE } = require('./linea_base');
 const { evaluarFilas, calibracionPara } = require('./linea_base_vista');
+const { CONFIG_GAD7, itemsDeFila, puntaje: puntajeGad7, severidad: severidadGad7, valorar: valorarGad7, estadoGad7 } = require('./gad7');
+const { vistaGad7, guardadaParaPaciente } = require('./gad7_vista');
 const {
   validarLectura,
   validarUsuarioNuevo,
@@ -23,6 +25,7 @@ const {
   validarSesion,
   validarEva,
   validarVentanaEva,
+  validarGad7,
   ORIGENES_SESION,
 } = require('./validation');
 
@@ -442,6 +445,107 @@ app.post('/api/sesiones/:sesionId/eva', async (req, res) => {
   res.status(201).json({ mensaje: 'Respuesta guardada con éxito', data: result.rows[0] });
 });
 
+// --- GAD-7 PERIÓDICO (Fase M5a, DESARROLLO_FUNDAMENTADO.md §4.2) ---
+// Columnas de `respuestas_gad7` que lee la API (lista fija, sin SELECT *). El
+// puntaje y la severidad no se guardan: los calcula gad7.js al leer, y qué ve
+// cada rol lo decide gad7_vista.js (el paciente, nunca su resultado).
+const COLUMNAS_GAD7 =
+  'id, fecha_respuesta, version, item1, item2, item3, item4, item5, item6, item7, dificultad';
+
+// Respuestas que ve el especialista (unas 26 por año: sobra).
+const LIMITE_HISTORIAL_GAD7 = 100;
+
+// POST /api/gad7 — el paciente responde el GAD-7. Solo un paciente vinculado
+// a un especialista (un ≥10 que nadie ve no tiene sentido clínico), y solo si
+// ya le toca (14 días por fecha local; si no, 409). `paciente_id` sale del
+// token y `version` la pone el servidor.
+//
+// Contra el doble envío: la revisión del intervalo y el INSERT van en UNA
+// transacción que empieza con `FOR UPDATE` sobre la fila del paciente en
+// `usuarios`. Dos envíos casi simultáneos del mismo paciente quedan en fila: el
+// segundo espera el COMMIT del primero, ya ve su respuesta (READ COMMITTED) y
+// recibe 409. A los demás pacientes no les afecta.
+//
+// El log no lleva puntaje ni respuestas: los logs de Render no deben tener
+// datos clínicos.
+app.post('/api/gad7', async (req, res) => {
+  if (req.rol !== 'paciente') {
+    throw new AuthError('Solo un paciente puede responder el cuestionario.', 403);
+  }
+  const datos = validarGad7(req.body);
+
+  const client = await pool.connect();
+  let guardada;
+  let filasDelPaciente;
+  try {
+    await client.query('BEGIN');
+    const paciente = await client.query(
+      "SELECT especialista_id FROM usuarios WHERE id = $1 AND rol = 'paciente' FOR UPDATE",
+      [req.uid]
+    );
+    if (paciente.rowCount === 0 || !paciente.rows[0].especialista_id) {
+      throw new AuthError('Necesitas estar vinculado a un especialista para responder el cuestionario.', 403);
+    }
+
+    const ultima = await client.query(
+      'SELECT max(fecha_respuesta) AS ultima FROM respuestas_gad7 WHERE paciente_id = $1',
+      [req.uid]
+    );
+    const estado = estadoGad7(ultima.rows[0].ultima);
+    if (!estado.toca) {
+      throw new HttpError(
+        `Todavía no te toca responder el cuestionario. Podrás hacerlo a partir del ${estado.proxima_fecha}.`,
+        409
+      );
+    }
+
+    const result = await client.query(
+      `INSERT INTO respuestas_gad7
+         (paciente_id, item1, item2, item3, item4, item5, item6, item7, dificultad, version)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING ${COLUMNAS_GAD7};`,
+      [req.uid, ...datos.items, datos.dificultad, CONFIG_GAD7.version]
+    );
+    guardada = result.rows[0];
+    filasDelPaciente = [guardada];
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  logger.info('GAD-7 guardado', { paciente_id: req.uid, con_dificultad: datos.dificultad !== null });
+  res.status(201).json({
+    mensaje: 'Cuestionario guardado con éxito',
+    data: guardadaParaPaciente(guardada, filasDelPaciente),
+  });
+});
+
+// GET /api/gad7/:pacienteId — el propio paciente o su especialista vinculado.
+// Paciente: solo el estado (¿le toca?, desde cuándo, si está vinculado).
+// Especialista: el estado y TODO el historial del paciente (como las
+// sesiones: es dato clínico del paciente, aunque antes tuviera otro
+// especialista), del más reciente al más viejo.
+app.get('/api/gad7/:pacienteId', async (req, res) => {
+  const { pacienteId } = req.params;
+  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver el cuestionario de este paciente.');
+
+  const esEspecialista = req.rol === 'especialista';
+  const result = await pool.query(
+    `SELECT ${esEspecialista ? COLUMNAS_GAD7 : 'fecha_respuesta'}
+     FROM respuestas_gad7
+     WHERE paciente_id = $1
+     ORDER BY fecha_respuesta DESC
+     LIMIT $2;`,
+    [pacienteId, esEspecialista ? LIMITE_HISTORIAL_GAD7 : 1]
+  );
+  // Si quien pregunta es su especialista, el vínculo ya está probado.
+  const vinculado = esEspecialista || (await especialistaDePaciente(pacienteId)) !== null;
+  res.status(200).json(vistaGad7(result.rows, esEspecialista, vinculado));
+});
+
 // --- HISTORIAL DEL CHAT DE UN PACIENTE (Fase 2b) ---
 // GET /api/mensajes/:pacienteId — el propio paciente o su especialista
 // vinculado. Solo devuelve la conversación con el especialista vinculado
@@ -780,7 +884,10 @@ app.get('/api/pacientes', async (req, res) => {
       us.id AS ultima_sesion_id,
       us.fecha_inicio AS ultima_sesion,
       us.origen AS ultima_sesion_origen,
-      s7.total AS sesiones_7d
+      s7.total AS sesiones_7d,
+      ug.fecha_respuesta AS ug_fecha,
+      ug.item1 AS ug_item1, ug.item2 AS ug_item2, ug.item3 AS ug_item3, ug.item4 AS ug_item4,
+      ug.item5 AS ug_item5, ug.item6 AS ug_item6, ug.item7 AS ug_item7
     FROM usuarios u
     LEFT JOIN LATERAL (
       SELECT estado_ansiedad, fecha_medicion, bpm, spo2, hrv
@@ -803,6 +910,15 @@ app.get('/api/pacientes', async (req, res) => {
       FROM sesiones_medicion s
       WHERE s.paciente_id = u.id AND s.fecha_inicio >= now() - make_interval(days => $2::int)
     ) s7
+    -- Último GAD-7 (Fase M5a): solo los ítems; el puntaje se calcula en JS
+    -- con gad7.js (una sola fuente de verdad, no se suma en SQL).
+    LEFT JOIN LATERAL (
+      SELECT g.fecha_respuesta, g.item1, g.item2, g.item3, g.item4, g.item5, g.item6, g.item7
+      FROM respuestas_gad7 g
+      WHERE g.paciente_id = u.id
+      ORDER BY g.fecha_respuesta DESC
+      LIMIT 1
+    ) ug ON true
     WHERE u.rol = 'paciente' AND u.especialista_id = $1
     ORDER BY u.nombre ASC;
   `;
@@ -828,10 +944,19 @@ app.get('/api/pacientes', async (req, res) => {
     basePorPaciente.get(fila.paciente_id).push(fila);
   }
 
-  const pacientes = result.rows.map((p) => {
+  const ahora = new Date();
+  const pacientes = result.rows.map((fila) => {
+    // Las columnas ug_* (último GAD-7) no salen tal cual: se convierten abajo.
+    const { ug_fecha, ug_item1, ug_item2, ug_item3, ug_item4, ug_item5, ug_item6, ug_item7, ...p } = fila;
     const evaluacion = p.ultima_sesion_id
       ? evaluarFilas([{ id: p.ultima_sesion_id }], basePorPaciente.get(p.id) || [], true)
         .get(p.ultima_sesion_id) || null
+      : null;
+    const gad7 = ug_fecha
+      ? puntajeGad7(itemsDeFila({
+        item1: ug_item1, item2: ug_item2, item3: ug_item3, item4: ug_item4,
+        item5: ug_item5, item6: ug_item6, item7: ug_item7,
+      }))
       : null;
     return {
       ...p,
@@ -839,6 +964,12 @@ app.get('/api/pacientes', async (req, res) => {
       ultima_sesion_etapa: evaluacion ? evaluacion.etapa : null,
       ultima_sesion_motivo_sin_estado: evaluacion ? evaluacion.motivo_sin_estado : null,
       ultima_sesion_fc_por_encima: evaluacion ? evaluacion.fc_por_encima : null,
+      // Último GAD-7 (Fase M5a; null si nunca respondió).
+      ultimo_gad7_fecha: ug_fecha || null,
+      ultimo_gad7_puntaje: gad7,
+      ultimo_gad7_severidad: gad7 === null ? null : severidadGad7(gad7),
+      ultimo_gad7_valorar: gad7 === null ? null : valorarGad7(gad7),
+      gad7_toca: estadoGad7(ug_fecha || null, ahora).toca,
     };
   });
   res.status(200).json(pacientes);

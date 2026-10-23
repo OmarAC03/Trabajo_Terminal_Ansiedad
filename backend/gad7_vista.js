@@ -19,8 +19,9 @@ const {
 } = require('./gad7');
 
 /** Estado "¿le toca?" a partir de las respuestas del paciente. Igual para
- * ambos roles (no delata nada del resultado). */
-function estadoPara(filas, ahora = new Date(), config = CONFIG_GAD7) {
+ * ambos roles (no delata nada del resultado). `vinculado`: si tiene
+ * especialista; sin él no puede responder (la app no muestra la tarjeta). */
+function estadoPara(filas, vinculado, ahora = new Date(), config = CONFIG_GAD7) {
   const ultima = ultimaFechaDe(filas);
   const estado = estadoGad7(ultima, ahora, config);
   return {
@@ -29,6 +30,7 @@ function estadoPara(filas, ahora = new Date(), config = CONFIG_GAD7) {
     dias_restantes: estado.dias_restantes,
     ultima_respuesta: ultima,
     intervalo_dias: config.intervaloDias,
+    vinculado: Boolean(vinculado),
   };
 }
 
@@ -50,8 +52,8 @@ function respuestaEspecialista(fila) {
 
 /** `GET /api/gad7/:pacienteId`. Paciente: solo el estado. Especialista: el
  * estado y el historial, de la más reciente a la más vieja. */
-function vistaGad7(filas, esEspecialista, ahora = new Date()) {
-  const estado = estadoPara(filas, ahora);
+function vistaGad7(filas, esEspecialista, vinculado, ahora = new Date()) {
+  const estado = estadoPara(filas, vinculado, ahora);
   if (!esEspecialista) return { estado };
   const respuestas = [...filas]
     .sort((a, b) => new Date(b.fecha_respuesta) - new Date(a.fecha_respuesta))
@@ -59,13 +61,13 @@ function vistaGad7(filas, esEspecialista, ahora = new Date()) {
   return { estado, respuestas };
 }
 
-/** `POST /api/gad7` (solo lo hace el paciente): la confirmación de que se
- * guardó y su nuevo estado. Nada del resultado. */
+/** `POST /api/gad7` (solo lo hace el paciente, y solo vinculado): la
+ * confirmación de que se guardó y su nuevo estado. Nada del resultado. */
 function guardadaParaPaciente(fila, filasDelPaciente, ahora = new Date()) {
   return {
     id: fila.id,
     fecha_respuesta: fila.fecha_respuesta,
-    estado: estadoPara(filasDelPaciente, ahora),
+    estado: estadoPara(filasDelPaciente, true, ahora),
   };
 }
 
