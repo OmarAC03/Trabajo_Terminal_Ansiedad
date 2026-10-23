@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter_classic_bluetooth/flutter_classic_bluetooth.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'lector_lineas.dart';
 
 /// Nombre del dispositivo Bluetooth vinculado que expone el sensor ESP32.
 const _nombreDispositivoSensor = "TT_SENSOR_CLASICO";
@@ -26,7 +26,7 @@ class SensorException implements Exception {
 class SensorRepository {
   final FlutterClassicBluetooth _bluetooth = FlutterClassicBluetooth();
   BtcConnection? _connection;
-  String _bufferDatos = "";
+  final LectorLineas _lector = LectorLineas();
 
   Future<bool> _solicitarPermisos() async {
     final statuses = await [
@@ -64,14 +64,12 @@ class SensorRepository {
     final connection = await _bluetooth.connect(address: esp32.address);
     _connection = connection;
 
+    _lector.reiniciar();
     final controller = StreamController<String>();
     connection.input.listen((Uint8List data) {
-      _bufferDatos += ascii.decode(data);
-      if (_bufferDatos.contains('\n')) {
-        final lineas = _bufferDatos.split('\n');
-        final linea = lineas[0].trim();
-        _bufferDatos = lineas.length > 1 ? lineas[1] : "";
-        if (linea.isNotEmpty) controller.add(linea);
+      // Un paquete puede traer varias líneas o media: salen todas, en orden.
+      for (final linea in _lector.agregar(data)) {
+        controller.add(linea);
       }
     }).onDone(() {
       controller.close();
@@ -85,6 +83,6 @@ class SensorRepository {
     // un error al cerrar una conexión que ya se cayó no importa.
     _connection?.close().catchError((_) {});
     _connection = null;
-    _bufferDatos = "";
+    _lector.reiniciar();
   }
 }
