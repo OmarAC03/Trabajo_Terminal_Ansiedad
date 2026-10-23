@@ -150,6 +150,47 @@ la banda de una sesión a otra.
   contexto clínico periódico para el especialista, no un dato por sesión.
 - **Usar versión validada en español.**
 
+#### Implementación (Fase M5a, "Fase E"; decisiones aprobadas por Omar el 2026-10-22)
+
+**Texto usado — versión `gad7-es-v1`** (se usa EXACTO en la app y en el portal; no se reescribe).
+Fuente: validación en español de **García-Campayo et al. (2010)** — ⚠️ **verificar contra la
+versión oficial antes de la entrega final.** Corrección de Omar al ítem 1: "o muy tenso" (el
+documento de partida decía "ansioso o nervioso", redundante; mala traducción de *on edge*).
+
+- **Encabezado:** "Durante las últimas 2 semanas, ¿con qué frecuencia le han molestado los
+  siguientes problemas?"
+- **Opciones (valor):** De nada (0) · Varios días (1) · Más de la mitad de los días (2) · Casi
+  todos los días (3).
+- **Ítems:**
+  1. Sentirse nervioso, ansioso o muy tenso
+  2. No poder detenerse o controlar la preocupación
+  3. Preocuparse demasiado por cosas diferentes
+  4. Dificultad para relajarse
+  5. Ser tan inquieto que es difícil quedarse quieto
+  6. Molestarse o irritarse con facilidad
+  7. Sentir miedo, como si algo horrible pudiera suceder
+- **Pregunta de dificultad (opcional, NO suma al puntaje):** "Si marcó cualquier problema, ¿qué tan
+  difícil le han hecho estos problemas para hacer su trabajo, ocuparse de las cosas en casa, o
+  llevarse bien con otras personas?" — No es nada difícil (0) · Algo difícil (1) · Muy difícil (2)
+  · Extremadamente difícil (3).
+
+**Puntaje y severidad:** suma de los 7 ítems (0–21). **Mínima** 0–4 · **Leve** 5–9 · **Moderada**
+10–14 · **Grave** 15–21. Son las categorías del instrumento; **nunca** Normal/Elevados/Altos (esas
+son de los indicadores fisiológicos). Puntaje **≥10** → el portal lo marca "Valorar" (§2.3).
+Siempre con el aviso "Instrumento de tamizaje, no es diagnóstico".
+
+**Decisiones:**
+- Lo responde el **paciente en la app**; el **especialista** ve puntaje, severidad, respuestas e
+  historial en el portal. **El paciente NO ve su resultado** (solo un agradecimiento), coherente con
+  la regla de oro de M3.
+- **Solo pacientes vinculados** a un especialista (un ≥10 que nadie ve no tiene sentido clínico).
+- **Intervalo de 14 días** por fecha local (`America/Mexico_City`); el backend responde **409** si
+  se intenta antes. **Tarjeta en Inicio desde el día 1** (aunque aún no haya medido).
+- **Mensaje de apoyo igual para todos** en el agradecimiento (no depende del puntaje, para no
+  delatarlo), con la Línea de la Vida — ⚠️ **verificar el número antes de publicarlo.**
+- Tabla `respuestas_gad7`: un ítem por columna con `CHECK` 0–3; el puntaje y la severidad **no se
+  guardan**, se calculan al leer (como el estado de M3).
+
 ### 4.3 Registro de confusores (opcional, mejora la interpretación)
 Al medir, el paciente puede marcar rápidamente: dormí mal / tomé cafeína / hice ejercicio /
 estoy enfermo / medicación. La evidencia dice que estos factores alteran la HRV; registrarlos
@@ -231,6 +272,9 @@ todo el proyecto.
 - Task Force (1996). *Circulation* 93:1043–1065. — Estándares de medición de HRV.
 - Schäfer A, Vagedes J (2013). *Int J Cardiol* 166(1):15–29. — PRV (PPG) vs HRV (ECG).
 - Spitzer RL et al. (2006). *Arch Intern Med* 166(10):1092–1097. — GAD-7.
+- García-Campayo J et al. (2010). Adaptación cultural al español del GAD-7 como instrumento de
+  tamizaje. *Health Qual Life Outcomes* 8:8. — Versión en español usada (`gad7-es-v1`).
+  **FUENTE POR VERIFICAR** (cita y texto contra la versión oficial antes de la entrega).
 - Davey HM et al. (2007). *J Clin Epidemiol* 60(4):356–360. — EVA de ansiedad.
 - Abend R et al. (2014). *J Behav Ther Exp Psychiatry*. — EVA computarizada.
 - Plews DJ et al. (2014). *Int J Sports Physiol Perform* 9(5):783–790. — Línea base / media 7 días.
