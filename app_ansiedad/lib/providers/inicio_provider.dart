@@ -2,7 +2,9 @@ import 'package:flutter/foundation.dart';
 import '../app_config.dart';
 import '../logger.dart';
 import '../models/calibracion.dart';
+import '../models/gad7.dart';
 import '../models/sesion_resumen.dart';
+import '../repositories/gad7_repository.dart';
 import '../repositories/sesion_repository.dart';
 
 enum EstadoInicio { cargando, listo, error }
@@ -17,12 +19,14 @@ enum EstadoInicio { cargando, listo, error }
 class InicioProvider extends ChangeNotifier {
   final String pacienteId;
   final SesionRepository _repo;
+  final Gad7Repository _gad7Repo;
 
   final Listenable? _aviso;
 
   /// Con [aviso], se recarga solo cuando se guarda una sesión nueva.
-  InicioProvider({required this.pacienteId, SesionRepository? repo, Listenable? aviso})
+  InicioProvider({required this.pacienteId, SesionRepository? repo, Gad7Repository? gad7Repo, Listenable? aviso})
       : _repo = repo ?? SesionRepository(),
+        _gad7Repo = gad7Repo ?? Gad7Repository(),
         _aviso = aviso {
     _aviso?.addListener(cargar);
   }
@@ -45,6 +49,12 @@ class InicioProvider extends ChangeNotifier {
   /// no se pudo cargar. Solo etapa y "día X de 7": nunca el estado.
   Calibracion? calibracionDe(String origen) => _calibraciones[origen];
 
+  EstadoGad7? _gad7;
+
+  /// Estado del GAD-7 (Fase M5a): ¿le toca?, ¿tiene especialista? Null si no
+  /// se pudo cargar (la tarjeta no aparece). Nunca el resultado.
+  EstadoGad7? get gad7 => _gad7;
+
   bool get sinMediciones => _estado == EstadoInicio.listo && _ultima == null;
 
   /// Regla de seguridad §2.3 sobre la última sesión.
@@ -60,6 +70,8 @@ class InicioProvider extends ChangeNotifier {
     // La calibración va en paralelo y no es indispensable: si falla, Inicio se
     // ve como antes de M3 (sin el mensaje de la mascota) y no muestra error.
     final calibraciones = _cargarCalibraciones();
+    // El GAD-7, igual: si falla, no hay tarjeta y no se muestra error.
+    final gad7 = _cargarGad7();
     try {
       _ultima = await _repo.obtenerUltimaSesion(pacienteId);
       _estado = EstadoInicio.listo;
@@ -70,6 +82,7 @@ class InicioProvider extends ChangeNotifier {
       _falla('Ocurrió un error inesperado.');
     }
     await calibraciones;
+    await gad7;
     _enCurso = false;
     if (!_desechado) notifyListeners();
   }
@@ -79,6 +92,15 @@ class InicioProvider extends ChangeNotifier {
       _calibraciones = await _repo.obtenerCalibraciones(pacienteId);
     } catch (e) {
       AppLogger.warning('No se pudo cargar la línea base', tag: 'inicio', error: e);
+    }
+  }
+
+  Future<void> _cargarGad7() async {
+    try {
+      _gad7 = await _gad7Repo.obtenerEstado(pacienteId);
+    } catch (e) {
+      _gad7 = null;
+      AppLogger.warning('No se pudo cargar el estado del GAD-7', tag: 'inicio', error: e);
     }
   }
 

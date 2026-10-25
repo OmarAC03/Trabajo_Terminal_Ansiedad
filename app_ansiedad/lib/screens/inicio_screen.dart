@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../app_config.dart';
+import '../contenido/gad7_textos.dart';
 import '../contenido/textos_educativos.dart';
 import '../logger.dart';
 import '../medicion/aviso_sesiones.dart';
 import '../medicion/estado_sensor.dart';
 import '../medicion/mensajes_mascota.dart';
 import '../models/calibracion.dart';
+import '../models/gad7.dart';
 import '../models/sesion_medicion.dart';
 import '../providers/alerta_provider.dart';
 import '../providers/inicio_provider.dart';
@@ -18,6 +20,7 @@ import '../ui/fila_indicador.dart';
 import '../ui/formato_fecha.dart';
 import '../ui/progreso_calibracion.dart';
 import '../ui/widgets.dart';
+import 'gad7_screen.dart';
 import 'medicion_screen.dart';
 
 /// Pantalla principal del paciente (Fase M1c). Reemplaza al Monitor en vivo:
@@ -56,6 +59,13 @@ class _InicioView extends StatelessWidget {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => MedicionScreen(alerta: alerta, yaHabiaMedidoHoy: yaHabiaMedidoHoy),
     ));
+  }
+
+  /// Abre el GAD-7; si se guardó, Inicio recarga y la tarjeta desaparece.
+  Future<void> _abrirGad7(BuildContext context) async {
+    final inicio = context.read<InicioProvider>();
+    final guardado = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const Gad7Screen()));
+    if (guardado == true) inicio.cargar();
   }
 
   @override
@@ -97,6 +107,10 @@ class _InicioView extends StatelessWidget {
                     if (alerta.fuente == FuenteLecturas.sensor) ...[
                       const SizedBox(height: 12),
                       _EstadoSensor(alerta),
+                    ],
+                    if (mostrarTarjetaGad7(inicio.gad7)) ...[
+                      const SizedBox(height: 16),
+                      _TarjetaGad7(onTap: () => _abrirGad7(context)),
                     ],
                     const SizedBox(height: 24),
                     if (mensaje != null) ...[
@@ -393,6 +407,50 @@ class _EstadoSensor extends StatelessWidget {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+// --- GAD-7 quincenal (Fase M5a) ---
+
+/// Invitación a responder el GAD-7. Solo aparece cuando le toca y tiene
+/// especialista (`mostrarTarjetaGad7`); no bloquea nada ni se pospone: si no
+/// responde, sigue aquí. Nunca habla del resultado.
+class _TarjetaGad7 extends StatelessWidget {
+  final VoidCallback onTap;
+  const _TarjetaGad7({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tarjeta(
+      onTap: onTap,
+      colorBorde: AppColors.primario.withValues(alpha: 0.4),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(color: AppColors.primarioSuave, borderRadius: BorderRadius.circular(12)),
+            child: const Icon(Icons.assignment_outlined, color: AppColors.primario),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  TextosGad7.tarjetaTitulo,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.texto),
+                ),
+                SizedBox(height: 2),
+                Text(TextosGad7.tarjetaDetalle, style: TextStyle(fontSize: 12.5, color: AppColors.textoAyuda)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(onPressed: onTap, child: const Text(TextosGad7.tarjetaBoton)),
         ],
       ),
     );

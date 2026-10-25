@@ -3,10 +3,12 @@ import 'package:app_ansiedad/contenido/textos_educativos.dart';
 import 'package:app_ansiedad/medicion/aviso_sesiones.dart';
 import 'package:app_ansiedad/models/calibracion.dart';
 import 'package:app_ansiedad/models/eva_respuesta.dart';
+import 'package:app_ansiedad/models/gad7.dart';
 import 'package:app_ansiedad/models/sesion_detalle.dart';
 import 'package:app_ansiedad/models/sesion_medicion.dart';
 import 'package:app_ansiedad/models/sesion_resumen.dart';
 import 'package:app_ansiedad/providers/inicio_provider.dart';
+import 'package:app_ansiedad/repositories/gad7_repository.dart';
 import 'package:app_ansiedad/repositories/sesion_repository.dart';
 import 'package:app_ansiedad/ui/formato_fecha.dart';
 
@@ -65,6 +67,22 @@ class RepoFalso implements SesionRepository {
   Future<SesionDetalle> obtenerDetalle(String pacienteId, String sesionId) => throw UnimplementedError();
 }
 
+/// Estado del GAD-7 para Inicio: el que se indique, o una excepción.
+class Gad7EstadoFalso implements Gad7Repository {
+  final Object estado;
+  Gad7EstadoFalso([this.estado = const EstadoGad7(toca: false, vinculado: true)]);
+
+  @override
+  Future<EstadoGad7> obtenerEstado(String pacienteId) async {
+    final e = estado;
+    if (e is Exception) throw e;
+    return e as EstadoGad7;
+  }
+
+  @override
+  Future<EnvioGad7> enviar(RespuestaGad7 respuesta) => throw UnimplementedError();
+}
+
 void main() {
   group('SesionResumen.fromJson', () {
     test('convierte los numeric que llegan como texto', () {
@@ -101,7 +119,7 @@ void main() {
     final sesion = SesionResumen.fromJson(filaBackend());
 
     test('con sesión: listo y con la última sesión', () async {
-      final p = InicioProvider(pacienteId: 'p', repo: RepoFalso([sesion]));
+      final p = InicioProvider(pacienteId: 'p', gad7Repo: Gad7EstadoFalso(), repo: RepoFalso([sesion]));
       expect(p.estado, EstadoInicio.cargando);
       await p.cargar();
       expect(p.estado, EstadoInicio.listo);
@@ -110,7 +128,7 @@ void main() {
     });
 
     test('lista vacía: primer uso (sin mediciones), no error', () async {
-      final p = InicioProvider(pacienteId: 'p', repo: RepoFalso([null]));
+      final p = InicioProvider(pacienteId: 'p', gad7Repo: Gad7EstadoFalso(), repo: RepoFalso([null]));
       await p.cargar();
       expect(p.estado, EstadoInicio.listo);
       expect(p.sinMediciones, isTrue);
@@ -118,7 +136,7 @@ void main() {
 
     test('M3: carga la calibración por origen junto con la última sesión', () async {
       final cal = Calibracion.fromJson({'origen': 'simulacion', 'etapa': 'preliminar', 'dia_calibracion': 5});
-      final p = InicioProvider(pacienteId: 'p', repo: RepoFalso([sesion], calibraciones: {'simulacion': cal}));
+      final p = InicioProvider(pacienteId: 'p', gad7Repo: Gad7EstadoFalso(), repo: RepoFalso([sesion], calibraciones: {'simulacion': cal}));
       await p.cargar();
       expect(p.calibracionDe('simulacion'), same(cal));
       expect(p.calibracionDe('sensor'), isNull);
@@ -127,6 +145,7 @@ void main() {
     test('M3: si la línea base falla, Inicio sigue listo y sin error', () async {
       final p = InicioProvider(
         pacienteId: 'p',
+        gad7Repo: Gad7EstadoFalso(),
         repo: RepoFalso([sesion], calibraciones: RepositoryException('Sin conexión')),
       );
       await p.cargar();
@@ -135,8 +154,32 @@ void main() {
       expect(p.calibracionDe('simulacion'), isNull);
     });
 
+    test('M5a: carga el estado del GAD-7 junto con la última sesión', () async {
+      final p = InicioProvider(
+        pacienteId: 'p',
+        gad7Repo: Gad7EstadoFalso(const EstadoGad7(toca: true, vinculado: true)),
+        repo: RepoFalso([sesion]),
+      );
+      await p.cargar();
+      expect(mostrarTarjetaGad7(p.gad7), isTrue);
+    });
+
+    test('M5a: si el GAD-7 falla, no hay tarjeta y Inicio sigue listo y sin error', () async {
+      final p = InicioProvider(
+        pacienteId: 'p',
+        gad7Repo: Gad7EstadoFalso(RepositoryException('Sin conexión')),
+        repo: RepoFalso([sesion]),
+      );
+      await p.cargar();
+      expect(p.estado, EstadoInicio.listo);
+      expect(p.errorMsg, isNull);
+      expect(p.gad7, isNull);
+      expect(mostrarTarjetaGad7(p.gad7), isFalse);
+      expect(p.ultima, same(sesion));
+    });
+
     test('un error NUNCA se muestra como primer uso', () async {
-      final p = InicioProvider(pacienteId: 'p', repo: RepoFalso([RepositoryException('Sin conexión')]));
+      final p = InicioProvider(pacienteId: 'p', gad7Repo: Gad7EstadoFalso(), repo: RepoFalso([RepositoryException('Sin conexión')]));
       await p.cargar();
       expect(p.estado, EstadoInicio.error);
       expect(p.sinMediciones, isFalse);
@@ -144,7 +187,7 @@ void main() {
     });
 
     test('si una recarga falla, conserva la sesión ya cargada y avisa', () async {
-      final p = InicioProvider(pacienteId: 'p', repo: RepoFalso([sesion, RepositoryException('Sin conexión')]));
+      final p = InicioProvider(pacienteId: 'p', gad7Repo: Gad7EstadoFalso(), repo: RepoFalso([sesion, RepositoryException('Sin conexión')]));
       await p.cargar();
       await p.cargar();
       expect(p.estado, EstadoInicio.listo);
@@ -153,7 +196,7 @@ void main() {
     });
 
     test('tras un error, reintentar con éxito limpia el error', () async {
-      final p = InicioProvider(pacienteId: 'p', repo: RepoFalso([RepositoryException('x'), sesion]));
+      final p = InicioProvider(pacienteId: 'p', gad7Repo: Gad7EstadoFalso(), repo: RepoFalso([RepositoryException('x'), sesion]));
       await p.cargar();
       await p.cargar();
       expect(p.estado, EstadoInicio.listo);
@@ -162,7 +205,7 @@ void main() {
 
     test('se recarga sola cuando se guarda una sesión nueva', () async {
       final nueva = SesionResumen.fromJson({...filaBackend(), 'id': 'nueva'});
-      final p = InicioProvider(pacienteId: 'p', repo: RepoFalso([sesion, nueva]), aviso: AvisoSesiones.guardadas);
+      final p = InicioProvider(pacienteId: 'p', gad7Repo: Gad7EstadoFalso(), repo: RepoFalso([sesion, nueva]), aviso: AvisoSesiones.guardadas);
       await p.cargar();
       AvisoSesiones.notificarGuardada();
       await Future<void>.delayed(Duration.zero);
@@ -171,9 +214,9 @@ void main() {
     });
 
     test('aviso de SpO2 solo por debajo de 94 % (regla §2.3)', () async {
-      final bajo = InicioProvider(pacienteId: 'p', repo: RepoFalso([SesionResumen.fromJson(filaBackend(spo2: '93.6'))]));
-      final limite = InicioProvider(pacienteId: 'p', repo: RepoFalso([SesionResumen.fromJson(filaBackend(spo2: '94.0'))]));
-      final vacio = InicioProvider(pacienteId: 'p', repo: RepoFalso([null]));
+      final bajo = InicioProvider(pacienteId: 'p', gad7Repo: Gad7EstadoFalso(), repo: RepoFalso([SesionResumen.fromJson(filaBackend(spo2: '93.6'))]));
+      final limite = InicioProvider(pacienteId: 'p', gad7Repo: Gad7EstadoFalso(), repo: RepoFalso([SesionResumen.fromJson(filaBackend(spo2: '94.0'))]));
+      final vacio = InicioProvider(pacienteId: 'p', gad7Repo: Gad7EstadoFalso(), repo: RepoFalso([null]));
       await bajo.cargar();
       await limite.cargar();
       await vacio.cargar();

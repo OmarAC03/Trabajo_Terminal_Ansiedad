@@ -29,6 +29,8 @@ class AppConfig {
   static String urlSesionesPaciente(String pacienteId) => '$backendUrl/api/sesiones/$pacienteId';
   static String urlEvaSesion(String sesionId) => '$backendUrl/api/sesiones/$sesionId/eva';
   static String urlLineaBase(String pacienteId) => '$backendUrl/api/linea-base/$pacienteId';
+  static const String urlGad7 = '$backendUrl/api/gad7';
+  static String urlGad7Paciente(String pacienteId) => '$backendUrl/api/gad7/$pacienteId';
 }
 
 /// Parámetros de la sesión de medición (Fase M1b, DISENO_FLUJO_MEDICION.md §3).
