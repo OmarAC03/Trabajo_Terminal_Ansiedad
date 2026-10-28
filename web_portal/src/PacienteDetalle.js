@@ -5,6 +5,7 @@ import { evaluacionUltimaSesion } from './semaforo';
 import ChatPaciente from './ChatPaciente';
 import EjerciciosPaciente from './EjerciciosPaciente';
 import SesionesPaciente from './SesionesPaciente';
+import Gad7Paciente from './Gad7Paciente';
 
 // Detalle de un paciente (Portal Web Fase 2a; sesiones desde la Fase M1).
 // Muestra indicadores fisiológicos de apoyo — NO un diagnóstico
@@ -54,6 +55,7 @@ function PacienteDetalle({ paciente, onVolver, recarga, onActualizar, errorAcces
       <div className="ui-detail-cols">
         <div>
           <SesionesPaciente paciente={paciente} recarga={recarga} />
+          <Gad7Paciente paciente={paciente} recarga={recarga} />
           <EjerciciosPaciente paciente={paciente} recarga={recarga} />
         </div>
 

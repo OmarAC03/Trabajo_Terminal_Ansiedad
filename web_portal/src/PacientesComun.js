@@ -1,8 +1,9 @@
-import { RefreshCw, Info, Users, CircleAlert, ChevronRight, ArrowUp } from 'lucide-react';
+import { RefreshCw, Info, Users, CircleAlert, ChevronRight, ArrowUp, Flag } from 'lucide-react';
 import { Card, Button, Badge, Avatar, Alert, Disclaimer, tonoIdentidad } from './ui/components';
 import CodigoVinculacion from './CodigoVinculacion';
 import { grupoRecencia } from './actividad';
 import { etiquetaEvaluacion, evaluacionUltimaSesion, textoEtapa } from './semaforo';
+import { textoSeveridad, resumenTabla, TONO_SEVERIDAD, TONO_GAD7, CORTE_VALORAR } from './gad7';
 
 // Piezas compartidas por el Dashboard y la sección Pacientes (Fase A). Solo
 // presentan lo que App.js ya trae de GET /api/pacientes.
@@ -61,6 +62,41 @@ export function BadgeEstado({ evaluacion, conEtapa = false }) {
   );
 }
 
+// Severidad del GAD-7 (M5a): Mínima / Leve / Moderada / Grave, las cuatro en
+// gris. Es un instrumento de tamizaje, no el semáforo de los indicadores.
+export function BadgeSeveridad({ severidad }) {
+  return <Badge tone={TONO_SEVERIDAD} dot={false}>{textoSeveridad(severidad)}</Badge>;
+}
+
+// Marca del GAD-7 ≥ 10 en violeta: llama la atención sin parecer "Altos".
+export function BadgeValorar() {
+  return (
+    <span title={`Puntaje GAD-7 de ${CORTE_VALORAR} o más: sugiere valorarlo clínicamente`}>
+      <Badge tone={TONO_GAD7} dot={false}>
+        <Flag size={12} />
+        Valorar (≥{CORTE_VALORAR})
+      </Badge>
+    </span>
+  );
+}
+
+// Celda "GAD-7": último puntaje y severidad, la marca de valorar y, debajo,
+// cuándo respondió y si ya le toca el siguiente. "—" si nunca respondió.
+function CeldaGad7({ paciente }) {
+  const g = resumenTabla(paciente);
+  if (!g) return <span className="ui-muted">—</span>;
+  return (
+    <div>
+      <span className="ui-gad7-celda">
+        <span className="ui-num">{g.puntaje}</span>
+        <span className="ui-muted">· {g.severidad}</span>
+        {g.valorar && <BadgeValorar />}
+      </span>
+      <div className="ui-gad7-sub">{haceTiempo(g.fecha)}{g.toca && ' · le toca responder'}</div>
+    </div>
+  );
+}
+
 // Aviso de 403 (si lo hay) + disclaimer de alcance (sección 3 del marco).
 export function AvisosPacientes({ errorAcceso }) {
   return (
@@ -80,7 +116,8 @@ export function AvisosPacientes({ errorAcceso }) {
 // sesión contra la línea base de CADA paciente. Sin BPM/SpO2/HRV: un
 // valor absoluto de varios pacientes en una lista invita a compararlos entre
 // sí, y eso es justo lo que DESARROLLO_FUNDAMENTADO.md §2 descarta. Los
-// valores siguen en el detalle de cada paciente.
+// valores siguen en el detalle de cada paciente. Desde M5a, también el último
+// GAD-7 (sin reordenar por su puntaje).
 //
 // Muestra `pacientes` en el orden recibido; `vacio` es el texto cuando la
 // lista llega vacía y `filtros` va entre el encabezado de la tarjeta y la
@@ -100,6 +137,7 @@ export function TablaPacientes({ pacientes, onSeleccionar, subtitle, vacio, filt
                 <th>Última sesión</th>
                 <th>Estado (última sesión)</th>
                 <th>Sesiones (7 días)</th>
+                <th>GAD-7</th>
                 <th><span className="sr-only">Acción</span></th>
               </tr>
             </thead>
@@ -144,6 +182,7 @@ export function TablaPacientes({ pacientes, onSeleccionar, subtitle, vacio, filt
                       <span className="ui-num ui-muted">0</span>
                     )}
                   </td>
+                  <td><CeldaGad7 paciente={p} /></td>
                   <td style={{ textAlign: 'right', width: 1 }}>
                     <button
                       type="button"
