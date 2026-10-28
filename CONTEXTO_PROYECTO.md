@@ -86,7 +86,11 @@ Las 5 pestañas del `main_layout`: **Inicio (Alerta)**, **Historial**, **Mensaje
 - `GET /api/sesiones/:pacienteId?limite=50` — lista ligera (sin `serie`), más recientes primero. El propio paciente o su especialista vinculado (`autorizarLecturaPaciente`).
 - `GET /api/sesiones/:pacienteId/:sesionId` — detalle con `serie`. 400 si el id no es uuid; 404 si no existe **o es de otro paciente** (no revela ids).
 - `GET /api/linea-base/:pacienteId` (Fase M3) — calibración de hoy por origen (`simulacion` / `sensor`): etapa, "día X de 7", días medidos; `banda` y `n` solo al especialista. Mismo permiso que las sesiones (`autorizarLecturaPaciente`). Desde M3, la lista y el detalle de sesiones traen `evaluacion` por sesión, `POST /api/sesiones` devuelve `evaluacion` + `calibracion`, y `GET /api/pacientes` trae `ultima_sesion_estado/_etapa/_motivo_sin_estado/_fc_por_encima`. **El paciente nunca recibe la etiqueta (normal/elevados/altos) ni la banda** (`linea_base_vista.js`).
+- `POST /api/gad7` (Fase M5a) — el paciente responde el GAD-7. Solo `rol === 'paciente'` **vinculado** (403 si no); `validarGad7` acepta solo `items` (7 enteros 0–3) y `dificultad` (0–3/null). Transacción con `FOR UPDATE` sobre la fila del paciente; **409** si aún no le toca (intervalo de 14 días por día local de México). Responde 201 `{ id, fecha_respuesta, estado }`, **sin resultado**.
+- `GET /api/gad7/:pacienteId` (Fase M5a, `autorizarLecturaPaciente`) — paciente: solo `{ estado }` (`toca`, `proxima_fecha`, `dias_restantes`, `ultima_respuesta`, `intervalo_dias`, `vinculado`); especialista: `{ estado, respuestas }` (hasta 100, la más reciente primero, con `items`, `dificultad`, `puntaje`, `severidad`, `valorar`, `version`). Qué ve cada rol lo decide `gad7_vista.js`. `GET /api/pacientes` trae además `ultimo_gad7_fecha/_puntaje/_severidad/_valorar` y `gad7_toca`.
 - **`indice_calidad` es interno:** sale solo al especialista vinculado. Las columnas vienen de listas fijas en `server.js` (`COLUMNAS_SESION_PACIENTE` / `_ESPECIALISTA`), sin `SELECT *` ni `RETURNING *`.
+
+**Tabla `respuestas_gad7` (Fase M5a, creada a mano en Supabase y verificada):** id (uuid), paciente_id (varchar(50), FK `fk_gad7_paciente` sin `ON DELETE`), item1…item7 (smallint 0–3), dificultad (smallint 0–3 o NULL), version (varchar(20), hoy `gad7-es-v1`), fecha_respuesta (timestamptz `now()`); índice `idx_gad7_paciente_fecha`. El puntaje y la severidad **no se guardan**: se calculan al leer con `backend/gad7.js`.
 
 **Tabla `lecturas_biometricas`:** id (uuid), paciente_id (varchar), bpm (int4), spo2 (int4), hrv (int4), score_ansiedad (numeric), estado_ansiedad (varchar: 'Alta'|'Moderada'|'Baja'), fecha_medicion (timestamptz). Histórico: convive con `sesiones_medicion` y no se migra.
 
@@ -101,7 +105,7 @@ Las 5 pestañas del `main_layout`: **Inicio (Alerta)**, **Historial**, **Mensaje
 > - **Portal Web Fase 1, 2a–2e** (sección 4bis) y **Fase A del portal** (rediseño visual, 4bis).
 > - **Relación paciente–especialista, Fases A–D** (sección 4ter, cerradas). Su "Fase D" es el filtrado por vínculo, **no** el sensor.
 > - **Fase C — rol Admin** (`PLAN_FASE_C_ADMIN.md`).
-> - **Fases M1–M7 — flujo de medición clínica**, la serie vigente para lo que sigue (numeración de `DESARROLLO_FUNDAMENTADO.md` §7, a la que ya está alineado `DISENO_FLUJO_MEDICION.md` §7): M1 sesiones ✅, M2 EVA ✅, M3 línea base ✅, M4 rutinas, M5 GAD-7 + análisis cruzado, M6 textos educativos, **M7a integración del sensor físico (en curso; la "Fase D" de las conversaciones)**, M7b validación (objetivo 5).
+> - **Fases M1–M7 — flujo de medición clínica**, la serie vigente para lo que sigue (numeración de `DESARROLLO_FUNDAMENTADO.md` §7, a la que ya está alineado `DISENO_FLUJO_MEDICION.md` §7): M1 sesiones ✅, M2 EVA ✅, M3 línea base ✅, M4 rutinas, **M5a GAD-7 ✅ (la "Fase E" de las conversaciones, cerrada el 2026-10-28)**, M5b análisis cruzado, M6 textos educativos, **M7a integración del sensor físico (software completo; falta la prueba con el ESP32 real; la "Fase D" de las conversaciones)**, M7b validación (objetivo 5).
 
 Plan de 4 fases / 7 incrementos hacia una app de producción.
 
@@ -291,6 +295,14 @@ Referencia: `MARCO_ALCANCE_Y_LENGUAJE.md`. El sistema monitorea parámetros fisi
 ---
 
 ## 8. Siguiente paso sugerido
+
+**Estado al pausar (2026-10-28): ✅ Fase E / M5a (GAD-7) COMPLETA — pasos 0 a 6.**
+
+- **Commits:** docs `4d6d20b` (texto `gad7-es-v1` y decisiones), lógica pura `1f067a2`, endpoints `0528d97` (en producción en Render), app `d80efbe` (probada en el teléfono), portal `401632c` (revisado y aprobado por Omar en el portal local, con push) y docs del paso 6 (este cierre).
+- **Paso 6 (docs):** `DESARROLLO_FUNDAMENTADO.md` §4.2 con "Cómo quedó implementado" (14 días, los 5 pasos de construcción, regla de oro en 3 barreras, pruebas, pendientes) y §7 con M5 dividida en **M5a ✅ / M5b pendiente**; `DISENO_FLUJO_MEDICION.md` §7 alineado; aquí, el mapa de fases (sección 4), los endpoints y la tabla `respuestas_gad7` (sección 3).
+- **Lo que NO cierra M5a (sigue abierto):** M5b — análisis cruzado en el portal (sesión interpretada objetivo ↔ subjetivo ↔ línea base), fase aparte, plan antes de código.
+- **Pendientes del GAD-7 antes de la entrega:** verificar el texto contra **García-Campayo 2010** / versión oficial ("De nada" vs "Nunca"/"Ningún día"; si cambia una palabra → nueva versión en `app_ansiedad/lib/contenido/gad7_textos.dart`, `backend/gad7.js` y `web_portal/src/gad7.js`); verificar el número de la **Línea de la Vida** y llenar `TextosGad7.apoyoLinea`. Opcional: dejar limpia la cuenta `PRUEBA - Test M3` (`node pruebas/semilla_gad7.js limpiar`) y las sesiones de prueba del 2026-10-23.
+- **⏭️ Siguiente (objetivo "todo usable" antes del dispositivo):** **publicar el portal** (hosting + `continueUrl` del restablecimiento de contraseña y dominio autorizado en Firebase) → **seguridad del backend** (prueba de aislamiento del chat de la Fase 2b, `suspendido` en `auth.js` = Fase C paso 3, CORS abierto) → **firmar el APK** con llave propia. Después, de lleno al **Paso 5 de M7a** con el ESP32 real. Elegir con Omar por cuál empezar; plan antes de código.
 
 **Estado al pausar (2026-10-27): GAD-7 (Fase E / M5a) — Paso 5 (portal) CONSTRUIDO, SIN COMMIT, pendiente de la revisión de Omar en el portal local.**
 

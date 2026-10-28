@@ -191,6 +191,42 @@ Siempre con el aviso "Instrumento de tamizaje, no es diagnóstico".
 - Tabla `respuestas_gad7`: un ítem por columna con `CHECK` 0–3; el puntaje y la severidad **no se
   guardan**, se calculan al leer (como el estado de M3).
 
+#### Cómo quedó implementado (✅ M5a COMPLETA, 2026-10-28)
+
+El periodo "cada 2–4 semanas" de arriba se fijó en **14 días** (el marco del instrumento son las
+últimas 2 semanas, así que un intervalo menor solaparía periodos). Se construyó en 6 pasos, cada
+uno probado antes de seguir:
+
+- **Base de datos (paso 1):** `respuestas_gad7` — `id`, `paciente_id` (FK a `usuarios`, sin
+  `ON DELETE`), `item1`…`item7` (smallint 0–3), `dificultad` (0–3 o NULL), `version`,
+  `fecha_respuesta`; índice `(paciente_id, fecha_respuesta DESC)`.
+- **Lógica pura del backend (paso 2, `1f067a2`):** `backend/gad7.js` (puntaje, severidad, valorar,
+  "¿le toca?" por día local de México, versión `gad7-es-v1`) y `backend/gad7_vista.js` (qué ve cada
+  rol, objetos campo por campo). `validarGad7` acepta solo `items` y `dificultad`; cualquier otro
+  campo (incluidos `puntaje` o `version`) → 400.
+- **Endpoints (paso 3, `0528d97`):** `POST /api/gad7` (solo paciente vinculado; transacción con
+  bloqueo de la fila del paciente para que dos envíos simultáneos den 201/409; la versión la pone el
+  servidor) y `GET /api/gad7/:pacienteId` (paciente: solo `estado`; especialista: `estado` + historial
+  con ítems, puntaje, severidad y valorar). `GET /api/pacientes` trae `ultimo_gad7_*` y `gad7_toca`.
+  Los logs no llevan datos clínicos. Verificado en producción: el paciente recibe solo `estado`.
+- **App (paso 4, `d80efbe`):** tarjeta "Cuestionario quincenal" en Inicio cuando le toca y está
+  vinculado; una pregunta por vista con el texto exacto; la dificultad solo si algún ítem > 0 (con
+  "Prefiero no responder esta"); agradecimiento **sin resultado** y mensaje de apoyo fijo.
+- **Portal (paso 5, `401632c`):** tarjeta "GAD-7 (tamizaje quincenal)" en el detalle del paciente
+  (último puntaje y severidad, marca "Valorar (≥10)", cuándo le toca el próximo, gráfica del
+  historial con referencias en 5/10/15, tabla con el detalle de las 7 respuestas y la dificultad) y
+  columna GAD-7 en la tabla de pacientes del Dashboard y de Pacientes, **sin reordenar por
+  gravedad**. Severidad en gris y acento violeta: **nunca** los colores del semáforo fisiológico.
+  Aviso: "instrumento de tamizaje autoaplicado; no es un diagnóstico".
+- **Regla de oro en 3 barreras** (como M3): vista del backend, modelo cerrado en la app y pruebas
+  de textos sin resultado. Pruebas: backend `npm test` + `prueba_gad7.ps1` (21/0), app
+  `flutter test` (181), portal Jest (50).
+
+**Pendiente antes de la entrega:** verificar el texto contra García-Campayo 2010 / versión oficial
+(en particular "De nada" vs "Nunca"/"Ningún día"; si cambia una palabra, nueva versión en la app,
+el backend y el portal) y el número de la Línea de la Vida (hoy el mensaje de apoyo va sin
+teléfono). **No incluido:** el análisis cruzado del portal (M5b, §7).
+
 ### 4.3 Registro de confusores (opcional, mejora la interpretación)
 Al medir, el paciente puede marcar rápidamente: dormí mal / tomé cafeína / hice ejercicio /
 estoy enfermo / medicación. La evidencia dice que estos factores alteran la HRV; registrarlos
@@ -245,8 +281,11 @@ todo el proyecto.
   el estado como desviación de esa base (con el modo "calibrando" los primeros días).
 - **Fase M4 — Rutinas del especialista.** Prescribir rutinas desde el portal; el paciente las
   recibe y la app lo guía.
-- **Fase M5 — GAD-7 periódico + análisis cruzado en el portal.** GAD-7 cada 2–4 semanas; el
-  portal muestra la sesión interpretada (objetivo + subjetivo + línea base) y marca GAD-7 ≥10.
+- **Fase M5 — GAD-7 periódico + análisis cruzado en el portal.**
+  - **M5a — GAD-7 periódico** (✅ completa, 2026-10-28; en conversación, "Fase E"): cada 14 días
+    en la app, resultado y marca ≥10 solo en el portal (§4.2).
+  - **M5b — Análisis cruzado** (pendiente): el portal muestra la sesión interpretada (objetivo +
+    subjetivo + línea base).
 - **Fase M6 — Textos educativos + sección de metodología.** El "por qué funciona" en app y portal.
 - **Fase M7 — Sensor físico.**
   - **M7a — Integración del sensor** (en curso desde 2026-10-21): la app mide con el ESP32 real
@@ -254,7 +293,8 @@ todo el proyecto.
   - **M7b — Validación (objetivo 5 / aportación de la tesis).** Comparar el MAX30102 contra
     Polar H10 / oxímetro certificado en 15–30 estudiantes; documentar sesgo y límites de acuerdo.
 
-> Estado (2026-10-21): M1, M2 y M3 hechas; M4–M6 pendientes; M7a en curso. Esta es la numeración
+> Estado (2026-10-28): M1, M2, M3 y M5a hechas; M4, M5b y M6 pendientes; M7a con el software
+> completo, falta la prueba con el ESP32 real. Esta es la numeración
 > vigente; `DISENO_FLUJO_MEDICION.md` §7 ya está alineado a ella.
 
 > Nota: M1 y M3 dependen en parte del firmware (calidad de señal, lecturas continuas) — coordinar
@@ -280,4 +320,5 @@ todo el proyecto.
 - Plews DJ et al. (2014). *Int J Sports Physiol Perform* 9(5):783–790. — Línea base / media 7 días.
 - Bent B et al. (2020). *npj Digital Medicine* 3:18. — Artefactos de movimiento en PPG.
 
-> (Verificar y adaptar las versiones en español del GAD-7 antes de implementarlas.)
+> (GAD-7 ya implementado con `gad7-es-v1`; falta verificar su texto contra la versión oficial
+> antes de la entrega, §4.2.)

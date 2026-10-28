@@ -243,8 +243,12 @@ antes de codificar. Áreas afectadas:
    desviación de esa base, visible solo para el especialista.
 4. **Fase M4 — Rutinas del especialista** (pendiente). El especialista prescribe rutinas desde el
    portal; el paciente las recibe en la app.
-5. **Fase M5 — GAD-7 periódico + análisis cruzado** (pendiente). La sesión interpretada
-   (objetivo ↔ subjetivo ↔ línea base) en el portal.
+5. **Fase M5 — GAD-7 periódico + análisis cruzado:**
+   - **M5a — GAD-7 periódico** (✅ hecha, 2026-10-28; en conversación, "Fase E"): el paciente lo
+     responde en la app cada 14 días sin ver su resultado; el especialista ve puntaje, severidad,
+     historial y la marca ≥10 en el portal. Detalle en `DESARROLLO_FUNDAMENTADO.md` §4.2.
+   - **M5b — Análisis cruzado** (pendiente). La sesión interpretada (objetivo ↔ subjetivo ↔
+     línea base) en el portal.
 6. **Fase M6 — Textos educativos + metodología** (pendiente).
 7. **Fase M7 — Sensor físico:**
    - **M7a — Integración del sensor** (en curso; en conversación, "Fase D"): la app mide con el
