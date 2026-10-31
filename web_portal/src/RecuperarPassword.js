@@ -44,7 +44,8 @@ function RecuperarPassword({ emailInicial = '', onVolver }) {
     setError('');
     try {
       auth.languageCode = 'es'; // idioma del correo de Firebase
-      await sendPasswordResetEmail(auth, email.trim());
+      // El dominio debe estar en Firebase → Authentication → Authorized domains.
+      await sendPasswordResetEmail(auth, email.trim(), { url: window.location.origin });
       setEnviado(true);
     } catch (err) {
       const mensaje = mensajeErrorRecuperar(err);

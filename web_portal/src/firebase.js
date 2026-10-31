@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { browserSessionPersistence, initializeAuth } from 'firebase/auth';
 
 // Mismo proyecto Firebase que usa la app Flutter (ver
 // app_ansiedad/lib/firebase_options.dart, bloque `web`). La Web API key no
@@ -15,4 +15,6 @@ const firebaseConfig = {
 };
 
 export const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+// Sesión por pestaña: el portal se usa en computadoras compartidas, así que al
+// cerrar la pestaña hay que volver a iniciar sesión.
+export const auth = initializeAuth(app, { persistence: browserSessionPersistence });
