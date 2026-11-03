@@ -3,6 +3,8 @@
 > Base para el capítulo de implementación.
 > Estado del código: commit `9ccb954` (2026-10-31). Inventario hecho el 2026-11-03 leyendo el repositorio.
 > **No se corrieron pruebas ni builds**: los conteos salen de leer los archivos de prueba, y los resultados de ejecución son los últimos que quedaron registrados en `CONTEXTO_PROYECTO.md`.
+>
+> **Actualización 2026-11-04 (Bloque 1, cuentas: commits `38148ea`, `0e3eae2`, `4b6ef04`):** suspensión de cuentas, consentimiento y solicitud de eliminación. Tablas, endpoints, pantallas y suites de este documento ya los incluyen. Las tres suites se corrieron en esta actualización (backend 82/82, portal 61/61, app 208/208). Los scripts `.ps1` siguen pendientes de correr antes del push.
 
 ---
 
@@ -60,12 +62,13 @@
 
 | Carpeta | Contenido |
 |---|---|
-| `models/` | 12 modelos |
-| `repositories/` | 12 archivos: HTTP, Socket.io, Bluetooth, intérprete del sensor, simulador |
-| `providers/` | 11 providers con el estado |
-| `screens/` | 13 pantallas |
+| `models/` | 14 modelos |
+| `repositories/` | 14 archivos: HTTP, Socket.io, Bluetooth, intérprete del sensor, simulador |
+| `providers/` | 13 providers con el estado |
+| `screens/` | 15 pantallas |
 | `medicion/` | Cálculo de la sesión, estado del sensor, mensajes de la mascota |
-| `contenido/` | Textos del GAD-7 y textos educativos |
+| `contenido/` | Textos del GAD-7, textos educativos y aviso de privacidad / consentimiento (borrador) |
+| raíz | `api_client.dart` (cliente HTTP; cierra la sesión si la cuenta está bloqueada), `sesion.dart`, `cuenta_bloqueada.dart`, `auth_gate.dart` (con la puerta de consentimiento) |
 | `ui/` | Tema, colores y widgets compartidos |
 
 **Backend** (lógica pura separada de las rutas, para poder probarla):
@@ -77,10 +80,13 @@
 | `validation.js` | Validación de cada payload (400 antes de tocar la base) |
 | `linea_base.js` + `linea_base_vista.js` | Cálculo de la línea base y qué ve cada rol |
 | `gad7.js` + `gad7_vista.js` | Puntaje, severidad, intervalo y qué ve cada rol |
-| `admin.js` | Router del rol admin |
-| `errors.js`, `logger.js` | Errores con código HTTP y log JSON |
+| `admin.js` | Router del rol admin: usuarios, suspender / reactivar, solicitudes de eliminación |
+| `cuentas.js` | Bloqueo de cuentas suspendidas o eliminadas y candados de suspensión |
+| `consentimiento.js` | Versión vigente del aviso y el consentimiento, validación y bloqueo de la captura |
+| `eliminacion.js` | Qué se borra y qué se conserva al atender una eliminación |
+| `errors.js`, `logger.js` | Errores con código HTTP (y `codigo` estable opcional) y log JSON |
 
-**Portal**: componentes por pantalla con lógica pura en módulos aparte (`sesiones.js`, `gad7.js`, `actividad.js`, `semaforo.js`) y una base visual en `src/ui/` (`tokens.css`, `ui.css`, `components.js`, `Layout.js`, `AuthLayout.js`).
+**Portal**: componentes por pantalla con lógica pura en módulos aparte (`sesiones.js`, `gad7.js`, `actividad.js`, `semaforo.js`, `cuentas.js`, `solicitudes.js`) y una base visual en `src/ui/` (`tokens.css`, `ui.css`, `components.js`, `Layout.js`, `AuthLayout.js`).
 
 ---
 
@@ -90,13 +96,15 @@
 
 | Tabla | Columnas | Restricciones / notas | Fase |
 |---|---|---|---|
-| `usuarios` | `id` (varchar(50) = uid de Firebase), `nombre`, `email`, `rol`, `fecha_registro`, `especialista_id`, `codigo_vinculacion`, `ultima_apertura_mensajes`, `ultima_apertura_ejercicios`, `suspendido` (bool, def. false), `eliminado_en` (timestamptz) | `CHECK usuarios_rol_check` (`paciente`/`especialista`/`admin`); `fk_especialista` → `usuarios.id` `ON DELETE SET NULL` | Base + 4ter + 2c + Fase C |
+| `usuarios` | `id` (varchar(50) = uid de Firebase), `nombre`, `email`, `rol`, `fecha_registro`, `especialista_id`, `codigo_vinculacion`, `ultima_apertura_mensajes`, `ultima_apertura_ejercicios`, `suspendido` (bool, def. false), `eliminado_en` (timestamptz) | `CHECK usuarios_rol_check` (`paciente`/`especialista`/`admin`); `fk_especialista` → `usuarios.id` `ON DELETE SET NULL`; `email` UNIQUE. Desde el Bloque 1, `suspendido` y `eliminado_en` bloquean el acceso; una cuenta eliminada queda como lápida (`'Cuenta eliminada'`, `eliminada-<id>@invalid`) | Base + 4ter + 2c + Fase C + Bloque 1 |
 | `lecturas_biometricas` | `id` uuid, `paciente_id`, `bpm`, `spo2`, `hrv`, `score_ansiedad`, `estado_ansiedad` (`Alta`/`Moderada`/`Baja`), `fecha_medicion` | **Histórica**: método anterior de lecturas sueltas. Ya no la muestran la app ni el portal; sigue en la base y en `/api/lecturas`. | Inicial |
 | `sesiones_medicion` | `id` uuid, `paciente_id`, `fecha_inicio`, `fecha_registro`, `duracion_total_seg`, `duracion_valida_seg`, `hrv_rmssd`/`hrv_min`/`hrv_max`, `bpm_promedio`/`bpm_min`/`bpm_max`, `spo2_promedio`/`spo2_min`/`spo2_max`, `indice_calidad` (0–1), `serie` (jsonb, ≤ 360 puntos `{t,bpm,spo2,hrv}`), `origen` (`simulacion`/`sensor`) | CHECK `chk_sesion_*` replicados en `validarSesion`. El mínimo de 120 s válidos vive solo en `validation.js`. | M1a |
 | `respuestas_eva` | `id` uuid, `sesion_id`, `valor` (smallint 0–100), `contexto` (varchar(30), NULL), `fecha_respuesta` | `uq_eva_sesion` UNIQUE (una EVA por sesión → 409); `fk_eva_sesion` → `sesiones_medicion(id)`; `chk_eva_valor`, `chk_eva_contexto` | M2 |
 | `respuestas_gad7` | `id` uuid, `paciente_id`, `item1`…`item7` (smallint 0–3), `dificultad` (0–3, NULL), `version` (`gad7-es-v1`), `fecha_respuesta` | `fk_gad7_paciente`, `chk_gad7_*`; índice `idx_gad7_paciente_fecha`. **El puntaje y la severidad no se guardan**: se calculan al leer. | M5a |
 | `mensajes_chat` | `id` uuid, `remitente_id`, `paciente_id`, `especialista_id`, `texto`, `tipo_mensaje`, `fecha_envio` | Índice `idx_mensajes_paciente_fecha`. Texto ≤ 2000 caracteres (validado en el backend). | 2b |
 | `ejercicios_asignados` | `id` uuid, `paciente_id`, `especialista_id`, `tecnica_id` (slug), `texto_personalizado`, `nota`, `fecha_asignacion` | `chk_ejercicio_origen` (exactamente uno de `tecnica_id` / `texto_personalizado`); índice `idx_ejercicios_paciente_fecha` | 2c |
+| `consentimientos` | `id` uuid, `usuario_id`, `version_aviso`, `version_consentimiento`, `origen` (`registro`/`inicio_sesion`), `aceptado_en` | `fk_consentimiento_usuario`, `chk_consentimiento_*`, `uq_consentimiento_version` (una fila por versión aceptada); índice `idx_consentimientos_usuario_fecha`. No se edita ni se borra (evidencia). | Bloque 1 |
+| `solicitudes_eliminacion` | `id` uuid, `usuario_id`, `estado` (`pendiente`/`atendida`), `fecha_solicitud`, `atendida_en`, `atendida_por` | `fk_solicitud_usuario`, `fk_solicitud_admin`, `chk_solicitud_estado`, `chk_solicitud_atencion`; índice único parcial `uq_solicitud_pendiente` (una pendiente por usuario) | Bloque 1 |
 
 **La línea base no es una tabla**: se calcula al leer, a partir de `sesiones_medicion` (`linea_base.js`, versión de parámetros `m3-v1`).
 
@@ -110,7 +118,8 @@
 | `sesion_monitoreo` | `sesiones_medicion` (sin `dispositivo_id` ni estado activa/cerrada: se guarda ya terminada) |
 | `medicion_minuto` (+ `tipo_indicador`, RR como `INTEGER[]`, `quality_flag`, `UNIQUE (paciente_id, timestamp)`) | `sesiones_medicion.serie` (jsonb submuestreado) + `indice_calidad`. Los RR crudos no se guardan. |
 | `lote_sincronizacion` | No existe. |
-| `consentimiento` | No existe. |
+| `consentimiento` | `consentimientos` (versión del aviso y del consentimiento, fecha y origen; sin estado "revocado": revocar = solicitar la eliminación) |
+| *(no estaba en el TT1)* | `solicitudes_eliminacion` (RF-19 / RF-34) |
 | `cuestionario` (catálogo) + `respuesta_cuestionario` | Una tabla por instrumento: `respuestas_gad7` (versión en columna) y `respuestas_eva` (ligada a la sesión) |
 | `indicacion` (estado enviada/leída/completada) | `ejercicios_asignados` ("visto" derivado de `usuarios.ultima_apertura_ejercicios`) |
 | *(no estaba en el TT1)* | `mensajes_chat` |
@@ -154,13 +163,24 @@ Todo `/api/*` exige `Authorization: Bearer <ID token de Firebase>` (`requiereAut
 
 | Método y ruta | Quién | Qué hace |
 |---|---|---|
-| `POST /api/usuarios` | token sin fila todavía | Alta del paciente tras crear su cuenta en Firebase |
+| `POST /api/usuarios` | token sin fila todavía | Alta del paciente tras crear su cuenta en Firebase; con `consentimiento` opcional, que se guarda en la misma transacción |
 | `POST /api/especialistas` | token sin fila + código de institución | Alta del especialista; genera su `codigo_vinculacion` |
 | `GET /api/usuarios/:id` | solo el propio | Perfil (incluye `codigo_vinculacion`) |
 | `PUT /api/usuarios/:id` | solo el propio | Editar el nombre |
 | `POST /api/vinculacion` | paciente | Vincularse con el código del especialista |
 | `GET /api/vinculacion` | paciente | Estado del vínculo y nombre del especialista |
 | `GET /api/pacientes` | especialista | Sus pacientes, con la última lectura, la última sesión (estado, etapa), `sesiones_7d` y el último GAD-7 |
+
+### Consentimiento y eliminación de cuenta (Bloque 1)
+
+| Método y ruta | Quién | Qué hace |
+|---|---|---|
+| `GET /api/consentimiento` | cualquiera registrado | `{ requerido, version_aviso, version_consentimiento, aceptado, aceptado_en }`. Solo el paciente lo requiere. |
+| `POST /api/consentimiento` | paciente | Acepta la versión vigente (otra versión → 400). 201 la primera vez; repetido → 200 sin duplicar. |
+| `GET /api/solicitud-eliminacion` | paciente | Su solicitud más reciente (estado y fechas) o `null` |
+| `POST /api/solicitud-eliminacion` | paciente | Registra la solicitud (sin datos). 409 si ya hay una pendiente. |
+
+Sin el consentimiento vigente, `POST /api/sesiones`, `POST /api/sesiones/:id/eva`, `POST /api/gad7` y `POST /api/lecturas` responden **403 `consentimiento_requerido`**. Una cuenta suspendida o eliminada recibe **403 `cuenta_suspendida` / `cuenta_eliminada`** en cualquier ruta, y su socket se rechaza.
 
 ### Mensajes, ejercicios y pendientes
 
@@ -176,8 +196,12 @@ Todo `/api/*` exige `Authorization: Bearer <ID token de Firebase>` (`requiereAut
 
 | Método y ruta | Quién | Qué hace |
 |---|---|---|
-| `GET /api/admin/usuarios` | admin | Todas las cuentas: rol, estado (activa/suspendida/eliminada) y vínculo. Sin datos clínicos. |
+| `GET /api/admin/usuarios` | admin | Todas las cuentas: rol, estado (activa/suspendida/eliminada), vínculo y `solicitud_pendiente`. Sin datos clínicos. |
 | `PUT /api/admin/usuarios/:id` | admin | Editar nombre, correo (Firebase + base, con compensación) y especialista (null = desvincular) |
+| `POST /api/admin/usuarios/:id/suspender` | admin | Suspende: base + Firebase `disabled` + revocación de tokens + cierre de sus sockets. No a sí mismo, nunca cero admins. Idempotente. |
+| `POST /api/admin/usuarios/:id/reactivar` | admin | Reactiva (una eliminada → 409). Idempotente. |
+| `GET /api/admin/solicitudes-eliminacion` | admin | Solicitudes con nombre, correo, estado y fechas (pendientes primero). Sin datos clínicos. |
+| `POST /api/admin/solicitudes-eliminacion/:id/atender` | admin | Ejecuta la eliminación: borra lo clínico y la comunicación, anonimiza la fila y borra la cuenta de Firebase. Solo pacientes; repetirlo reintenta el borrado en Firebase. |
 
 ### Socket.io (mismo servidor, token en el handshake)
 
@@ -186,7 +210,7 @@ Todo `/api/*` exige `Authorization: Bearer <ID token de Firebase>` (`requiereAut
 | `enviar_mensaje` | cliente → servidor | Valida el vínculo y guarda el mensaje. El servidor pone `remitente_id` y `especialista_id`. Responde por ack `{ ok, error }`. |
 | `recibir_mensaje` | servidor → clientes | Se emite solo a las salas `usuario:<paciente>` y `usuario:<especialista vinculado>` |
 
-**Total: 25 rutas REST** (23 en `server.js` + 2 en `admin.js`) **y 2 eventos de Socket.io.**
+**Total: 33 rutas REST** (27 en `server.js` + 6 en `admin.js`) **y 2 eventos de Socket.io.**
 
 ---
 
@@ -196,14 +220,15 @@ Todo `/api/*` exige `Authorization: Bearer <ID token de Firebase>` (`requiereAut
 
 | Pestaña / flujo | Pantalla(s) | Contenido |
 |---|---|---|
-| Acceso | `login_screen.dart`, `registro_screen.dart`, `recuperar_password_screen.dart` (+ `auth_gate.dart`) | Login con error genérico, registro transaccional, restablecer contraseña |
+| Acceso | `login_screen.dart`, `registro_screen.dart`, `recuperar_password_screen.dart` (+ `auth_gate.dart`) | Login con error genérico (y aviso si el servidor cerró la sesión por cuenta suspendida o eliminada), registro transaccional con la casilla del aviso de privacidad, restablecer contraseña |
+| Puerta de consentimiento | `consentimiento_screen.dart` (dentro de `auth_gate.dart`) | Si el paciente no aceptó la versión vigente: aviso de privacidad + consentimiento (BORRADOR), dos casillas, "Aceptar y continuar" o "Cerrar sesión". Sin aceptar no ve la app. |
 | **Inicio** | `inicio_screen.dart` | Saludo, selector Simulación / Sensor, estado de la conexión, botón "Iniciar medición", última sesión con explicación de cada indicador, mascota de calibración ("día X de 7"), tarjeta del GAD-7 cuando le toca, disclaimer |
 | Medición (pantalla completa) | `medicion_screen.dart` | Preparación → captura (anillo de progreso y guía, sin valores en vivo) → EVA 0–10 + contexto → resultado (promedios, sin semáforo) → envío / reintentar |
 | Cuestionario | `gad7_screen.dart` | Intro → 7 preguntas → dificultad (solo si algún ítem > 0) → gracias, **sin resultado** |
 | **Historial** | `historial_screen.dart`, `sesion_detalle_screen.dart` | Sesiones agrupadas por día; detalle con gráficas de la serie y la EVA |
 | **Mensajes** | `mensajes_screen.dart` | Chat con el especialista (o aviso + "Vincular especialista") |
 | **Técnicas** | `tecnicas_screen.dart`, `ejercicios_asignados_screen.dart` | 4 técnicas con animación, voz y música; tarjeta de ejercicios asignados con badge |
-| **Perfil** | `perfil_screen.dart`, `vinculacion_screen.dart` | Avatar, nombre, rol, especialista vinculado, "Acerca de la app", cerrar sesión |
+| **Perfil** | `perfil_screen.dart`, `vinculacion_screen.dart`, `eliminar_cuenta_screen.dart` | Avatar, nombre, rol, especialista vinculado, Privacidad (releer el aviso, "Eliminar mi cuenta"), "Acerca de la app", cerrar sesión |
 
 ### 5.2 Portal web — especialista (`App.js`, `ui/Layout.js`)
 
@@ -219,7 +244,8 @@ Todo `/api/*` exige `Authorization: Bearer <ID token de Firebase>` (`requiereAut
 
 | Sección | Componente(s) | Contenido |
 |---|---|---|
-| Usuarios | `AdminUsuarios.js`, `EditarUsuario.js` | Lista de cuentas con rol, estado y vínculo; edición de nombre, correo y especialista |
+| Usuarios | `AdminUsuarios.js`, `EditarUsuario.js` | Lista de cuentas con rol, estado, vínculo y "Solicitó eliminación"; edición de nombre, correo y especialista; "Estado de la cuenta" con Suspender / Reactivar (con confirmación) |
+| Solicitudes de eliminación | `AdminSolicitudes.js` | Lista con contador en el sidebar; "Atender" muestra qué se borra y qué se conserva, y pide escribir el correo de la cuenta |
 | Mi perfil | `PerfilEspecialista.js` (reusado) | — |
 
 ---
@@ -258,7 +284,7 @@ Todo `/api/*` exige `Authorization: Bearer <ID token de Firebase>` (`requiereAut
 
 ### 7.1 Pruebas automatizadas (contadas en los archivos, 2026-11-03)
 
-**Backend — `node --test` (`npm test` en `backend/`): 50 pruebas**
+**Backend — `node --test` (`npm test` en `backend/`): 82 pruebas**
 
 | Archivo | Pruebas | Qué cubre |
 |---|---:|---|
@@ -266,8 +292,11 @@ Todo `/api/*` exige `Authorization: Bearer <ID token de Firebase>` (`requiereAut
 | `gad7_vista.test.js` | 9 | Campos exactos por rol; ninguna palabra prohibida llega al paciente |
 | `linea_base.test.js` | 15 | Ln RMSSD, días locales, ventana de 7/30 días, banda k1/k2, calidad mínima, origen separado |
 | `linea_base_vista.test.js` | 8 | El paciente nunca recibe la etiqueta ni la banda |
+| `cuentas.test.js` | 13 | Bloqueo de cuentas suspendidas o eliminadas; candados de suspensión (propia, último admin, eliminada); código en los errores |
+| `consentimiento.test.js` | 10 | Versión vigente, validación, 403 `consentimiento_requerido`, qué ve cada rol |
+| `eliminacion.test.js` | 9 | Qué se borra (6 tablas, en orden de FK), qué se conserva, lápida anónima, solo pacientes |
 
-**Portal — Jest (`npm test` en `web_portal/`): 50 pruebas**
+**Portal — Jest (`npm test` en `web_portal/`): 61 pruebas**
 
 | Archivo | Pruebas | Qué cubre |
 |---|---:|---|
@@ -276,8 +305,10 @@ Todo `/api/*` exige `Authorization: Bearer <ID token de Firebase>` (`requiereAut
 | `actividad.test.js` | 10 | Actividad de 7 días por paciente y del grupo |
 | `semaforo.test.js` | 5 | Etiquetas, tonos y orden del estado |
 | `ui/components.test.js` | 3 | Tono de avatar estable por identidad |
+| `cuentas.test.js` | 6 | Reconocer el 403 de cuenta bloqueada, aviso de cierre, qué acción de estado se ofrece |
+| `solicitudes.test.js` | 5 | Conteo de pendientes, confirmación con el correo, qué se borra y qué se conserva |
 
-**App — `flutter test` (`app_ansiedad/`): 181 pruebas** (156 declaradas + 25 generadas en bucles)
+**App — `flutter test` (`app_ansiedad/`): 208 pruebas** (183 declaradas + 25 generadas en bucles)
 
 | Archivo | Pruebas | Qué cubre |
 |---|---:|---|
@@ -294,16 +325,17 @@ Todo `/api/*` exige `Authorization: Bearer <ID token de Firebase>` (`requiereAut
 | `calibracion_test.dart` | 6 | Modelo de calibración de la línea base |
 | `estado_sensor_test.dart` | 3 | Textos del estado del sensor |
 | `simulador_sensor_test.dart` | 3 | Simulador de lecturas |
+| `consentimiento_test.dart` | 12 | Puerta de consentimiento (pide, deja pasar, error → Reintentar), casillas, versiones iguales al backend, borrador |
+| `eliminar_cuenta_test.dart` | 9 | Solicitud de eliminación: enviar, pendiente sin cancelar, errores, textos |
+| `cuenta_bloqueada_test.dart` | 6 | Reconocer el 403 de cuenta suspendida o eliminada |
 
-**Total automatizado: 281 pruebas** (50 + 50 + 181).
+**Total automatizado: 351 pruebas** (82 + 61 + 208).
 
-Últimos resultados registrados en `CONTEXTO_PROYECTO.md` (no se volvieron a correr):
+Resultado de la última corrida (2026-11-04, Bloque 1, sobre el commit `4b6ef04`):
 
-- backend `npm test` 50/50;
-- portal `npm test` 50/50;
-- app `flutter test` 181/181 (M5a paso 4, 2026-10-23).
-
-> Conviene volver a correr las tres suites una vez antes de la entrega para citar el resultado con fecha. Hoy no se corrieron por el congelamiento.
+- backend `npm test` 82/82;
+- portal `npm test` 61/61 (`npm run build` sin avisos);
+- app `flutter test` 208/208 (`flutter analyze` con los 11 avisos conocidos, ninguno nuevo).
 
 ### 7.2 Pruebas por comando contra el backend (PowerShell)
 
@@ -311,8 +343,9 @@ Todo `/api/*` exige `Authorization: Bearer <ID token de Firebase>` (`requiereAut
 |---|---|---|
 | `backend/pruebas/prueba_sesiones.ps1` | Sesiones (validación, roles, `indice_calidad` oculto, detalle 404/400), EVA (13 casos, incluida la ventana de 15 min y el 409), `/api/pacientes` (`ultima_sesion`, `sesiones_7d`, estado), línea base por rol. 49 llamadas a `Caso`. | **47 OK / 0 FALLA** (2026-10-23, regresión de M5a) |
 | `backend/pruebas/prueba_gad7.ps1` | GAD-7 por rol, validación (casos en bucle), sin vínculo (403), **carrera real 201/409**, 409 con fecha, `ultimo_gad7_*`, regla de oro en vivo. 17 llamadas a `Caso`, algunas dentro de bucles. | **21 OK / 0 FALLA** (2026-10-23, local) |
-| `backend/pruebas/comun.ps1` | Funciones compartidas (`Obtener-Cuenta`, `Llamar`, `Caso`…) | — |
-| `backend/pruebas/semilla_m3.js`, `semilla_gad7.js` | Generan SQL de datos de prueba (cuentas `PRUEBA`) y su limpieza | — |
+| `backend/pruebas/prueba_cuentas.ps1` | Bloque 1. Sección 1: suspender / reactivar (roles, candados, 403 con el token vigente, Firebase `USER_DISABLED`, código de un especialista suspendido). Sección 2: consentimiento (bloqueo de las 4 rutas de captura, versiones, registro con consentimiento en la misma transacción). Sección 3: solicitud y atención de la eliminación (lápida, token vigente → 403, idempotencia). Crea pacientes desechables `@example.com`. 58 llamadas a `Caso`. | **Pendiente de correr** (antes del push) |
+| `backend/pruebas/comun.ps1` | Funciones compartidas (`Obtener-Cuenta`, `Login-Firebase`, `Llamar`, `Caso`, `Exigir-Consentimiento`…) | — |
+| `backend/pruebas/semilla_m3.js`, `semilla_gad7.js` (+ `consentimiento_prueba.js`) | Generan SQL de datos de prueba (cuentas `PRUEBA`) y su limpieza; desde el Bloque 1 incluyen el consentimiento de las cuentas `PRUEBA` | — |
 
 Los scripts corren contra el backend **local** con cuentas de prueba y se niegan a escribir en otras cuentas.
 
@@ -366,6 +399,11 @@ Sugerencia: guardarlas en `docs/tesis/capturas/`.
 | 25 | `app_25_perfil.png` | Perfil (avatar, rol, "Acerca de la app") |
 | 26 | `app_26_vinculacion.png` | Formulario del código de vinculación / "Ya estás vinculado" |
 | 27 | `app_27_barra_badges.png` | Barra inferior con badges en Mensajes y Técnicas |
+| 59 | `app_28_registro_consentimiento.png` | Registro con la casilla del aviso de privacidad |
+| 60 | `app_29_puerta_consentimiento.png` | Puerta de consentimiento (cuenta existente) |
+| 61 | `app_30_eliminar_cuenta.png` | "Eliminar mi cuenta" antes de enviar |
+| 62 | `app_31_eliminar_cuenta_pendiente.png` | Solicitud enviada / pendiente |
+| 63 | `app_32_login_cuenta_suspendida.png` | Login con el aviso "Tu cuenta está suspendida" |
 
 ### Portal web — especialista
 
@@ -393,6 +431,10 @@ Sugerencia: guardarlas en `docs/tesis/capturas/`.
 |---|---|---|
 | 43 | `web_16_admin_usuarios.png` | Lista de cuentas con rol, estado y vínculo |
 | 44 | `web_17_admin_editar.png` | Edición de usuario (reasignar o desvincular especialista) |
+| 55 | `web_18_admin_suspender.png` | "Estado de la cuenta" y la confirmación de Suspender |
+| 56 | `web_19_admin_solicitudes.png` | Solicitudes de eliminación con el contador del sidebar |
+| 57 | `web_20_admin_atender.png` | Confirmación de "Atender" (qué se borra / se conserva, correo escrito) |
+| 58 | `web_21_login_cuenta_suspendida.png` | Login del portal con el aviso de cuenta suspendida |
 
 ### Infraestructura y pruebas (evidencia para los capítulos de implementación y pruebas)
 
@@ -400,13 +442,14 @@ Sugerencia: guardarlas en `docs/tesis/capturas/`.
 |---|---|---|
 | 45 | `infra_01_render_backend.png` | Dashboard de Render: servicio backend "Live" con el último deploy |
 | 46 | `infra_02_render_portal.png` | Dashboard de Render: servicio del portal con su URL |
-| 47 | `infra_03_supabase_tablas.png` | Table Editor de Supabase con las 7 tablas |
+| 47 | `infra_03_supabase_tablas.png` | Table Editor de Supabase con las 9 tablas |
 | 48 | `infra_04_firebase_auth.png` | Firebase Authentication: usuarios (ocultar correos reales) y Authorized domains |
-| 49 | `pruebas_01_backend_npm_test.png` | Salida de `npm test` en `backend/` (50/50) |
-| 50 | `pruebas_02_portal_npm_test.png` | Salida de `npm test` en `web_portal/` (50/50) |
-| 51 | `pruebas_03_flutter_test.png` | Salida de `flutter test` (181/181) |
+| 49 | `pruebas_01_backend_npm_test.png` | Salida de `npm test` en `backend/` (82/82) |
+| 50 | `pruebas_02_portal_npm_test.png` | Salida de `npm test` en `web_portal/` (61/61) |
+| 51 | `pruebas_03_flutter_test.png` | Salida de `flutter test` (208/208) |
 | 52 | `pruebas_04_prueba_sesiones_ps1.png` | Resultado de `prueba_sesiones.ps1` |
 | 53 | `pruebas_05_prueba_gad7_ps1.png` | Resultado de `prueba_gad7.ps1` (incluida la carrera 201/409) |
 | 54 | `hw_01_esp32_montaje.jpg` | Foto del ESP32 + MAX30102 (cuando esté el hardware) |
+| 64 | `pruebas_06_prueba_cuentas_ps1.png` | Resultado de `prueba_cuentas.ps1` (las tres secciones) |
 
-> Las capturas 49–53 implican correr las suites. Hacerlo cuando se levante el congelamiento o justo antes de la entrega.
+> Las capturas 49–53 y 64 implican correr las suites. Las 55–64 son del Bloque 1 (se numeraron al final para no mover las anteriores).

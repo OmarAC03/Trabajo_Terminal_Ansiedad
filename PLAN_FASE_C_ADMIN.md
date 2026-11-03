@@ -7,8 +7,16 @@
 >   especialista → 403 ("Solo un administrador puede usar esta ruta."), admin → 200 (8 cuentas).
 > - ✅ **Paso 2 — Editar datos: HECHO y PROBADO** (backend `22380cc`, portal `fbc5334`,
 >   2026-10-03). Ver "Cómo quedó el paso 2" en la sección 5.
-> - ⏭️ **Siguiente: paso 3 — Suspender / reactivar** (las columnas `suspendido` y
->   `eliminado_en` ya existen: no hace falta DDL).
+> - ✅ **Paso 3 — Suspender / reactivar: CONSTRUIDO** dentro del Bloque 1 de cuentas
+>   (commit `38148ea`, 2026-11-03; sin push hasta correr `prueba_cuentas.ps1`). Sigue el
+>   diseño de la sección 2. La decisión 2 (mensaje en el login) queda en el genérico hasta
+>   ver qué devuelve Firebase en el `[INFO]` del script.
+> - ✅ **Eliminar (paso 6) — por solicitud del paciente:** también en el Bloque 1 (commit
+>   `4b6ef04`), con un alcance distinto al del paso 6: el paciente la pide desde la app y
+>   el admin la atiende; se **borran** los datos clínicos y la cuenta de Firebase y queda
+>   una lápida anonimizada (no es el borrado lógico de la decisión 1). Ver
+>   `CONTEXTO_PROYECTO.md` §3. El cambio de rol (paso 4) y el restablecimiento forzado
+>   (paso 5) siguen pendientes.
 
 El admin gestiona **todas las cuentas de usuario**: ver, editar datos, cambiar roles,
 suspender/reactivar, forzar restablecimiento de contraseña y eliminar. Se construye **paso

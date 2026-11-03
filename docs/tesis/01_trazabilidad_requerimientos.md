@@ -3,6 +3,8 @@
 > Base para el capítulo de pruebas (organizado por requerimiento).
 > Fuente de los requerimientos: `TT1-DETECCION_ANSIEDAD_FINAL (1).pdf`, §3.9 (Tablas 28–30), §3.10 (Tablas 31–49) y §3.11 (Tablas 50–52).
 > Estado del código: commit `9ccb954` (2026-10-31). Inventario hecho el 2026-11-03 leyendo el código y los archivos de prueba; **no se corrió ninguna prueba ni build** para este documento.
+>
+> **Actualización 2026-11-04 (Bloque 1, cuentas):** commits `38148ea`, `0e3eae2` y `4b6ef04`. Pasan a implementados APP-RF-19, APP-RF-33, APP-RF-34 y el consentimiento (RNF-06, reglas de negocio RN-01 y RN-02). Suites corridas en esta actualización: backend 82/82, portal 61/61, app 208/208. `prueba_cuentas.ps1` está escrito y **queda pendiente de correr** (junto con la regresión de `prueba_sesiones.ps1` y `prueba_gad7.ps1`) antes del push.
 
 ## Convenciones
 
@@ -42,17 +44,18 @@
 | Grupo | Total | Implementado | Con cambios | No implementado |
 |---|---:|---:|---:|---:|
 | RF hardware (Tabla 28) | 8 | 2 | 6 | 0 |
-| RF app móvil (Tabla 29) | 20 | 6 | 10 | 4 |
+| RF app móvil (Tabla 29) | 20 | 9 | 10 | 1 |
 | RF plataforma web (Tabla 30) | 15 | 5 | 6 | 4 |
-| **RF total** | **43** | **13** | **22** | **8** |
-| RNF (Tablas 50–52) | 16 | 6 | 4 | 6 |
+| **RF total** | **43** | **16** | **22** | **5** |
+| RNF (Tablas 50–52) | 16 | 8 | 4 | 4 |
 | Historias de usuario (Tablas 31–49) | 19 | 0 | 19 | 0 |
 
-**Lectura rápida.** Los 8 RF no implementados son los del "incremento 5" administrativo y de cumplimiento:
+**Lectura rápida.** Los 5 RF no implementados son los del "incremento 5" administrativo y la operación offline:
 
 - notas clínicas, marcadores, exportación PDF/CSV y bitácora consultable;
-- suspensión y eliminación de cuentas;
 - operación offline.
+
+La suspensión y la eliminación de cuentas, y el consentimiento, se construyeron en el Bloque 1 (2026-11-03/04).
 
 Ninguna HU quedó tal cual: todas se construyeron con algún criterio de aceptación cambiado. El cambio más frecuente viene de la decisión de alcance de no diagnosticar (`MARCO_ALCANCE_Y_LENGUAJE.md`, `DESARROLLO_FUNDAMENTADO.md` §2): **el paciente nunca ve una etiqueta de estado**, y el estado se calcula contra la **línea base individual**, no contra umbrales fijos.
 
@@ -111,9 +114,9 @@ Ninguna HU quedó tal cual: todas se construyeron con algún criterio de aceptac
 | APP-RF-16 | Responder cuestionarios (tamizajes breves) | Implementado | GAD-7: `screens/gad7_screen.dart`, `providers/cuestionario_gad7_provider.dart`, `contenido/gad7_textos.dart`. EVA 0–10 post-medición: `medicion_screen.dart`, `models/eva_respuesta.dart` | Unitaria: `gad7_test.dart` (15), `gad7_textos_test.dart` (8 + 19 generadas = 27), `eva_test.dart` (12); backend `gad7.test.js` (18); scripts `prueba_gad7.ps1`, `prueba_sesiones.ps1` (EVA) | GAD-7 cada 14 días, solo para pacientes vinculados. El paciente **no ve su resultado**. |
 | APP-RF-17 | Asociar cuestionarios a una ventana de mediciones | Implementado con cambios | `respuestas_eva.sesion_id` (`POST /api/sesiones/:sesionId/eva`, ventana de 15 min) | Script: `prueba_sesiones.ps1` (13 casos de EVA, incluido "fuera de la ventana de 15 min → 400"); unitaria `eva_test.dart` | La EVA queda ligada a **una sesión**. El GAD-7 se asocia solo por fecha. El análisis cruzado en el portal (M5b) **no está hecho**. |
 | APP-RF-18 | Mensajes de uso responsable (no diagnostica) | Implementado | Clase `Disclaimers` y `DisclaimerNota` en `app_config.dart`; `ui/estructura_acceso.dart` | Unitaria: `gad7_textos_test.dart` (regla de oro: los textos no hablan del resultado); `mensajes_mascota_test.dart` (16) | Visibles en acceso, Inicio, resultados de la medición, Historial, GAD-7 y Perfil. |
-| APP-RF-19 | Solicitar eliminación de cuenta/datos | No implementado | — | — | Existe la columna `usuarios.eliminado_en` (borrado lógico que el admin ve como estado), pero no hay flujo de solicitud. |
-| APP-RF-33 | (Web/Admin) Desactivar o suspender cuentas; una cuenta suspendida no accede ni sincroniza | No implementado | Solo la columna `usuarios.suspendido`, que el admin ve como estado en `AdminUsuarios.js` | — | No hay acción para suspender y `auth.js` no revisa `suspendido` (Fase C, paso 3, pendiente). |
-| APP-RF-34 | Solicitud de eliminación registrada y ejecutada según la política | No implementado | — | — | Ídem APP-RF-19. |
+| APP-RF-19 | Solicitar eliminación de cuenta/datos | Implementado | App: Perfil → Privacidad → `screens/eliminar_cuenta_screen.dart`, `providers/eliminar_cuenta_provider.dart`, `repositories/eliminacion_repository.dart`; `GET/POST /api/solicitud-eliminacion` | Unitaria: `eliminar_cuenta_test.dart` (9), `backend/eliminacion.test.js` (9); script `prueba_cuentas.ps1` sección 3 (casos 3.1–3.7, pendiente de correr) | La solicitud no lleva datos y el paciente no la puede cancelar. Mientras está pendiente la cuenta funciona igual. |
+| APP-RF-33 | (Web/Admin) Desactivar o suspender cuentas; una cuenta suspendida no accede ni sincroniza | Implementado | `POST /api/admin/usuarios/:id/suspender` y `/reactivar` (`backend/admin.js`); bloqueo en `requiereAuth` / `requiereAuthSocket` (`backend/auth.js`, `backend/cuentas.js`); portal `EditarUsuario.js` ("Estado de la cuenta"); app `api_client.dart` + `sesion.dart` | Unitaria: `backend/cuentas.test.js` (13), `web_portal/src/cuentas.test.js` (6), `cuenta_bloqueada_test.dart` (6); script `prueba_cuentas.ps1` sección 1 (18 casos, pendiente de correr) | Firebase `disabled` + revocación de tokens + 403 `cuenta_suspendida` aunque el token siga vigente; sus sockets se cierran. Candados: no a sí mismo, nunca cero admins. Un especialista suspendido ya no vincula pacientes. |
+| APP-RF-34 | Solicitud de eliminación registrada y ejecutada según la política | Implementado | Tabla `solicitudes_eliminacion`; portal `AdminSolicitudes.js`; `GET /api/admin/solicitudes-eliminacion`, `POST /api/admin/solicitudes-eliminacion/:id/atender`; qué se borra en `backend/eliminacion.js` | Unitaria: `backend/eliminacion.test.js` (9), `web_portal/src/solicitudes.test.js` (5); script `prueba_cuentas.ps1` sección 3 (casos 3.8–3.22, pendiente de correr) | Queda con fecha y estado (pendiente / atendida, quién y cuándo). Al atender se borran los datos clínicos y la comunicación, la cuenta de Firebase se borra y la fila de `usuarios` queda como lápida anonimizada; consentimientos y solicitud se conservan como evidencia. Solo cuentas de paciente. |
 | APP-RF-35 | Operar offline y sincronizar al volver la red sin perder datos | No implementado | — | — | Ver C11. Sin red, la sesión terminada se puede reintentar solo mientras la pantalla siga abierta. |
 
 ## 3. Requerimientos funcionales de la plataforma web (Tabla 30)
@@ -145,7 +148,7 @@ Ninguna HU quedó tal cual: todas se construyeron con algún criterio de aceptac
 | RNF-WEB-01 / RNF-APP-01 | Cifrado en tránsito (HTTPS/TLS) | Implementado | Render sirve backend y portal por HTTPS; `API_BASE` y `app_config.dart` apuntan a `https://` | Solo manual | Render redirige HTTP a HTTPS. Socket.io va sobre `wss://`. |
 | RNF-WEB-03 | Control de acceso por roles (RBAC) | Implementado | `backend/auth.js`, `server.js` (autorización por ruta), `admin.js` | Script: `prueba_sesiones.ps1` (403 a especialista no vinculado, admin y otro paciente), `prueba_gad7.ps1` (casos 3a, 5, 11a); unitaria `gad7_vista.test.js`, `linea_base_vista.test.js` (qué campos ve cada rol) | En el backend, no con RLS (C7). |
 | RNF-WEB-05 | Bitácora / auditoría de accesos a datos clínicos, consultable por el admin | Implementado con cambios | `backend/logger.js` (JSON por línea) | Solo manual | **Parcial**: hay logs de las acciones críticas (sin datos clínicos), pero no se guardan en la base ni los consulta el admin. |
-| RNF-WEB-06 / RNF-APP-06 | Consentimiento del paciente (registro; bloqueo si no existe) | No implementado | — | — | Solo hay disclaimers de alcance; no se registra consentimiento. |
+| RNF-WEB-06 / RNF-APP-06 | Consentimiento del paciente (registro; bloqueo si no existe) | Implementado | Tabla `consentimientos`; `backend/consentimiento.js`; `GET/POST /api/consentimiento` y campo `consentimiento` en `POST /api/usuarios`; app: casilla en `registro_screen.dart` y puerta en `auth_gate.dart` → `screens/consentimiento_screen.dart`; textos en `contenido/privacidad_textos.dart` | Unitaria: `backend/consentimiento.test.js` (10), `consentimiento_test.dart` (12); script `prueba_cuentas.ps1` sección 2 (18 casos, pendiente de correr) | Cubre también RN-01 (sin consentimiento, 403 `consentimiento_requerido` en sesiones, EVA, GAD-7 y lecturas) y RN-02 (fecha y versión de los textos). **Textos en borrador (VERIFICAR)**; la redacción final, revisada contra la LFPDPPP, sigue pendiente. Revocar el consentimiento = solicitar la eliminación. |
 | RNF-WEB-08 | Anonimización / seudonimización de datasets | No implementado | — | — | Va ligado a la exportación (WEB-RF-29), que tampoco existe. |
 | RNF-APP-02 | Cifrado en reposo de la información sensible local | No implementado | — | — | La app no guarda datos clínicos en el teléfono (C11). En el servidor, el cifrado en reposo es el que da Supabase. |
 | RNF-APP-04 | Expiración de sesión por inactividad | No implementado | — | — | En la app la sesión de Firebase persiste. En el portal (no es este RNF) la sesión dura lo que la pestaña. |
@@ -165,7 +168,7 @@ En la columna "Nota del cambio" se dice qué criterios de aceptación del TT1 **
 
 | HU | Nombre (TT1) | Estado | Dónde vive | Evidencia de prueba | Nota del cambio |
 |---|---|---|---|---|---|
-| HU01 | Registro de perfil del estudiante | Implementado con cambios | `registro_screen.dart`; `POST /api/usuarios` | Solo manual | Pide nombre, correo y contraseña. **Sin** edad ni teléfono (CA1) y **sin correo de verificación** (CA3–4). La vinculación con el especialista es aparte (C10). |
+| HU01 | Registro de perfil del estudiante | Implementado con cambios | `registro_screen.dart`; `POST /api/usuarios` | Solo manual; consentimiento en el registro: `prueba_cuentas.ps1` (casos 2.15–2.18, pendiente de correr) | Pide nombre, correo, contraseña y la aceptación del aviso de privacidad y el consentimiento (desde el Bloque 1). **Sin** edad ni teléfono (CA1) y **sin correo de verificación** (CA3–4). La vinculación con el especialista es aparte (C10). |
 | HU02 | Inicio de sesión del estudiante | Implementado con cambios | `login_screen.dart`, `recuperar_password_screen.dart` | Solo manual | Cumple CA1–3 y CA5 (error genérico, restablecimiento por correo). CA4 (bloqueo de 15 min tras 5 intentos) lo cubre **Firebase**, con su propio límite: la app muestra "Demasiados intentos". |
 | HU03 | Conexión del dispositivo vía Bluetooth | Implementado con cambios | `sensor_repository.dart`, `estado_sensor.dart`, `inicio_screen.dart` | Unitaria: `alerta_provider_test.dart`, `estado_sensor_test.dart`; hardware pendiente | Sin pantalla de escaneo (CA1–2, C1). Sin los 3 reintentos automáticos (CA5): hay "Reintentar". |
 | HU04 | Medición de biomarcadores en tiempo real | Implementado con cambios | `medicion_screen.dart`, `medicion_provider.dart`, `calculo_sesion.dart` | Unitaria: `calculo_sesion_test.dart` (17); script `prueba_sesiones.ps1` (validación de la sesión) | **Por diseño no se muestran valores en vivo** (CA2): solo un anillo de progreso y una guía de colocación del dedo (CA3 ✓). La sesión se sube al terminar (CA4 ✓, sin almacenamiento local). Duración fija de 180 s limpios en ≤ 300 s (CA5). |
@@ -198,4 +201,4 @@ Sirve para el capítulo de pruebas como "requerimientos emergentes".
 | Modo simulación (sin hardware) | `repositories/simulador_sensor.dart` | Unitaria: `simulador_sensor_test.dart` (3) |
 | Mascota de acompañamiento ("día X de 7") | `lib/medicion/mensajes_mascota.dart`, `avatar_widgets.dart` | Unitaria: `mensajes_mascota_test.dart` (16) |
 | Aviso de SpO2 baja (regla de seguridad, no de ansiedad) | `app_config.dart` | Solo manual |
-| Rol administrador con borrado lógico y estado de cuenta | `backend/admin.js`, `AdminUsuarios.js` | Solo manual |
+| Rol administrador: estado de cuenta, suspender / reactivar y atender eliminaciones | `backend/admin.js`, `AdminUsuarios.js`, `EditarUsuario.js`, `AdminSolicitudes.js` | Unitaria: `cuentas.test.js` y `eliminacion.test.js` (backend), `cuentas.test.js` y `solicitudes.test.js` (portal); script `prueba_cuentas.ps1` |
