@@ -13,6 +13,7 @@
 // en hora de México; hoy no se siembra, para medir con la app.
 
 const { CONFIG_LINEA_BASE, evaluarSesiones, progresoCalibracion } = require('../linea_base');
+const { sqlConsentimientoPruebas } = require('./consentimiento_prueba');
 
 const NOMBRE_CUENTA = 'PRUEBA - Test M3';
 const ZONA = CONFIG_LINEA_BASE.zonaHoraria;
@@ -125,6 +126,7 @@ ${valores.join(',\n')};
   RAISE NOTICE 'OK: % sesiones sembradas en la cuenta de pruebas.', n_insertadas;
 END $$;
 
+${sqlConsentimientoPruebas()}
 COMMIT;
 `;
 }

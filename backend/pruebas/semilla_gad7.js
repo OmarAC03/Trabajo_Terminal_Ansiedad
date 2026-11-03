@@ -13,6 +13,7 @@
 
 const { CONFIG_GAD7 } = require('../gad7');
 const { vistaGad7 } = require('../gad7_vista');
+const { sqlConsentimientoPruebas } = require('./consentimiento_prueba');
 
 const NOMBRE_CUENTA = 'PRUEBA - Test M3';
 const ZONA = CONFIG_GAD7.zonaHoraria;
@@ -73,6 +74,7 @@ ${valores.join(',\n')};
   RAISE NOTICE 'OK: % GAD-7 sembrados en la cuenta de pruebas.', n_insertadas;
 END $$;
 
+${sqlConsentimientoPruebas()}
 COMMIT;
 `;
 }

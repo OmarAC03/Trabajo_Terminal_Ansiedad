@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'login_screen.dart';
+import '../auth_gate.dart';
 import 'vinculacion_screen.dart';
 import '../app_config.dart';
 import '../avatar_widgets.dart';
@@ -106,9 +106,11 @@ class _PerfilView extends StatelessWidget {
     await FirebaseAuth.instance.signOut();
     if (!context.mounted) return;
 
+    // A AuthGate (no directo al login): así el siguiente inicio de sesión pasa
+    // por la puerta de consentimiento.
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      MaterialPageRoute(builder: (_) => const AuthGate()),
       (route) => false,
     );
   }

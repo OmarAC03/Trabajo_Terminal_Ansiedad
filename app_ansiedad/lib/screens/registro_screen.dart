@@ -1,4 +1,7 @@
-import 'package:app_ansiedad/main_layout.dart';
+import 'package:app_ansiedad/auth_gate.dart';
+import 'package:app_ansiedad/contenido/privacidad_textos.dart';
+import 'package:app_ansiedad/repositories/consentimiento_repository.dart';
+import 'package:app_ansiedad/screens/consentimiento_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:app_ansiedad/app_config.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -22,6 +25,8 @@ class _RegistroScreenState extends State<RegistroScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  // Aceptación del aviso de privacidad y el consentimiento (Bloque 1, paso 2).
+  bool _aceptaPrivacidad = false;
 
   void _mostrarError(String mensaje) {
     if (!mounted) return;
@@ -47,6 +52,9 @@ class _RegistroScreenState extends State<RegistroScreen> {
     }
     if (pass.length < 6) {
       return 'La contraseña debe tener al menos 6 caracteres';
+    }
+    if (!_aceptaPrivacidad) {
+      return TextosPrivacidad.faltaAceptarRegistro;
     }
     return null;
   }
@@ -83,15 +91,19 @@ class _RegistroScreenState extends State<RegistroScreen> {
           "nombre": _nombreController.text.trim(),
           "email": _emailController.text.trim(),
           "rol": "paciente",
+          // Se guarda en la misma transacción que la cuenta (backend).
+          "consentimiento": ConsentimientoRepository.versionesVigentes,
         }),
       );
 
       if (response.exito) {
-        // Paso 3: éxito completo (Firebase + Supabase). Entrar a la app.
+        // Paso 3: éxito completo (Firebase + Supabase). Entrar a la app por
+        // AuthGate, que pasa por la puerta de consentimiento (ya aceptado).
         if (!mounted) return;
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const MainLayout()),
+          MaterialPageRoute(builder: (context) => const AuthGate()),
+          (route) => false,
         );
         return;
       }
@@ -180,7 +192,27 @@ class _RegistroScreenState extends State<RegistroScreen> {
               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
+          CheckboxListTile(
+            value: _aceptaPrivacidad,
+            onChanged: _isLoading ? null : (v) => setState(() => _aceptaPrivacidad = v ?? false),
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: EdgeInsets.zero,
+            activeColor: AppColors.primario,
+            title: const Text(TextosPrivacidad.casillaRegistro, style: TextStyle(fontSize: 13.5, color: AppColors.texto)),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TextosPrivacidadScreen()),
+              ),
+              icon: const Icon(Icons.description_outlined, size: 18),
+              label: const Text(TextosPrivacidad.leerTextos),
+            ),
+          ),
+          const SizedBox(height: 12),
           BotonPrimario(
             texto: 'Registrarme',
             cargando: _isLoading,

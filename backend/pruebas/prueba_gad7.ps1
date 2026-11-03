@@ -32,6 +32,9 @@ if ($nombreA -ne 'PRUEBA - Test M3' -or -not ("$nombreE".StartsWith('PRUEBA')) -
   Write-Host "Alto: A debe ser 'PRUEBA - Test M3' (es '$nombreA'), E un especialista 'PRUEBA ...' (es '$nombreE') y C un paciente 'PRUEBA ...' sin especialista (es '$nombreC', sin vinculo: $cSinVinculo). No se escribio nada." -ForegroundColor Red
   exit 1
 }
+# C tambien: su 403 del caso 5 debe ser por falta de vinculo, no de consentimiento.
+Exigir-Consentimiento $pac 'A'
+Exigir-Consentimiento $sinV 'C'
 
 # --- Regla de oro: nada del resultado en lo que recibe un paciente ---
 $Prohibidas = @('puntaje', 'severidad', 'item', 'dificultad', 'valorar', 'version',

@@ -2,6 +2,7 @@ const admin = require('firebase-admin');
 const { AuthError } = require('./errors');
 const logger = require('./logger');
 const { bloqueoDeCuenta } = require('./cuentas');
+const { CONFIG_CONSENTIMIENTO } = require('./consentimiento');
 
 /**
  * Inicializa el Admin SDK de Firebase a partir de la variable de entorno
@@ -24,12 +25,21 @@ function inicializarFirebaseAdmin() {
 }
 
 /** Busca la cuenta del uid en `usuarios`: rol ('paciente' | 'especialista' |
- * 'admin') y su estado (`suspendido`, `eliminado_en`), en UNA consulta.
+ * 'admin'), su estado (`suspendido`, `eliminado_en`) y si aceptó la versión
+ * VIGENTE del aviso y el consentimiento (Bloque 1, paso 2), en UNA consulta.
  * Devuelve null si el token es válido pero todavía no existe la fila (pasa
  * justo entre crear la cuenta en Firebase y el POST /api/usuarios que la
  * registra en Supabase). */
 async function obtenerCuenta(pool, uid) {
-  const result = await pool.query('SELECT rol, suspendido, eliminado_en FROM usuarios WHERE id = $1', [uid]);
+  const result = await pool.query(
+    `SELECT u.rol, u.suspendido, u.eliminado_en,
+       EXISTS (
+         SELECT 1 FROM consentimientos c
+         WHERE c.usuario_id = u.id AND c.version_aviso = $2 AND c.version_consentimiento = $3
+       ) AS consentimiento_vigente
+     FROM usuarios u WHERE u.id = $1`,
+    [uid, CONFIG_CONSENTIMIENTO.version_aviso, CONFIG_CONSENTIMIENTO.version_consentimiento]
+  );
   return result.rows[0] ?? null;
 }
 
@@ -43,6 +53,7 @@ function extraerToken(headerAuthorization) {
  * `Authorization: Bearer <token>` y adjunta `req.uid` / `req.rol`.
  * No decide autorización por ruta (eso vive en cada handler de server.js);
  * solo resuelve "quién es" antes de que la ruta decida "puede o no puede".
+ * También adjunta `req.consentimientoVigente` (lo usan las rutas de captura).
  *
  * Una cuenta suspendida o eliminada recibe 403 con `codigo` aunque su token
  * siga vigente: Firebase solo deja de emitir tokens nuevos, y uno ya emitido
@@ -78,6 +89,7 @@ function requiereAuth(pool) {
 
     req.uid = decoded.uid;
     req.rol = cuenta?.rol ?? null;
+    req.consentimientoVigente = Boolean(cuenta?.consentimiento_vigente);
     next();
   };
 }

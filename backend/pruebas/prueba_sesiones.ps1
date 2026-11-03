@@ -50,6 +50,7 @@ if ($nombreA -ne 'PRUEBA - Test M3' -or -not ("$nombreE".StartsWith('PRUEBA'))) 
   Write-Host "Alto: A debe ser 'PRUEBA - Test M3' (es '$nombreA') y E un especialista 'PRUEBA ...' (es '$nombreE'). No se escribio nada." -ForegroundColor Red
   exit 1
 }
+Exigir-Consentimiento $pac 'A'
 
 # Para la seccion 10: sesiones_7d de A ANTES de crear las sesiones de prueba.
 $r = Llamar 'GET' '/api/pacientes' $esp.token $null

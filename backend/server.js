@@ -15,6 +15,9 @@ const { evaluarFilas, calibracionPara } = require('./linea_base_vista');
 const { CONFIG_GAD7, itemsDeFila, puntaje: puntajeGad7, severidad: severidadGad7, valorar: valorarGad7, estadoGad7 } = require('./gad7');
 const { vistaGad7, guardadaParaPaciente } = require('./gad7_vista');
 const {
+  CONFIG_CONSENTIMIENTO, validarConsentimiento, exigirConsentimiento, vistaConsentimiento, requiereConsentimiento,
+} = require('./consentimiento');
+const {
   validarLectura,
   validarUsuarioNuevo,
   validarEspecialistaNuevo,
@@ -108,6 +111,7 @@ app.post('/api/lecturas', async (req, res) => {
   if (req.body?.paciente_id !== req.uid) {
     throw new AuthError('Solo puedes reportar tus propias lecturas.', 403);
   }
+  exigirConsentimiento(req.rol, req.consentimientoVigente);
   const datos = validarLectura(req.body);
 
   const query = `
@@ -312,6 +316,7 @@ app.post('/api/sesiones', async (req, res) => {
   if (req.rol !== 'paciente') {
     throw new AuthError('Solo un paciente puede registrar sesiones de medición.', 403);
   }
+  exigirConsentimiento(req.rol, req.consentimientoVigente);
   const datos = validarSesion(req.body);
 
   const query = `
@@ -417,6 +422,7 @@ app.post('/api/sesiones/:sesionId/eva', async (req, res) => {
   if (req.rol !== 'paciente') {
     throw new AuthError('Solo un paciente puede responder la EVA.', 403);
   }
+  exigirConsentimiento(req.rol, req.consentimientoVigente);
   const { sesionId } = req.params;
   if (!FORMATO_UUID.test(sesionId)) {
     throw new ValidationError('El identificador de la sesión no es válido.');
@@ -476,6 +482,7 @@ app.post('/api/gad7', async (req, res) => {
   if (req.rol !== 'paciente') {
     throw new AuthError('Solo un paciente puede responder el cuestionario.', 403);
   }
+  exigirConsentimiento(req.rol, req.consentimientoVigente);
   const datos = validarGad7(req.body);
 
   const client = await pool.connect();
@@ -703,17 +710,92 @@ app.post('/api/usuarios', async (req, res) => {
     throw new AuthError('Este endpoint solo registra pacientes.', 403);
   }
 
-  const query = `
-    INSERT INTO usuarios (id, nombre, email, rol)
-    VALUES ($1, $2, $3, $4)
-    RETURNING *;
-  `;
-  const values = [datos.id, datos.nombre, datos.email, datos.rol];
+  // Bloque 1, paso 2: la app nueva manda el consentimiento aceptado en el
+  // formulario de registro y se guarda en la MISMA transacción que la cuenta
+  // (no queda un paciente registrado sin su aceptación por un fallo a medias).
+  // Es opcional para no romper un APK viejo: sin él, la puerta de
+  // consentimiento de la app lo pide al entrar.
+  const consentimiento =
+    req.body.consentimiento === undefined || req.body.consentimiento === null
+      ? null
+      : validarConsentimiento(req.body.consentimiento);
 
-  const result = await pool.query(query, values);
+  const client = await pool.connect();
+  let usuario;
+  try {
+    await client.query('BEGIN');
+    usuario = (
+      await client.query(
+        'INSERT INTO usuarios (id, nombre, email, rol) VALUES ($1, $2, $3, $4) RETURNING *;',
+        [datos.id, datos.nombre, datos.email, datos.rol]
+      )
+    ).rows[0];
+    if (consentimiento) {
+      await client.query(
+        `INSERT INTO consentimientos (usuario_id, version_aviso, version_consentimiento, origen)
+         VALUES ($1, $2, $3, 'registro')`,
+        [datos.id, consentimiento.version_aviso, consentimiento.version_consentimiento]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 
-  logger.info('Nuevo usuario registrado', { nombre: datos.nombre });
-  res.status(201).json({ mensaje: 'Usuario guardado con éxito', data: result.rows[0] });
+  logger.info('Nuevo usuario registrado', { nombre: datos.nombre, con_consentimiento: Boolean(consentimiento) });
+  res.status(201).json({ mensaje: 'Usuario guardado con éxito', data: usuario });
+});
+
+// --- CONSENTIMIENTO (Bloque 1, paso 2: RN-01, RN-02, RNF-06) ---
+// GET: ¿la cuenta debe aceptar y ya aceptó la versión vigente? La app lo pide
+// al entrar (puerta de consentimiento). Especialistas y admins: requerido=false.
+app.get('/api/consentimiento', async (req, res) => {
+  if (!req.rol) {
+    throw new AuthError('Cuenta no registrada.', 403);
+  }
+  let aceptadoEn = null;
+  if (requiereConsentimiento(req.rol)) {
+    const r = await pool.query(
+      `SELECT aceptado_en FROM consentimientos
+       WHERE usuario_id = $1 AND version_aviso = $2 AND version_consentimiento = $3`,
+      [req.uid, CONFIG_CONSENTIMIENTO.version_aviso, CONFIG_CONSENTIMIENTO.version_consentimiento]
+    );
+    aceptadoEn = r.rows[0]?.aceptado_en ?? null;
+  }
+  res.status(200).json(vistaConsentimiento(req.rol, aceptadoEn));
+});
+
+// POST: el paciente acepta la versión vigente (cuentas que ya existían, o un
+// texto nuevo). Una fila por versión; aceptar otra vez la misma es 200 sin
+// fila nueva (`uq_consentimiento_version`), así un reintento no duplica.
+app.post('/api/consentimiento', async (req, res) => {
+  if (req.rol !== 'paciente') {
+    throw new AuthError('Solo un paciente da este consentimiento.', 403);
+  }
+  const datos = validarConsentimiento(req.body);
+  const insertado = await pool.query(
+    `INSERT INTO consentimientos (usuario_id, version_aviso, version_consentimiento, origen)
+     VALUES ($1, $2, $3, 'inicio_sesion')
+     ON CONFLICT (usuario_id, version_aviso, version_consentimiento) DO NOTHING
+     RETURNING aceptado_en`,
+    [req.uid, datos.version_aviso, datos.version_consentimiento]
+  );
+  let aceptadoEn = insertado.rows[0]?.aceptado_en;
+  if (!aceptadoEn) {
+    aceptadoEn = (
+      await pool.query(
+        `SELECT aceptado_en FROM consentimientos
+         WHERE usuario_id = $1 AND version_aviso = $2 AND version_consentimiento = $3`,
+        [req.uid, datos.version_aviso, datos.version_consentimiento]
+      )
+    ).rows[0].aceptado_en;
+  } else {
+    logger.info('Consentimiento aceptado', { usuario_id: req.uid, version_aviso: datos.version_aviso });
+  }
+  res.status(insertado.rowCount > 0 ? 201 : 200).json(vistaConsentimiento(req.rol, aceptadoEn));
 });
 
 // Alfabeto sin caracteres ambiguos (0/O, 1/I/L) para que el código sea fácil

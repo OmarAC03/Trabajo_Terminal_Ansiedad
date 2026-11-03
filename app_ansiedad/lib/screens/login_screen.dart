@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../main_layout.dart'; // O la ruta correcta donde tengas tu MainLayout
+import '../auth_gate.dart';
 import 'recuperar_password_screen.dart';
 import 'registro_screen.dart';
 import '../sesion.dart';
@@ -57,10 +57,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      // Si es exitoso, navegar a la pantalla principal y destruir el historial de navegación
-      Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const MainLayout()), 
+      // Si es exitoso, volver a AuthGate (y destruir el historial): de ahí
+      // pasa por la puerta de consentimiento antes de la app (Bloque 1).
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const AuthGate()),
+        (route) => false,
       );
 
     } on FirebaseAuthException catch (e) {

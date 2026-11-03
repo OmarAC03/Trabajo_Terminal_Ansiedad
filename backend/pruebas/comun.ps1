@@ -91,3 +91,14 @@ function Nombre-De($cuenta) {
   if ($r.status -ne 200) { return $null }
   return ($r.texto | ConvertFrom-Json).nombre
 }
+
+# Precondicion (Bloque 1, paso 2): sin el consentimiento vigente, las rutas de
+# captura dan 403 consentimiento_requerido y fallaria casi todo el script.
+# Lo da el SQL de las semillas (semilla_m3.js / semilla_gad7.js sql).
+function Exigir-Consentimiento($cuenta, $etiqueta) {
+  $r = Llamar 'GET' '/api/consentimiento' $cuenta.token $null
+  if ($r.status -ne 200 -or -not (($r.texto | ConvertFrom-Json).aceptado)) {
+    Write-Host "Alto: $etiqueta no tiene el consentimiento vigente (HTTP $($r.status): $($r.texto)). Pega en Supabase el SQL de 'node pruebas/semilla_m3.js sql' o 'semilla_gad7.js sql' (incluye el consentimiento de las cuentas PRUEBA). No se escribio nada." -ForegroundColor Red
+    exit 1
+  }
+}

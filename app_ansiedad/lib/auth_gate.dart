@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/login_screen.dart';
 import 'main_layout.dart';
+import 'screens/consentimiento_screen.dart';
 import 'ui/app_colors.dart';
 
 /// Puerta de entrada de la app.
@@ -30,9 +31,14 @@ class AuthGate extends StatelessWidget {
           return const _PantallaCarga();
         }
 
-        // Hay un usuario autenticado -> a la app.
+        // Hay un usuario autenticado -> a la app, pasando antes por la puerta
+        // de consentimiento (Bloque 1, paso 2). La clave por uid hace que otra
+        // cuenta vuelva a consultar desde cero.
         if (snapshot.hasData) {
-          return const MainLayout();
+          return PuertaConsentimiento(
+            key: ValueKey(snapshot.data!.uid),
+            child: const MainLayout(),
+          );
         }
 
         // No hay sesión -> login.
