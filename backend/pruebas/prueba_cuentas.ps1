@@ -2,6 +2,8 @@
 #   Seccion 1 - Suspender / reactivar (RF-33).
 #   Seccion 2 - Consentimiento (RN-01, RN-02, RNF-06). Crea pacientes
 #               desechables "PRUEBA - Desechable ..." (@example.com).
+#   Seccion 3 - Solicitud de eliminacion (RF-19 / RF-34). ELIMINA de verdad
+#               a los desechables D y D2 (datos, fila anonimizada, Firebase).
 # Uso: .\backend\pruebas\prueba_cuentas.ps1   (con el backend corriendo en otra ventana)
 #
 # SUSPENDE CUENTAS DE VERDAD (en la base y en Firebase): solo las de prueba.
@@ -182,6 +184,86 @@ try {
   $D3 = Crear-Desechable 'D3' @{ version_aviso = 'privacidad-v-vieja'; version_consentimiento = $Version.version_consentimiento }
   Caso '2.17 Registro con version vieja: 400' 400 $D3.registro
   Caso '2.18 ...y la cuenta no quedo registrada' 404 (Llamar 'GET' "/api/usuarios/$($D3.uid)" $D3.token $null)
+
+  Write-Host "`n=== 3. Solicitud de eliminacion ==="
+
+  $r = Llamar 'GET' '/api/solicitud-eliminacion' $D.token $null
+  Caso '3.1 D sin solicitud' 200 $r {
+    if ($null -ne ($r.texto | ConvertFrom-Json).solicitud) { return "ya tenia solicitud: $($r.texto)" }
+    $true
+  }
+  Caso '3.2 Un especialista no puede solicitar por esta via' 403 (Llamar 'POST' '/api/solicitud-eliminacion' $esp.token @{})
+  Caso '3.3 La solicitud no lleva datos (motivo -> 400)' 400 (Llamar 'POST' '/api/solicitud-eliminacion' $D.token @{ motivo = 'x' })
+
+  # Un dato clinico de D, para comprobar despues que se borra.
+  $r = Llamar 'POST' '/api/lecturas' $D.token @{ paciente_id = $D.uid; bpm = 72; spo2 = 97; hrv = 45; score_ansiedad = 2; estado_ansiedad = 'Baja' }
+  Caso '3.4 D registra una lectura (con consentimiento)' 201 $r
+
+  $r = Llamar 'POST' '/api/solicitud-eliminacion' $D.token @{}
+  Caso '3.5 D solicita la eliminacion' 201 $r {
+    if (($r.texto | ConvertFrom-Json).solicitud.estado -ne 'pendiente') { return "no quedo pendiente: $($r.texto)" }
+    $true
+  }
+  Caso '3.6 Una segunda solicitud pendiente: 409' 409 (Llamar 'POST' '/api/solicitud-eliminacion' $D.token @{})
+  Caso '3.7 Con la solicitud pendiente D sigue usando la app' 200 (Llamar 'GET' "/api/lecturas/$($D.uid)" $D.token $null)
+
+  Caso '3.8 Un paciente no ve las solicitudes (ruta de admin)' 403 (Llamar 'GET' '/api/admin/solicitudes-eliminacion' $sinV.token $null)
+  $r = Llamar 'GET' '/api/admin/solicitudes-eliminacion' $adm.token $null
+  $solD = if ($r.status -eq 200) { (Lista-Json $r.texto) | Where-Object { $_.usuario_id -eq $D.uid } } else { $null }
+  Caso '3.9 El admin ve la solicitud de D pendiente' 200 $r {
+    if (-not $solD -or $solD.estado -ne 'pendiente' -or $solD.rol -ne 'paciente') { return "solicitud de D: $($solD | ConvertTo-Json -Compress)" }
+    foreach ($campo in @('serie', 'bpm', 'hrv', 'puntaje', 'texto')) { if (Tiene $solD $campo) { return "la fila trae el campo clinico '$campo'" } }
+    $true
+  }
+  $r = Llamar 'GET' '/api/admin/usuarios' $adm.token $null
+  Caso '3.10 La lista de usuarios marca a D' 200 $r {
+    $fila = (Lista-Json $r.texto) | Where-Object { $_.id -eq $D.uid }
+    if (-not $fila.solicitud_pendiente) { return "D sin solicitud_pendiente: $($fila | ConvertTo-Json -Compress)" }
+    $true
+  }
+
+  Caso '3.11 Atender con un id mal formado' 400 (Llamar 'POST' '/api/admin/solicitudes-eliminacion/no-es-uuid/atender' $adm.token $null)
+  Caso '3.12 Atender una solicitud que no existe' 404 (Llamar 'POST' '/api/admin/solicitudes-eliminacion/00000000-0000-4000-8000-000000000000/atender' $adm.token $null)
+  Caso '3.13 Un especialista no puede atender' 403 (Llamar 'POST' "/api/admin/solicitudes-eliminacion/$($solD.id)/atender" $esp.token $null)
+
+  $r = Llamar 'POST' "/api/admin/solicitudes-eliminacion/$($solD.id)/atender" $adm.token $null
+  Caso '3.14 El admin atiende la solicitud de D' 200 $r {
+    if (($r.texto | ConvertFrom-Json).estado -ne 'atendida') { return "no quedo atendida: $($r.texto)" }
+    $true
+  }
+  if ($r.status -eq 200) { $D.eliminada = $true }
+
+  # Su token aun no expira, pero la cuenta ya esta eliminada.
+  $r = Llamar 'GET' "/api/lecturas/$($D.uid)" $D.token $null
+  Caso '3.15 D con su token vigente: 403 cuenta_eliminada' 403 $r { Codigo-Es $r 'cuenta_eliminada' }
+  $l = Login-Firebase $D.email $D.pass
+  Caso '3.16 D ya no puede iniciar sesion (cuenta borrada en Firebase)' 1 (Como-Caso (-not $l.ok) 'inicio de sesion exitoso')
+
+  $r = Llamar 'GET' '/api/admin/usuarios' $adm.token $null
+  Caso '3.17 D queda como lapida anonima' 200 $r {
+    $fila = (Lista-Json $r.texto) | Where-Object { $_.id -eq $D.uid }
+    if (-not $fila) { return 'la fila de D desaparecio (debia conservarse)' }
+    if ($fila.estado -ne 'eliminada' -or $fila.nombre -ne 'Cuenta eliminada' -or $fila.email -ne "eliminada-$($D.uid)@invalid" -or $fila.solicitud_pendiente) {
+      return "fila de D: $($fila | ConvertTo-Json -Compress)"
+    }
+    $true
+  }
+  $r = Llamar 'POST' "/api/admin/solicitudes-eliminacion/$($solD.id)/atender" $adm.token $null
+  Caso '3.18 Atender otra vez: idempotente' 200 $r
+  Caso '3.19 Una cuenta eliminada no se suspende' 409 (Llamar 'POST' "/api/admin/usuarios/$($D.uid)/suspender" $adm.token $null)
+  Caso '3.20 Ni se edita' 409 (Llamar 'PUT' "/api/admin/usuarios/$($D.uid)" $adm.token @{ nombre = 'Otra vez' })
+
+  # D2 tambien se elimina por el flujo real (asi no quedan desechables vivos).
+  $r = Llamar 'POST' '/api/solicitud-eliminacion' $D2.token @{}
+  Caso '3.21 D2 solicita la eliminacion' 201 $r
+  $r = Llamar 'GET' '/api/admin/solicitudes-eliminacion' $adm.token $null
+  $solD2 = if ($r.status -eq 200) { (Lista-Json $r.texto) | Where-Object { $_.usuario_id -eq $D2.uid -and $_.estado -eq 'pendiente' } } else { $null }
+  $r = Llamar 'POST' "/api/admin/solicitudes-eliminacion/$($solD2.id)/atender" $adm.token $null
+  Caso '3.22 El admin atiende la de D2' 200 $r
+  if ($r.status -eq 200) { $D2.eliminada = $true }
+
+  Write-Host "[INFO]  Para confirmar en el SQL Editor que se borraron los datos clinicos (debe dar 0):" -ForegroundColor Cyan
+  Write-Host "        SELECT count(*) FROM lecturas_biometricas WHERE paciente_id = '$($D.uid)';"
 }
 finally {
   # Limpieza: C y E activos y C sin especialista, aunque algo haya fallado.
@@ -198,9 +280,11 @@ finally {
       Write-Host "C habia quedado vinculado: se desvinculo (HTTP $($d.status))" -ForegroundColor Yellow
     }
   }
-  # Desechables: se borra su cuenta de Firebase. Su fila en `usuarios` (y sus
-  # consentimientos) quedan; ver el SQL de limpieza que se imprime.
+  # Desechables que NO se eliminaron por el flujo de la seccion 3 (D3, o si
+  # algo fallo): se borra su cuenta de Firebase. Su fila en `usuarios`, si la
+  # tiene, queda; ver el SQL de limpieza que se imprime.
   foreach ($d in $script:desechables) {
+    if ($d.eliminada) { continue }
     try {
       Invoke-RestMethod -Method Post -ContentType 'application/json' -Body (@{ idToken = $d.token } | ConvertTo-Json) `
         -Uri "https://identitytoolkit.googleapis.com/v1/accounts:delete?key=$FirebaseKey" | Out-Null
@@ -209,8 +293,8 @@ finally {
       Write-Host "Desechable $($d.email): no se pudo borrar en Firebase ($($_.ErrorDetails.Message))" -ForegroundColor Yellow
     }
   }
-  if ($script:desechables.Count -gt 0) {
-    Write-Host "Filas que quedan en la base (opcional, en el SQL Editor):" -ForegroundColor Cyan
+  if (@($script:desechables | Where-Object { -not $_.eliminada -and $_.registro.status -eq 201 }).Count -gt 0) {
+    Write-Host "Quedaron desechables registrados sin eliminar (opcional, en el SQL Editor):" -ForegroundColor Cyan
     Write-Host "  DELETE FROM consentimientos WHERE usuario_id IN (SELECT id FROM usuarios WHERE nombre LIKE 'PRUEBA - Desechable %$sello');"
     Write-Host "  DELETE FROM usuarios WHERE nombre LIKE 'PRUEBA - Desechable %$sello';"
   }

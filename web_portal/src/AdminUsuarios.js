@@ -181,6 +181,9 @@ function AdminUsuarios({ onPropiaEditada }) {
                     </td>
                     <td>
                       <Badge tone={ESTADOS[u.estado]?.tone || 'neutral'}>{ESTADOS[u.estado]?.etiqueta || u.estado}</Badge>
+                      {u.solicitud_pendiente && (
+                        <div className="ui-person-sub" style={{ marginTop: 4 }}>Solicitó eliminación</div>
+                      )}
                     </td>
                     <td className="ui-muted"><Vinculacion usuario={u} /></td>
                     <td className="ui-muted">{formatoFecha(u.fecha_registro)}</td>

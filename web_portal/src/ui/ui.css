@@ -1574,3 +1574,17 @@
 .ui-cuenta-estado .ui-muted {
   font-size: 13px;
 }
+
+/* Contador de un item del sidebar (p. ej. solicitudes de eliminación pendientes). */
+.ui-nav-count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-elevados, #d97706);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}

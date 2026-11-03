@@ -32,6 +32,7 @@ class AppConfig {
   static const String urlGad7 = '$backendUrl/api/gad7';
   static String urlGad7Paciente(String pacienteId) => '$backendUrl/api/gad7/$pacienteId';
   static const String urlConsentimiento = '$backendUrl/api/consentimiento';
+  static const String urlSolicitudEliminacion = '$backendUrl/api/solicitud-eliminacion';
 }
 
 /// Parámetros de la sesión de medición (Fase M1b, DISENO_FLUJO_MEDICION.md §3).

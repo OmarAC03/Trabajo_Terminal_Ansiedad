@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../auth_gate.dart';
 import 'vinculacion_screen.dart';
+import 'eliminar_cuenta_screen.dart';
+import 'consentimiento_screen.dart';
 import '../app_config.dart';
 import '../avatar_widgets.dart';
 import '../providers/perfil_provider.dart';
@@ -165,6 +167,8 @@ class _PerfilView extends StatelessWidget {
                         if (p.rol == 'paciente') ...[
                           const SizedBox(height: 20),
                           _buildSeccionEspecialista(context),
+                          const SizedBox(height: 20),
+                          _buildSeccionPrivacidad(context),
                         ],
                         const SizedBox(height: 20),
                         _buildSeccionAcerca(),
@@ -285,6 +289,51 @@ class _PerfilView extends StatelessWidget {
         ),
       ),
     ]);
+  }
+
+  /// Bloque 1: releer el aviso de privacidad y pedir la eliminación de la
+  /// cuenta (RF-19 / RF-34). Solo pacientes.
+  Widget _buildSeccionPrivacidad(BuildContext context) {
+    return _buildSeccion("Privacidad", [
+      _buildFilaNavegable(
+        context,
+        Icons.description_outlined,
+        "Aviso de privacidad y consentimiento",
+        AppColors.primario,
+        const TextosPrivacidadScreen(),
+      ),
+      _buildFilaNavegable(
+        context,
+        Icons.person_remove_outlined,
+        "Eliminar mi cuenta",
+        AppColors.altos,
+        const EliminarCuentaScreen(),
+      ),
+    ]);
+  }
+
+  Widget _buildFilaNavegable(BuildContext context, IconData icono, String texto, Color color, Widget destino) {
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppColors.radio),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => destino)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(icono, size: 18, color: color),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(texto,
+                    style: const TextStyle(color: AppColors.texto, fontSize: 13, fontWeight: FontWeight.w600)),
+              ),
+              const Icon(Icons.chevron_right, size: 20, color: AppColors.textoSecundario),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildSeccionAcerca() {

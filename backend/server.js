@@ -17,6 +17,7 @@ const { vistaGad7, guardadaParaPaciente } = require('./gad7_vista');
 const {
   CONFIG_CONSENTIMIENTO, validarConsentimiento, exigirConsentimiento, vistaConsentimiento, requiereConsentimiento,
 } = require('./consentimiento');
+const { validarSolicitudNueva, vistaSolicitudPaciente } = require('./eliminacion');
 const {
   validarLectura,
   validarUsuarioNuevo,
@@ -747,6 +748,47 @@ app.post('/api/usuarios', async (req, res) => {
 
   logger.info('Nuevo usuario registrado', { nombre: datos.nombre, con_consentimiento: Boolean(consentimiento) });
   res.status(201).json({ mensaje: 'Usuario guardado con éxito', data: usuario });
+});
+
+// --- SOLICITUD DE ELIMINACIÓN DE CUENTA (Bloque 1, paso 3: RF-19 / RF-34) ---
+// El paciente la pide desde la app; el admin la atiende en el portal
+// (admin.js). Mientras está pendiente la cuenta sigue funcionando igual. El
+// paciente no la puede cancelar. Solo pacientes.
+app.get('/api/solicitud-eliminacion', async (req, res) => {
+  if (req.rol !== 'paciente') {
+    throw new AuthError('Solo un paciente puede solicitar la eliminación de su cuenta.', 403);
+  }
+  const r = await pool.query(
+    `SELECT estado, fecha_solicitud, atendida_en FROM solicitudes_eliminacion
+     WHERE usuario_id = $1 ORDER BY fecha_solicitud DESC LIMIT 1`,
+    [req.uid]
+  );
+  res.status(200).json({ solicitud: vistaSolicitudPaciente(r.rows[0]) });
+});
+
+app.post('/api/solicitud-eliminacion', async (req, res) => {
+  if (req.rol !== 'paciente') {
+    throw new AuthError('Solo un paciente puede solicitar la eliminación de su cuenta.', 403);
+  }
+  validarSolicitudNueva(req.body);
+  let fila;
+  try {
+    fila = (
+      await pool.query(
+        `INSERT INTO solicitudes_eliminacion (usuario_id) VALUES ($1)
+         RETURNING estado, fecha_solicitud, atendida_en`,
+        [req.uid]
+      )
+    ).rows[0];
+  } catch (error) {
+    // uq_solicitud_pendiente: ya tiene una pendiente.
+    if (error.code === '23505') {
+      throw new HttpError('Ya enviaste una solicitud de eliminación; está pendiente.', 409);
+    }
+    throw error;
+  }
+  logger.info('Solicitud de eliminación registrada', { usuario_id: req.uid });
+  res.status(201).json({ solicitud: vistaSolicitudPaciente(fila) });
 });
 
 // --- CONSENTIMIENTO (Bloque 1, paso 2: RN-01, RN-02, RNF-06) ---

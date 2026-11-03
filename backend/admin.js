@@ -4,6 +4,9 @@ const logger = require('./logger');
 const { ValidationError, HttpError } = require('./errors');
 const { validarEdicionAdmin } = require('./validation');
 const { verificarCambioSuspension } = require('./cuentas');
+const { BORRADO_PACIENTE, ANONIMIZAR_USUARIO, parametrosAnonimizar, verificarAtencion } = require('./eliminacion');
+
+const FORMATO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Rutas del rol Admin (Fase C, ver PLAN_FASE_C_ADMIN.md). server.js monta este
 // router detrás de `requiereAdmin`, así que aquí todo request ya es de un
@@ -28,7 +31,10 @@ const SELECT_USUARIOS = `
     CASE WHEN u.rol = 'especialista' THEN (
       SELECT COUNT(*) FROM usuarios p
       WHERE p.rol = 'paciente' AND p.especialista_id = u.id
-    )::int END AS pacientes_vinculados
+    )::int END AS pacientes_vinculados,
+    EXISTS (
+      SELECT 1 FROM solicitudes_eliminacion s WHERE s.usuario_id = u.id AND s.estado = 'pendiente'
+    ) AS solicitud_pendiente
   FROM usuarios u
   LEFT JOIN usuarios e ON e.id = u.especialista_id
 `;
@@ -332,6 +338,135 @@ function crearAdminRouter(pool, opciones = {}) {
 
   router.post('/usuarios/:id/suspender', (req, res) => cambiarSuspension(req, res, true));
   router.post('/usuarios/:id/reactivar', (req, res) => cambiarSuspension(req, res, false));
+
+  // --- Solicitudes de eliminación (Bloque 1, paso 3) ---
+
+  // GET /api/admin/solicitudes-eliminacion — pendientes primero, luego las
+  // atendidas de la más reciente a la más vieja. Solo datos de cuenta.
+  router.get('/solicitudes-eliminacion', async (req, res) => {
+    const result = await pool.query(`
+      SELECT s.id, s.estado, s.fecha_solicitud, s.atendida_en,
+        u.id AS usuario_id, u.nombre, u.email, u.rol,
+        a.nombre AS atendida_por_nombre
+      FROM solicitudes_eliminacion s
+      JOIN usuarios u ON u.id = s.usuario_id
+      LEFT JOIN usuarios a ON a.id = s.atendida_por
+      ORDER BY (s.estado = 'pendiente') DESC, COALESCE(s.atendida_en, s.fecha_solicitud) DESC;`);
+    res.status(200).json(result.rows);
+  });
+
+  // POST /api/admin/solicitudes-eliminacion/:id/atender — ejecuta la
+  // eliminación (eliminacion.js dice qué se borra y qué se conserva):
+  //   1. Firebase: desactivar + revocar tokens (reversible; corta el acceso).
+  //   2. UNA transacción: borrar lo clínico, anonimizar la fila de usuarios y
+  //      marcar la solicitud como atendida (FOR UPDATE: dos admins no la
+  //      atienden a la vez).
+  //   3. COMMIT. Si algo falla antes, ROLLBACK y Firebase se reactiva.
+  //   4. Firebase deleteUser (irreversible, por eso al final). Si falla, los
+  //      datos ya se borraron y la cuenta queda desactivada: 502 y "Atender"
+  //      otra vez solo reintenta este paso (idempotente).
+  router.post('/solicitudes-eliminacion/:id/atender', async (req, res) => {
+    const { id } = req.params;
+    if (!FORMATO_UUID.test(id)) {
+      throw new ValidationError('El identificador de la solicitud no es válido.');
+    }
+
+    const client = await pool.connect();
+    let enTransaccion = false;
+    let errorConexion;
+    let firebaseDesactivado = false;
+    let solicitud;
+    let usuario;
+    const borrados = {};
+    try {
+      await client.query('BEGIN');
+      enTransaccion = true;
+
+      solicitud = (
+        await client.query('SELECT id, usuario_id, estado, atendida_en FROM solicitudes_eliminacion WHERE id = $1 FOR UPDATE', [id])
+      ).rows[0];
+      if (!solicitud) {
+        throw new HttpError('Solicitud no encontrada.', 404);
+      }
+      usuario = (
+        await client.query('SELECT id, rol, suspendido, eliminado_en FROM usuarios WHERE id = $1 FOR UPDATE', [solicitud.usuario_id])
+      ).rows[0];
+
+      if (solicitud.estado === 'pendiente') {
+        verificarAtencion(usuario);
+
+        try {
+          await admin.auth().updateUser(usuario.id, { disabled: true });
+          await admin.auth().revokeRefreshTokens(usuario.id);
+          firebaseDesactivado = true;
+        } catch (error) {
+          // Sin cuenta en Firebase no hay nada que desactivar: se sigue.
+          if (error.code !== 'auth/user-not-found') throw errorFirebaseSuspension(error);
+        }
+
+        for (const paso of BORRADO_PACIENTE) {
+          borrados[paso.tabla] = (await client.query(paso.sql, [usuario.id])).rowCount;
+        }
+        await client.query(ANONIMIZAR_USUARIO, parametrosAnonimizar(usuario.id));
+        solicitud = (
+          await client.query(
+            `UPDATE solicitudes_eliminacion SET estado = 'atendida', atendida_en = now(), atendida_por = $2
+             WHERE id = $1 RETURNING id, usuario_id, estado, atendida_en`,
+            [id, req.uid]
+          )
+        ).rows[0];
+      }
+
+      await client.query('COMMIT');
+      enTransaccion = false;
+    } catch (error) {
+      if (enTransaccion) {
+        try {
+          await client.query('ROLLBACK');
+        } catch (errorRollback) {
+          errorConexion = errorRollback;
+          logger.error('Falló el ROLLBACK al atender una eliminación', { solicitud_id: id, detalle: errorRollback.message });
+        }
+      }
+      // No se borró nada: la cuenta vuelve a como estaba (si estaba
+      // suspendida, sigue desactivada).
+      if (firebaseDesactivado && !usuario.suspendido) {
+        await admin.auth().updateUser(usuario.id, { disabled: false }).catch((e) =>
+          logger.error('INCONSISTENCIA eliminación: no se pudo reactivar Firebase tras el ROLLBACK', {
+            usuario_id: usuario.id,
+            detalle: e.message,
+          })
+        );
+      }
+      throw error;
+    } finally {
+      client.release(errorConexion);
+    }
+
+    if (firebaseDesactivado) {
+      desconectarUsuario(usuario.id);
+      logger.info('Admin atendió una solicitud de eliminación', { admin_uid: req.uid, usuario_id: usuario.id, borrados });
+    }
+
+    try {
+      await admin.auth().deleteUser(solicitud.usuario_id);
+      logger.info('Cuenta de Firebase borrada (eliminación)', { usuario_id: solicitud.usuario_id });
+    } catch (error) {
+      if (error.code !== 'auth/user-not-found') {
+        logger.error('Eliminación: los datos se borraron pero Firebase no borró la cuenta', {
+          usuario_id: solicitud.usuario_id,
+          codigo: error.code,
+          detalle: error.message,
+        });
+        throw new HttpError(
+          'Los datos se borraron, pero la cuenta de Firebase no se pudo borrar (quedó desactivada, sin acceso). Vuelve a pulsar "Atender" para reintentarlo.',
+          502
+        );
+      }
+    }
+
+    res.status(200).json({ id: solicitud.id, estado: solicitud.estado, atendida_en: solicitud.atendida_en });
+  });
 
   return router;
 }

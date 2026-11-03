@@ -5,8 +5,9 @@ import './ui.css';
 // Estructura base del portal (Fase 2e): sidebar a la izquierda con secciones
 // de navegación, barra superior con el usuario y el área de contenido.
 //
-// `secciones`: [{ titulo, items: [{ id, label, icon, onClick? }] }]. Un item
-// con `onClick` propio (p. ej. "Salir") no cambia la sección activa.
+// `secciones`: [{ titulo, items: [{ id, label, icon, onClick?, contador? }] }].
+// Un item con `onClick` propio (p. ej. "Salir") no cambia la sección activa;
+// `contador` > 0 se muestra como una pastilla (p. ej. solicitudes pendientes).
 function Layout({ secciones, activa, onNavegar, usuarioNombre, usuarioRol, children }) {
   return (
     <div className="ui-shell">
@@ -19,7 +20,7 @@ function Layout({ secciones, activa, onNavegar, usuarioNombre, usuarioRol, child
           {secciones.map((seccion) => (
             <div key={seccion.titulo}>
               <div className="ui-nav-section">{seccion.titulo}</div>
-              {seccion.items.map(({ id, label, icon: Icon, onClick }) => (
+              {seccion.items.map(({ id, label, icon: Icon, onClick, contador }) => (
                 <button
                   key={id}
                   type="button"
@@ -29,6 +30,7 @@ function Layout({ secciones, activa, onNavegar, usuarioNombre, usuarioRol, child
                 >
                   {Icon && <Icon size={18} />}
                   {label}
+                  {contador > 0 && <span className="ui-nav-count">{contador}</span>}
                 </button>
               ))}
             </div>
