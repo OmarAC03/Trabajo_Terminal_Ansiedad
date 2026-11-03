@@ -1,6 +1,7 @@
 const admin = require('firebase-admin');
 const { AuthError } = require('./errors');
 const logger = require('./logger');
+const { bloqueoDeCuenta } = require('./cuentas');
 
 /**
  * Inicializa el Admin SDK de Firebase a partir de la variable de entorno
@@ -22,13 +23,14 @@ function inicializarFirebaseAdmin() {
   admin.initializeApp({ credential: admin.credential.cert(credenciales) });
 }
 
-/** Busca el rol ('paciente' | 'especialista' | 'admin') del uid en la tabla `usuarios`.
+/** Busca la cuenta del uid en `usuarios`: rol ('paciente' | 'especialista' |
+ * 'admin') y su estado (`suspendido`, `eliminado_en`), en UNA consulta.
  * Devuelve null si el token es válido pero todavía no existe la fila (pasa
  * justo entre crear la cuenta en Firebase y el POST /api/usuarios que la
  * registra en Supabase). */
-async function obtenerRol(pool, uid) {
-  const result = await pool.query('SELECT rol FROM usuarios WHERE id = $1', [uid]);
-  return result.rows[0]?.rol ?? null;
+async function obtenerCuenta(pool, uid) {
+  const result = await pool.query('SELECT rol, suspendido, eliminado_en FROM usuarios WHERE id = $1', [uid]);
+  return result.rows[0] ?? null;
 }
 
 function extraerToken(headerAuthorization) {
@@ -41,6 +43,10 @@ function extraerToken(headerAuthorization) {
  * `Authorization: Bearer <token>` y adjunta `req.uid` / `req.rol`.
  * No decide autorización por ruta (eso vive en cada handler de server.js);
  * solo resuelve "quién es" antes de que la ruta decida "puede o no puede".
+ *
+ * Una cuenta suspendida o eliminada recibe 403 con `codigo` aunque su token
+ * siga vigente: Firebase solo deja de emitir tokens nuevos, y uno ya emitido
+ * vale ~1 h. Así la suspensión corta el acceso al instante.
  */
 function requiereAuth(pool) {
   return async (req, res, next) => {
@@ -49,15 +55,30 @@ function requiereAuth(pool) {
       return next(new AuthError('Falta el header Authorization: Bearer <token>.'));
     }
 
+    let decoded;
     try {
-      const decoded = await admin.auth().verifyIdToken(token);
-      req.uid = decoded.uid;
-      req.rol = await obtenerRol(pool, req.uid);
-      next();
+      decoded = await admin.auth().verifyIdToken(token);
     } catch (error) {
       logger.warn('Token inválido o expirado', { detalle: error.message });
-      next(new AuthError('Token inválido o expirado.'));
+      return next(new AuthError('Token inválido o expirado.'));
     }
+
+    // Un fallo de la base aquí es un 500, no un "token inválido".
+    let cuenta;
+    try {
+      cuenta = await obtenerCuenta(pool, decoded.uid);
+    } catch (error) {
+      return next(error);
+    }
+    const bloqueo = bloqueoDeCuenta(cuenta);
+    if (bloqueo) {
+      logger.warn('Acceso rechazado: cuenta bloqueada', { uid: decoded.uid, codigo: bloqueo.codigo, path: req.originalUrl });
+      return next(new AuthError(bloqueo.mensaje, 403, bloqueo.codigo));
+    }
+
+    req.uid = decoded.uid;
+    req.rol = cuenta?.rol ?? null;
+    next();
   };
 }
 
@@ -72,15 +93,31 @@ function requiereAuthSocket(pool) {
       return next(new Error('auth_required'));
     }
 
+    let decoded;
     try {
-      const decoded = await admin.auth().verifyIdToken(token);
-      socket.data.uid = decoded.uid;
-      socket.data.rol = await obtenerRol(pool, decoded.uid);
-      next();
+      decoded = await admin.auth().verifyIdToken(token);
     } catch (error) {
       logger.warn('Socket rechazado: token inválido', { detalle: error.message });
-      next(new Error('auth_invalid'));
+      return next(new Error('auth_invalid'));
     }
+
+    let cuenta;
+    try {
+      cuenta = await obtenerCuenta(pool, decoded.uid);
+    } catch (error) {
+      logger.error('Socket rechazado: no se pudo leer la cuenta', { detalle: error.message });
+      return next(new Error('server_error'));
+    }
+    // El mensaje del error llega al cliente en `connect_error`.
+    const bloqueo = bloqueoDeCuenta(cuenta);
+    if (bloqueo) {
+      logger.warn('Socket rechazado: cuenta bloqueada', { uid: decoded.uid, codigo: bloqueo.codigo });
+      return next(new Error(bloqueo.codigo));
+    }
+
+    socket.data.uid = decoded.uid;
+    socket.data.rol = cuenta?.rol ?? null;
+    next();
   };
 }
 

@@ -89,7 +89,11 @@ app.use('/api', requiereAuth(pool));
 // cualquier otro rol) antes de llegar a cualquier ruta del router. Las rutas
 // clínicas de abajo siguen exigiendo paciente o especialista, así que un admin
 // recibe 403 en ellas (mínimo privilegio).
-app.use('/api/admin', requiereAdmin, crearAdminRouter(pool));
+// Al suspender una cuenta se cierran sus sockets abiertos (sus salas son
+// `usuario:<uid>`; `salaUsuario` se define más abajo, junto a Socket.io).
+app.use('/api/admin', requiereAdmin, crearAdminRouter(pool, {
+  desconectarUsuario: (uid) => io.in(salaUsuario(uid)).disconnectSockets(true),
+}));
 // ----------------------------------------------
 
 // Nota sobre manejo de errores: Express 5 reenvía automáticamente a
@@ -789,7 +793,9 @@ app.post('/api/vinculacion', async (req, res) => {
   const datos = validarCodigoVinculacion(req.body);
 
   const especialista = await pool.query(
-    "SELECT id, nombre FROM usuarios WHERE rol = 'especialista' AND codigo_vinculacion = $1",
+    // Un especialista suspendido o eliminado no recibe pacientes nuevos: su
+    // código deja de funcionar (mismo mensaje que un código inexistente).
+    "SELECT id, nombre FROM usuarios WHERE rol = 'especialista' AND codigo_vinculacion = $1 AND NOT suspendido AND eliminado_en IS NULL",
     [datos.codigo_vinculacion]
   );
   if (especialista.rows.length === 0) {
@@ -1004,6 +1010,7 @@ app.use((err, req, res, next) => {
   logger.error(err.message, { statusCode, path: req.path, stack: err.stack });
   res.status(statusCode).json({
     error: statusCode === 500 ? 'Error interno del servidor' : err.message,
+    ...(statusCode !== 500 && err.codigo ? { codigo: err.codigo } : {}),
   });
 });
 

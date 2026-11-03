@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Pencil, Save, X, ArrowLeft, Check, CircleAlert, TriangleAlert } from 'lucide-react';
+import { Pencil, Save, X, ArrowLeft, Check, CircleAlert, TriangleAlert, Ban, RotateCcw } from 'lucide-react';
 import { auth } from './firebase';
-import { Card, Button, Field, Select, Alert } from './ui/components';
+import { Card, Button, Field, Select, Alert, Badge } from './ui/components';
+import { accionEstado, consecuencias } from './cuentas';
 import { API_BASE } from './config';
 
 const ADMIN_USUARIOS_URL = `${API_BASE}/api/admin/usuarios`;
@@ -18,6 +19,8 @@ const FORMATO_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // confirmación con el resumen y sus consecuencias; solo el nombre se guarda
 // directo. `especialistas` son las cuentas de especialista ya cargadas en la
 // tabla (no se pide nada nuevo).
+// Bloque 1, paso 1: abajo, "Estado de la cuenta" con Suspender / Reactivar,
+// que se confirma aparte (no se mezcla con guardar los demás campos).
 function EditarUsuario({ usuario, especialistas, onCerrar, onGuardado }) {
   const [nombre, setNombre] = useState(usuario.nombre || '');
   const [email, setEmail] = useState(usuario.email || '');
@@ -25,6 +28,8 @@ function EditarUsuario({ usuario, especialistas, onCerrar, onGuardado }) {
   const [confirmando, setConfirmando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
+  // 'suspender' | 'reactivar' mientras se confirma el cambio de estado.
+  const [cambioEstado, setCambioEstado] = useState(null);
 
   const esPaciente = usuario.rol === 'paciente';
   const esPropia = usuario.id === auth.currentUser?.uid;
@@ -88,8 +93,32 @@ function EditarUsuario({ usuario, especialistas, onCerrar, onGuardado }) {
     }
   };
 
+  const { accion: accionDisponible, motivo: motivoSinAccion } = accionEstado(usuario, auth.currentUser?.uid);
+
+  const cambiarEstado = async () => {
+    setGuardando(true);
+    setError('');
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const res = await axios.post(`${ADMIN_USUARIOS_URL}/${usuario.id}/${cambioEstado}`, null, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      onGuardado(res.data, cambioEstado === 'suspender'
+        ? `Se suspendió la cuenta de ${res.data.nombre}.`
+        : `Se reactivó la cuenta de ${res.data.nombre}.`);
+    } catch (e) {
+      console.error('Error al cambiar el estado de la cuenta:', e);
+      setError(e.response?.data?.error || 'No se pudo cambiar el estado. Revisa tu conexión e inténtalo de nuevo.');
+      setGuardando(false);
+    }
+  };
+
   const enviar = (e) => {
     e.preventDefault();
+    if (cambioEstado) {
+      if (!guardando) cambiarEstado();
+      return;
+    }
     if (!hayCambios || !valido || guardando) return;
     if ((cambiaEmail || cambiaEspecialista) && !confirmando) {
       setError('');
@@ -103,12 +132,22 @@ function EditarUsuario({ usuario, especialistas, onCerrar, onGuardado }) {
     <div className="ui-modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && !guardando && onCerrar()}>
       <div className="ui-modal" role="dialog" aria-modal="true" aria-labelledby="editar-usuario-titulo">
         <Card
-          title={<span id="editar-usuario-titulo">{confirmando ? 'Confirmar cambios' : 'Editar cuenta'}</span>}
-          icon={confirmando ? TriangleAlert : Pencil}
+          title={
+            <span id="editar-usuario-titulo">
+              {cambioEstado === 'suspender' ? 'Suspender cuenta'
+                : cambioEstado === 'reactivar' ? 'Reactivar cuenta'
+                  : confirmando ? 'Confirmar cambios' : 'Editar cuenta'}
+            </span>
+          }
+          icon={cambioEstado === 'suspender' ? Ban : cambioEstado === 'reactivar' ? RotateCcw : confirmando ? TriangleAlert : Pencil}
           subtitle={`${usuario.nombre} · ${usuario.email}${esPropia ? ' (tu cuenta)' : ''}`}
         >
           <form onSubmit={enviar}>
-            {confirmando ? (
+            {cambioEstado ? (
+              <ul className="ui-cambios">
+                {consecuencias(cambioEstado, usuario).map((texto) => <li key={texto}>{texto}</li>)}
+              </ul>
+            ) : confirmando ? (
               <Resumen
                 cambiaNombre={cambiaNombre}
                 cambiaEmail={cambiaEmail}
@@ -164,13 +203,43 @@ function EditarUsuario({ usuario, especialistas, onCerrar, onGuardado }) {
                     ))}
                   </Select>
                 )}
+                <div className="ui-field">
+                  <span className="ui-label">Estado de la cuenta</span>
+                  <div className="ui-cuenta-estado">
+                    <Badge tone={usuario.estado === 'activa' ? 'normal' : usuario.estado === 'suspendida' ? 'elevados' : 'altos'}>
+                      {usuario.estado === 'activa' ? 'Activa' : usuario.estado === 'suspendida' ? 'Suspendida' : 'Eliminada'}
+                    </Badge>
+                    {accionDisponible ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={accionDisponible === 'suspender' ? Ban : RotateCcw}
+                        disabled={guardando}
+                        onClick={() => { setError(''); setCambioEstado(accionDisponible); }}
+                      >
+                        {accionDisponible === 'suspender' ? 'Suspender cuenta' : 'Reactivar cuenta'}
+                      </Button>
+                    ) : (
+                      <span className="ui-muted">{motivoSinAccion}</span>
+                    )}
+                  </div>
+                </div>
               </>
             )}
 
             {error && <Alert tone="altos" icon={CircleAlert}>{error}</Alert>}
 
             <div className="ui-modal-actions">
-              {confirmando ? (
+              {cambioEstado ? (
+                <>
+                  <Button variant="secondary" icon={ArrowLeft} disabled={guardando} onClick={() => { setError(''); setCambioEstado(null); }}>
+                    Volver
+                  </Button>
+                  <Button type="submit" icon={cambioEstado === 'suspender' ? Ban : RotateCcw} disabled={guardando}>
+                    {guardando ? 'Guardando…' : cambioEstado === 'suspender' ? 'Confirmar y suspender' : 'Confirmar y reactivar'}
+                  </Button>
+                </>
+              ) : confirmando ? (
                 <>
                   <Button variant="secondary" icon={ArrowLeft} disabled={guardando} onClick={() => setConfirmando(false)}>
                     Volver

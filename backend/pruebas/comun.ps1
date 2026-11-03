@@ -13,7 +13,9 @@ function Leer-Pass($etiqueta) {
   finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
 }
 
-function Obtener-Cuenta($etiqueta, [switch]$Opcional) {
+# -ConPass: devuelve tambien la contrasena (solo en memoria), para los scripts
+# que necesitan volver a iniciar sesion (prueba_cuentas.ps1).
+function Obtener-Cuenta($etiqueta, [switch]$Opcional, [switch]$ConPass) {
   $email = Read-Host "Correo de $etiqueta$(if ($Opcional) { ' (Enter para omitir)' })"
   if ($Opcional -and [string]::IsNullOrWhiteSpace($email)) { return $null }
   $pass = Leer-Pass $etiqueta
@@ -25,7 +27,23 @@ function Obtener-Cuenta($etiqueta, [switch]$Opcional) {
     Write-Host "No se pudo iniciar sesion como $etiqueta ($email): $($_.ErrorDetails.Message)" -ForegroundColor Red
     exit 1
   }
-  return @{ token = $r.idToken; uid = $r.localId; email = $email }
+  $cuenta = @{ token = $r.idToken; uid = $r.localId; email = $email }
+  if ($ConPass) { $cuenta.pass = $pass }
+  return $cuenta
+}
+
+# Inicio de sesion en Firebase sin salir del script si falla: devuelve
+# @{ ok; token; error } con el codigo de error de Firebase (p. ej. USER_DISABLED).
+function Login-Firebase($email, $pass) {
+  $body = @{ email = $email; password = $pass; returnSecureToken = $true } | ConvertTo-Json
+  try {
+    $r = Invoke-RestMethod -Method Post -ContentType 'application/json' -Body $body `
+      -Uri "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$FirebaseKey"
+    return @{ ok = $true; token = $r.idToken; error = $null }
+  } catch {
+    $codigo = try { ($_.ErrorDetails.Message | ConvertFrom-Json).error.message } catch { "$($_.Exception.Message)" }
+    return @{ ok = $false; token = $null; error = $codigo }
+  }
 }
 
 function Llamar($metodo, $ruta, $token, $cuerpo) {

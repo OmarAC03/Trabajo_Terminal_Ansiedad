@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { CircleAlert, LogIn } from 'lucide-react';
+import { CircleAlert, LogIn, Ban } from 'lucide-react';
 import { auth } from './firebase';
 import AuthLayout from './ui/AuthLayout';
 import { Alert, Button, Field } from './ui/components';
+import { tomarAvisoCierre } from './cuentas';
 
 // Solo se separan los errores que no dicen nada de la cuenta (red, límite de
 // intentos). Correo inexistente y contraseña incorrecta dan el mismo mensaje
@@ -24,10 +25,13 @@ function Login({ onIrARegistro, onOlvidePassword }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // Por qué se cerró la sesión (p. ej. cuenta suspendida); se toma una vez.
+  const [avisoCierre, setAvisoCierre] = useState(() => tomarAvisoCierre());
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setAvisoCierre('');
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -50,6 +54,11 @@ function Login({ onIrARegistro, onOlvidePassword }) {
       }
     >
       <form onSubmit={handleSubmit}>
+        {avisoCierre && (
+          <div className="ui-auth-alert">
+            <Alert tone="elevados" icon={Ban}>{avisoCierre}</Alert>
+          </div>
+        )}
         <Field
           id="login-email"
           label="Correo electrónico"

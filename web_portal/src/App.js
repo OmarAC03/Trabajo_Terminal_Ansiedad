@@ -13,6 +13,7 @@ import Dashboard from './Dashboard';
 import AdminApp from './AdminApp';
 import Layout from './ui/Layout';
 import { API_BASE } from './config';
+import { codigoBloqueo, guardarAvisoCierre, MENSAJES_BLOQUEO } from './cuentas';
 
 const API_URL = `${API_BASE}/api/pacientes`;
 const USUARIOS_URL = `${API_BASE}/api/usuarios`;
@@ -51,6 +52,30 @@ function App() {
     setRol(undefined);
     setUsuario(u);
   }), []);
+
+  // Bloque 1, paso 1: si el backend responde 403 con `cuenta_suspendida` o
+  // `cuenta_eliminada` a CUALQUIER petición (lista, detalle, chat, admin…),
+  // se cierra la sesión y el login muestra por qué. Un solo interceptor en
+  // vez de revisarlo en cada pantalla.
+  useEffect(() => {
+    const id = axios.interceptors.response.use(
+      (respuesta) => respuesta,
+      (error) => {
+        const codigo = codigoBloqueo(error);
+        if (codigo && auth.currentUser) {
+          guardarAvisoCierre(MENSAJES_BLOQUEO[codigo]);
+          setPacienteSeleccionadoId(null);
+          setSeccion('dashboard');
+          setPerfil(null);
+          setPacientes([]);
+          setErrorAcceso('');
+          signOut(auth);
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => axios.interceptors.response.eject(id);
+  }, []);
 
   // Pide la lista de pacientes y el perfil propio (nombre y codigo_vinculacion)
   // en cada vuelta del polling. Antes el perfil se pedía una sola vez al

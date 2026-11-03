@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'auth_gate.dart';
 import 'logger.dart';
+import 'sesion.dart';
 import 'ui/app_colors.dart';
 import 'ui/app_theme.dart';
 
@@ -60,6 +61,7 @@ class AppAnsiedad extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      navigatorKey: Sesion.navigatorKey, // para cerrar la sesión sin `context` (sesion.dart)
       title: 'Sistema de Ansiedad',
       theme: AppTheme.claro,
       home: const AuthGate(), // Decide solo entre Login y la app según la sesión

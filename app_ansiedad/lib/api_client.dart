@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
+import 'cuenta_bloqueada.dart';
+import 'sesion.dart';
 
 /// Resultado de una operación de red, para que las pantallas sepan qué mostrar
 /// sin tener que interpretar códigos HTTP crudos ni excepciones sueltas.
@@ -83,6 +85,10 @@ class ApiClient {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           return RespuestaRed(EstadoRed.ok, statusCode: res.statusCode, body: res.body);
         }
+        // Cuenta suspendida o eliminada (Bloque 1): se cierra la sesión aquí,
+        // en un solo lugar, sin que cada pantalla tenga que reconocerlo.
+        final bloqueo = codigoBloqueo(res.statusCode, res.body);
+        if (bloqueo != null) unawaited(Sesion.cerrarPorBloqueo(bloqueo));
         return RespuestaRed(EstadoRed.errorServidor, statusCode: res.statusCode, body: res.body);
       } on TimeoutException {
         // Posible cold start: si quedan reintentos, esperamos y volvemos a probar.

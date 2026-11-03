@@ -3,6 +3,7 @@ const admin = require('firebase-admin');
 const logger = require('./logger');
 const { ValidationError, HttpError } = require('./errors');
 const { validarEdicionAdmin } = require('./validation');
+const { verificarCambioSuspension } = require('./cuentas');
 
 // Rutas del rol Admin (Fase C, ver PLAN_FASE_C_ADMIN.md). server.js monta este
 // router detrás de `requiereAdmin`, así que aquí todo request ya es de un
@@ -61,8 +62,22 @@ function errorFirebaseEmail(error) {
   }
 }
 
-function crearAdminRouter(pool) {
+// Traduce un fallo de Firebase al suspender / reactivar. Igual que con el
+// correo: la base todavía no confirmó, así que se revierte y no queda nada a
+// medias.
+function errorFirebaseSuspension(error) {
+  if (error.code === 'auth/user-not-found') {
+    return new HttpError('Esta cuenta no existe en Firebase Authentication; no se cambió nada.', 409);
+  }
+  logger.error('Firebase no pudo cambiar el estado de la cuenta', { codigo: error.code, detalle: error.message });
+  return new HttpError('No se pudo actualizar la cuenta en Firebase. No se guardó ningún cambio; inténtalo de nuevo.', 502);
+}
+
+// `opciones.desconectarUsuario(uid)`: cierra los sockets abiertos de esa cuenta
+// (lo pasa server.js, que es dueño de Socket.io). Se llama al suspender.
+function crearAdminRouter(pool, opciones = {}) {
   const router = express.Router();
+  const desconectarUsuario = opciones.desconectarUsuario || (() => {});
 
   // GET /api/admin/usuarios — todas las cuentas con su estado.
   router.get('/usuarios', async (req, res) => {
@@ -218,6 +233,105 @@ function crearAdminRouter(pool) {
     const fila = (await pool.query(`${SELECT_USUARIOS} WHERE u.id = $1;`, [id])).rows[0];
     res.status(200).json(fila);
   });
+
+  // POST /api/admin/usuarios/:id/suspender y /reactivar (Bloque 1, paso 1).
+  //
+  // Mismo esquema que la edición del correo: la base cambia DENTRO de una
+  // transacción y Firebase (`disabled`) cambia ANTES de confirmarla; si el
+  // COMMIT falla, se devuelve Firebase al estado anterior. Al suspender
+  // también se revocan los refresh tokens (no puede pedir tokens nuevos) y,
+  // ya confirmado, se cierran sus sockets. El token que ya tiene lo rechaza
+  // requiereAuth al leer `suspendido`. Repetir la acción es idempotente:
+  // responde 200 y vuelve a fijar Firebase por si había quedado desalineado.
+  async function cambiarSuspension(req, res, suspender) {
+    const { id } = req.params;
+    const accion = suspender ? 'suspender' : 'reactivar';
+
+    const client = await pool.connect();
+    let enTransaccion = false;
+    let errorConexion;
+    try {
+      await client.query('BEGIN');
+      enTransaccion = true;
+
+      const objetivo = (
+        await client.query('SELECT id, rol, suspendido, eliminado_en FROM usuarios WHERE id = $1 FOR UPDATE', [id])
+      ).rows[0];
+      if (!objetivo) {
+        throw new HttpError('Usuario no encontrado.', 404);
+      }
+
+      // Los admins activos se bloquean también, para que dos admins no se
+      // suspendan entre sí a la vez y dejen el sistema sin ninguno.
+      let otrosAdminsActivos = 0;
+      if (suspender && objetivo.rol === 'admin') {
+        otrosAdminsActivos = (
+          await client.query(
+            "SELECT id FROM usuarios WHERE rol = 'admin' AND NOT suspendido AND eliminado_en IS NULL AND id <> $1 FOR UPDATE",
+            [id]
+          )
+        ).rowCount;
+      }
+      verificarCambioSuspension({ adminUid: req.uid, objetivo, suspender, otrosAdminsActivos });
+
+      if (objetivo.suspendido !== suspender) {
+        await client.query('UPDATE usuarios SET suspendido = $2 WHERE id = $1', [id, suspender]);
+      }
+
+      try {
+        await admin.auth().updateUser(id, { disabled: suspender });
+        if (suspender) await admin.auth().revokeRefreshTokens(id);
+      } catch (error) {
+        throw errorFirebaseSuspension(error);
+      }
+
+      try {
+        await client.query('COMMIT');
+        enTransaccion = false;
+      } catch (errorCommit) {
+        enTransaccion = false;
+        errorConexion = errorCommit;
+        logger.error(`Falló el COMMIT al ${accion} una cuenta`, { admin_uid: req.uid, usuario_id: id, detalle: errorCommit.message });
+        try {
+          await admin.auth().updateUser(id, { disabled: objetivo.suspendido });
+        } catch (errorCompensacion) {
+          logger.error('INCONSISTENCIA suspensión: Firebase y la base quedaron distintos', {
+            admin_uid: req.uid,
+            usuario_id: id,
+            firebase_disabled: suspender,
+            bd_suspendido: objetivo.suspendido,
+            detalle: errorCompensacion.message,
+          });
+          throw new HttpError(
+            'La cuenta quedó distinta entre Firebase y la base de datos. Revisa los logs del servidor y vuelve a intentarlo.',
+            502
+          );
+        }
+        throw new HttpError('No se pudo guardar el cambio. No se modificó nada; inténtalo de nuevo.', 503);
+      }
+    } catch (error) {
+      if (enTransaccion) {
+        try {
+          await client.query('ROLLBACK');
+        } catch (errorRollback) {
+          errorConexion = errorRollback;
+          logger.error(`Falló el ROLLBACK al ${accion} una cuenta`, { usuario_id: id, detalle: errorRollback.message });
+        }
+      }
+      throw error;
+    } finally {
+      client.release(errorConexion);
+    }
+
+    if (suspender) desconectarUsuario(id);
+    logger.info(suspender ? 'Admin suspendió una cuenta' : 'Admin reactivó una cuenta', { admin_uid: req.uid, usuario_id: id });
+
+    const fila = (await pool.query(`${SELECT_USUARIOS} WHERE u.id = $1;`, [id])).rows[0];
+    res.status(200).json(fila);
+  }
+
+  router.post('/usuarios/:id/suspender', (req, res) => cambiarSuspension(req, res, true));
+  router.post('/usuarios/:id/reactivar', (req, res) => cambiarSuspension(req, res, false));
 
   return router;
 }

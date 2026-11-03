@@ -18,10 +18,13 @@ class ValidationError extends Error {
  * ValidationError: el middleware de error de server.js lee `statusCode`.
  */
 class AuthError extends Error {
-  constructor(mensaje, statusCode = 401) {
+  constructor(mensaje, statusCode = 401, codigo) {
     super(mensaje);
     this.name = 'AuthError';
     this.statusCode = statusCode;
+    // Código estable para que el cliente reaccione sin leer el texto
+    // (p. ej. 'cuenta_suspendida' → cerrar la sesión). Opcional.
+    if (codigo) this.codigo = codigo;
   }
 }
 
@@ -32,10 +35,11 @@ class AuthError extends Error {
  * si no es 500, muestra el mensaje al cliente.
  */
 class HttpError extends Error {
-  constructor(mensaje, statusCode) {
+  constructor(mensaje, statusCode, codigo) {
     super(mensaje);
     this.name = 'HttpError';
     this.statusCode = statusCode;
+    if (codigo) this.codigo = codigo;
   }
 }
 

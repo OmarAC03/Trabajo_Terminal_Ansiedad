@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../main_layout.dart'; // O la ruta correcta donde tengas tu MainLayout
 import 'recuperar_password_screen.dart';
 import 'registro_screen.dart';
+import '../sesion.dart';
 import '../ui/app_colors.dart';
 import '../ui/estructura_acceso.dart';
 import '../ui/widgets.dart';
@@ -19,6 +20,15 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  // Por qué se cerró la sesión (cuenta suspendida o eliminada), si fue el
+  // servidor quien la cerró. Se toma una vez.
+  String? _avisoCierre;
+
+  @override
+  void initState() {
+    super.initState();
+    _avisoCierre = Sesion.tomarAvisoCierre();
+  }
 
   // Instancia de Firebase Auth
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -33,7 +43,10 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    setState(() { _isLoading = true; });
+    setState(() {
+      _isLoading = true;
+      _avisoCierre = null;
+    });
 
     try {
       // Intentar login en Firebase
@@ -92,6 +105,10 @@ class _LoginScreenState extends State<LoginScreen> {
       formulario: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_avisoCierre != null) ...[
+            Aviso(_avisoCierre!, icono: Icons.block, color: AppColors.guia, fondo: AppColors.guiaFondo),
+            const SizedBox(height: 16),
+          ],
           CampoTexto(
             etiqueta: 'Correo electrónico',
             controller: _emailController,

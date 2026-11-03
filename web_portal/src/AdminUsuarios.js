@@ -85,12 +85,12 @@ function AdminUsuarios({ onPropiaEditada }) {
 
   // Reemplaza la fila con la respuesta del backend y recarga la lista en
   // segundo plano (una reasignación cambia el conteo de pacientes de dos
-  // especialistas).
-  const alGuardar = (fila) => {
+  // especialistas). `mensaje` lo manda el panel al suspender / reactivar.
+  const alGuardar = (fila, mensaje) => {
     setUsuarios((lista) => lista.map((u) => (u.id === fila.id ? fila : u)));
     setEditando(null);
     if (fila.id === auth.currentUser?.uid) onPropiaEditada?.(fila);
-    cargar().then(() => setAviso(`Cambios guardados en la cuenta de ${fila.nombre}.`));
+    cargar().then(() => setAviso(mensaje || `Cambios guardados en la cuenta de ${fila.nombre}.`));
   };
 
   return (

@@ -1562,3 +1562,15 @@
     white-space: normal;
   }
 }
+
+/* Estado de la cuenta en el panel "Editar cuenta" del admin (Bloque 1, paso 1). */
+.ui-cuenta-estado {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.ui-cuenta-estado .ui-muted {
+  font-size: 13px;
+}
