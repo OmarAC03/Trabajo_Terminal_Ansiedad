@@ -27,11 +27,11 @@ $perfilE = Llamar 'GET' "/api/usuarios/$E" $esp.token $null
 $perfilA = Llamar 'GET' "/api/usuarios/$($adm.uid)" $adm.token $null
 $vincC = Llamar 'GET' '/api/vinculacion' $sinV.token $null
 $cSinVinculo = ($vincC.status -eq 200) -and -not (($vincC.texto | ConvertFrom-Json).vinculado)
-$e = if ($perfilE.status -eq 200) { $perfilE.texto | ConvertFrom-Json } else { $null }
+$perfE = if ($perfilE.status -eq 200) { $perfilE.texto | ConvertFrom-Json } else { $null }
 $esAdmin = ($perfilA.status -eq 200) -and (($perfilA.texto | ConvertFrom-Json).rol -eq 'admin')
-if (-not "$nombreC".StartsWith('PRUEBA') -or -not $cSinVinculo -or -not $e -or
-    -not "$($e.nombre)".StartsWith('PRUEBA') -or $e.rol -ne 'especialista' -or -not $esAdmin) {
-  Write-Host "Alto: C debe ser un paciente 'PRUEBA ...' sin especialista (es '$nombreC', sin vinculo: $cSinVinculo), E un especialista 'PRUEBA ...' (es '$($e.nombre)') y ADMIN un admin ($esAdmin). No se cambio nada." -ForegroundColor Red
+if (-not "$nombreC".StartsWith('PRUEBA') -or -not $cSinVinculo -or -not $perfE -or
+    -not "$($perfE.nombre)".StartsWith('PRUEBA') -or $perfE.rol -ne 'especialista' -or -not $esAdmin) {
+  Write-Host "Alto: C debe ser un paciente 'PRUEBA ...' sin especialista (es '$nombreC', sin vinculo: $cSinVinculo), E un especialista 'PRUEBA ...' (es '$($perfE.nombre)') y ADMIN un admin ($esAdmin). No se cambio nada." -ForegroundColor Red
   exit 1
 }
 
@@ -120,7 +120,7 @@ try {
   if ($l.ok) { $sinV.token = $l.token }
   Caso '1.14 C vuelve a usar la API' 200 (Llamar 'GET' '/api/vinculacion' $sinV.token $null)
 
-  $r = Llamar 'POST' '/api/vinculacion' $sinV.token @{ codigo_vinculacion = $e.codigo_vinculacion }
+  $r = Llamar 'POST' '/api/vinculacion' $sinV.token @{ codigo_vinculacion = $perfE.codigo_vinculacion }
   Caso '1.15 Vincularse con el codigo de un especialista suspendido: 400' 400 $r
 
   $r = Llamar 'POST' "/api/admin/usuarios/$E/reactivar" $adm.token $null
@@ -138,8 +138,8 @@ try {
   Caso '2.1 Registro de D sin consentimiento' 201 $D.registro
   $r = Llamar 'GET' '/api/consentimiento' $D.token $null
   Caso '2.2 D: requerido y no aceptado' 200 $r {
-    $c = $r.texto | ConvertFrom-Json
-    if (-not $c.requerido -or $c.aceptado -or $c.version_aviso -ne $Version.version_aviso) { return "consentimiento inesperado: $($r.texto)" }
+    $cons = $r.texto | ConvertFrom-Json
+    if (-not $cons.requerido -or $cons.aceptado -or $cons.version_aviso -ne $Version.version_aviso) { return "consentimiento inesperado: $($r.texto)" }
     $true
   }
   # El consentimiento se revisa antes de validar: un cuerpo vacio basta.
@@ -157,8 +157,8 @@ try {
   Caso '2.9 Aceptar con un campo de mas' 400 (Llamar 'POST' '/api/consentimiento' $D.token @{ version_aviso = $Version.version_aviso; version_consentimiento = $Version.version_consentimiento; aceptado_en = '2020-01-01' })
   $r = Llamar 'POST' '/api/consentimiento' $D.token $Version
   Caso '2.10 D acepta la version vigente' 201 $r {
-    $c = $r.texto | ConvertFrom-Json
-    if (-not $c.aceptado -or -not $c.aceptado_en) { return "no quedo aceptado: $($r.texto)" }
+    $cons = $r.texto | ConvertFrom-Json
+    if (-not $cons.aceptado -or -not $cons.aceptado_en) { return "no quedo aceptado: $($r.texto)" }
     $true
   }
   Caso '2.11 Aceptar otra vez: 200 sin duplicar' 200 (Llamar 'POST' '/api/consentimiento' $D.token $Version)
@@ -276,21 +276,21 @@ finally {
   if ($r.status -eq 200) {
     $fila = (Lista-Json $r.texto) | Where-Object { $_.id -eq $C }
     if ($fila.especialista_id) {
-      $d = Llamar 'PUT' "/api/admin/usuarios/$C" $adm.token @{ especialista_id = $null }
-      Write-Host "C habia quedado vinculado: se desvinculo (HTTP $($d.status))" -ForegroundColor Yellow
+      $desv = Llamar 'PUT' "/api/admin/usuarios/$C" $adm.token @{ especialista_id = $null }
+      Write-Host "C habia quedado vinculado: se desvinculo (HTTP $($desv.status))" -ForegroundColor Yellow
     }
   }
   # Desechables que NO se eliminaron por el flujo de la seccion 3 (D3, o si
   # algo fallo): se borra su cuenta de Firebase. Su fila en `usuarios`, si la
   # tiene, queda; ver el SQL de limpieza que se imprime.
-  foreach ($d in $script:desechables) {
-    if ($d.eliminada) { continue }
+  foreach ($des in $script:desechables) {
+    if ($des.eliminada) { continue }
     try {
-      Invoke-RestMethod -Method Post -ContentType 'application/json' -Body (@{ idToken = $d.token } | ConvertTo-Json) `
+      Invoke-RestMethod -Method Post -ContentType 'application/json' -Body (@{ idToken = $des.token } | ConvertTo-Json) `
         -Uri "https://identitytoolkit.googleapis.com/v1/accounts:delete?key=$FirebaseKey" | Out-Null
-      Write-Host "Desechable $($d.email): cuenta de Firebase borrada"
+      Write-Host "Desechable $($des.email): cuenta de Firebase borrada"
     } catch {
-      Write-Host "Desechable $($d.email): no se pudo borrar en Firebase ($($_.ErrorDetails.Message))" -ForegroundColor Yellow
+      Write-Host "Desechable $($des.email): no se pudo borrar en Firebase ($(Cuerpo-Error $_))" -ForegroundColor Yellow
     }
   }
   if (@($script:desechables | Where-Object { -not $_.eliminada -and $_.registro.status -eq 201 }).Count -gt 0) {

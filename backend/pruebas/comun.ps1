@@ -6,6 +6,23 @@
 $Base = 'http://localhost:3000'
 $FirebaseKey = 'AIzaSyBT8DdafzQLg89kmcHQ-J5A3q1Ak6fQO3o'  # la misma API key publica del portal
 
+# Cuerpo de la respuesta de un error HTTP (se le pasa el $_ del catch). En
+# Windows PowerShell 5.1, ErrorDetails.Message puede llegar nulo (pasa con las
+# respuestas de Firebase); entonces se lee el cuerpo de Exception.Response.
+function Cuerpo-Error($err) {
+  if ($err.ErrorDetails -and $err.ErrorDetails.Message) { return $err.ErrorDetails.Message }
+  $resp = $err.Exception.Response
+  if ($resp) {
+    try {
+      $flujo = $resp.GetResponseStream()
+      if ($flujo.CanSeek) { $flujo.Position = 0 }
+      $texto = (New-Object System.IO.StreamReader($flujo)).ReadToEnd()
+      if ($texto) { return $texto }
+    } catch { }
+  }
+  return "$($err.Exception.Message)"
+}
+
 function Leer-Pass($etiqueta) {
   $seg = Read-Host "Contrasena de $etiqueta" -AsSecureString
   $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($seg)
@@ -24,7 +41,7 @@ function Obtener-Cuenta($etiqueta, [switch]$Opcional, [switch]$ConPass) {
     $r = Invoke-RestMethod -Method Post -ContentType 'application/json' -Body $body `
       -Uri "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$FirebaseKey"
   } catch {
-    Write-Host "No se pudo iniciar sesion como $etiqueta ($email): $($_.ErrorDetails.Message)" -ForegroundColor Red
+    Write-Host "No se pudo iniciar sesion como $etiqueta ($email): $(Cuerpo-Error $_)" -ForegroundColor Red
     exit 1
   }
   $cuenta = @{ token = $r.idToken; uid = $r.localId; email = $email }
@@ -41,7 +58,10 @@ function Login-Firebase($email, $pass) {
       -Uri "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$FirebaseKey"
     return @{ ok = $true; token = $r.idToken; error = $null }
   } catch {
-    $codigo = try { ($_.ErrorDetails.Message | ConvertFrom-Json).error.message } catch { "$($_.Exception.Message)" }
+    $texto = Cuerpo-Error $_
+    $codigo = $null
+    if ($texto) { try { $codigo = ($texto | ConvertFrom-Json -ErrorAction Stop).error.message } catch { } }
+    if (-not $codigo) { $codigo = $texto }
     return @{ ok = $false; token = $null; error = $codigo }
   }
 }
@@ -58,7 +78,7 @@ function Llamar($metodo, $ruta, $token, $cuerpo) {
     return @{ status = [int]$r.StatusCode; texto = $r.Content }
   } catch {
     $status = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { -1 }
-    return @{ status = $status; texto = $_.ErrorDetails.Message }
+    return @{ status = $status; texto = (Cuerpo-Error $_) }
   }
 }
 
