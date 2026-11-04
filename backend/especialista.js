@@ -4,12 +4,13 @@ const { AuthError, ValidationError, HttpError } = require('./errors');
 const { registrar: registrarBitacora } = require('./bitacora');
 const notas = require('./notas');
 const marcadores = require('./marcadores');
+const reporte = require('./reporte');
 
 const FORMATO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Herramientas del especialista sobre un paciente (Bloque 2): notas clínicas
-// (paso 2) y marcadores en la línea de tiempo (paso 3). server.js monta este
-// router en /api/pacientes.
+// (paso 2), marcadores en la línea de tiempo (paso 3) y el reporte para
+// exportar (paso 4). server.js monta este router en /api/pacientes.
 //
 // A diferencia de las lecturas (autorizarLecturaPaciente en server.js), aquí
 // no hay rama del paciente: solo el especialista vinculado ACTUAL. El
@@ -18,7 +19,9 @@ const FORMATO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 //
 // `esPacienteVinculado` y `registrarAcceso` vienen de server.js: el mismo
 // chequeo de vínculo y el mismo registro de lecturas (D2) que el resto.
-function crearEspecialistaRouter(pool, { esPacienteVinculado, registrarAcceso }) {
+// `evaluarSesiones(req, pacienteId, filas)` es conEvaluacion de server.js
+// (estado contra la línea base, para el reporte).
+function crearEspecialistaRouter(pool, { esPacienteVinculado, registrarAcceso, evaluarSesiones }) {
   const router = express.Router();
 
   async function autorizarEspecialistaVinculado(req, pacienteId) {
@@ -163,6 +166,47 @@ function crearEspecialistaRouter(pool, { esPacienteVinculado, registrarAcceso })
     });
 
     res.status(204).end();
+  });
+
+  // --- REPORTE (WEB-RF-29 / RNF-WEB-08) ---
+
+  // GET /api/pacientes/:pacienteId/reporte?desde&hasta&formato&seudonimizado
+  // Datos del periodo para el CSV o la impresión (los arma el portal). La
+  // exportación se registra en la bitácora en la misma transacción que las
+  // lecturas, y se confirma ANTES de responder: si el registro falla, no
+  // sale ningún dato (D2).
+  router.get('/:pacienteId/reporte', async (req, res) => {
+    const { pacienteId } = req.params;
+    await autorizarEspecialistaVinculado(req, pacienteId);
+    const filtros = reporte.validarReporte(req.query);
+    const params = reporte.parametrosReporte(pacienteId, filtros);
+
+    const datos = await enTransaccion(async (client) => {
+      const [personas, sesiones, gad7, marcas] = await Promise.all([
+        client.query('SELECT id, nombre, email FROM usuarios WHERE id = ANY($1::varchar[])', [[pacienteId, req.uid]]),
+        client.query(reporte.SESIONES_REPORTE, params),
+        client.query(reporte.GAD7_REPORTE, params),
+        client.query(reporte.MARCADORES_REPORTE, [...params, req.uid]),
+      ]);
+      const porId = new Map(personas.rows.map((u) => [u.id, u]));
+      const armado = reporte.armarReporte({
+        pacienteId,
+        paciente: porId.get(pacienteId),
+        especialista: porId.get(req.uid),
+        filtros,
+        sesiones: await evaluarSesiones(req, pacienteId, sesiones.rows),
+        gad7: gad7.rows,
+        marcadores: marcas.rows,
+      });
+      await bitacora(client, req, 'exportacion', pacienteId, {
+        formato: filtros.formato, seudonimizado: filtros.seudonimizado, desde: filtros.desde, hasta: filtros.hasta,
+      });
+      return armado;
+    });
+
+    logger.info('Reporte exportado', { paciente_id: pacienteId, especialista_id: req.uid, formato: filtros.formato });
+    res.set('Cache-Control', 'no-store');
+    res.status(200).json(datos);
   });
 
   return router;

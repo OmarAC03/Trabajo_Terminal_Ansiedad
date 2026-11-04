@@ -68,7 +68,7 @@ function MarcadoresPanel({ paciente, marcadores, numeros, onCambio }) {
         Eventos para leer la gráfica en contexto. Solo tú los ves; el paciente no.
       </p>
 
-      <form className="ui-filtros" onSubmit={agregar}>
+      <form className="ui-filtros ui-filtros-en-card" onSubmit={agregar}>
         <Select id="marcador-tipo" label="Tipo" value={borrador.tipo} onChange={cambiar('tipo')}>
           {TIPOS_MARCADOR.map((t) => (
             <option key={t.id} value={t.id}>{t.etiqueta}</option>

@@ -40,6 +40,8 @@ async function servidor(pool, { vinculado = true } = {}) {
   app.use('/api/pacientes', crearEspecialistaRouter(pool, {
     esPacienteVinculado: async (pacienteId, especialistaId) => vinculado && pacienteId === PACIENTE && especialistaId === ESP,
     registrarAcceso: async (req, pacienteId, recurso) => accesos.push({ uid: req.uid, pacienteId, recurso }),
+    evaluarSesiones: async (req, pacienteId, filas) =>
+      filas.map((f) => ({ ...f, evaluacion: { estado: 'normal', etapa: 'consolidada' } })),
   }));
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, next) => {
@@ -248,6 +250,57 @@ test('marcadores: listar registra el acceso como recurso "marcadores"', async ()
   try {
     assert.equal((await s.pedir('GET', `/${PACIENTE}/marcadores`)).status, 200);
     assert.deepEqual(s.accesos.map((a) => a.recurso), ['marcadores']);
+  } finally {
+    await s.cerrar();
+  }
+});
+
+// --- Reporte (paso 4) ---
+
+test('reporte: lecturas y bitácora en una transacción que se confirma antes de responder', async () => {
+  const { pool, consultas } = basesFalsas((sql) => {
+    if (/FROM usuarios/.test(sql)) return [{ id: PACIENTE, nombre: 'Ana', email: 'ana@x.com' }, { id: ESP, nombre: 'Dra. Uno' }];
+    if (/FROM sesiones_medicion/.test(sql)) return [{ fecha_inicio: '2026-10-05T15:00:00Z', hrv_rmssd: '40', eva_contexto: 'reposo' }];
+    return [];
+  });
+  const s = await servidor(pool);
+  try {
+    const r = await s.pedir('GET', `/${PACIENTE}/reporte?desde=2026-10-01&hasta=2026-10-31&formato=pdf&seudonimizado=true`);
+    assert.equal(r.status, 200);
+    assert.equal(r.cuerpo.paciente.nombre, undefined);
+    assert.match(r.cuerpo.paciente.id, /^P-[0-9a-f]{8}$/);
+    assert.equal(r.cuerpo.sesiones[0].estado, 'normal');
+    assert.ok(!JSON.stringify(r.cuerpo).includes('reposo'));
+
+    const delCliente = consultas.filter((c) => c.via === 'cliente').map((c) => c.sql);
+    assert.equal(delCliente[0], 'BEGIN');
+    assert.equal(delCliente[delCliente.length - 1], 'COMMIT');
+    const [registro] = bitacoraDe(consultas);
+    assert.equal(registro.via, 'cliente');
+    assert.equal(registro.params[2], 'exportacion');
+    assert.deepEqual(JSON.parse(registro.params[4]), { formato: 'pdf', seudonimizado: true, desde: '2026-10-01', hasta: '2026-10-31' });
+    const marcas = consultas.find((c) => /FROM marcadores_clinicos/.test(c.sql));
+    assert.deepEqual(marcas.params, [PACIENTE, '2026-10-01', '2026-10-31', 'America/Mexico_City', ESP]);
+  } finally {
+    await s.cerrar();
+  }
+});
+
+test('reporte: si la bitácora falla no sale ningún dato; parámetros malos 400; otro rol 403', async () => {
+  const { pool, consultas } = basesFalsas((sql) => {
+    if (/INSERT INTO bitacora/.test(sql)) throw new Error('falla');
+    return [];
+  });
+  const s = await servidor(pool);
+  try {
+    const q = '?desde=2026-10-01&hasta=2026-10-31&formato=csv&seudonimizado=false';
+    const r = await s.pedir('GET', `/${PACIENTE}/reporte${q}`);
+    assert.equal(r.status, 500);
+    assert.equal(r.cuerpo.sesiones, undefined);
+    assert.ok(consultas.some((c) => c.sql === 'ROLLBACK'));
+    assert.equal((await s.pedir('GET', `/${PACIENTE}/reporte?desde=2026-10-01&hasta=2026-10-31&formato=csv`)).status, 400);
+    assert.equal((await s.pedir('GET', `/${PACIENTE}/reporte${q}`, { uid: 'adm', rol: 'admin' })).status, 403);
+    assert.equal((await s.pedir('GET', `/${PACIENTE}/reporte${q}`, { uid: 'esp-2', rol: 'especialista' })).status, 403);
   } finally {
     await s.cerrar();
   }

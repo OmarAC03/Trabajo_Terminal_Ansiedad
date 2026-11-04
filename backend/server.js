@@ -200,9 +200,12 @@ async function especialistaDePaciente(pacienteId) {
 }
 
 // Notas, marcadores y reporte de un paciente (Bloque 2): solo su especialista
-// vinculado (especialista.js). Rutas /api/pacientes/:pacienteId/...; la lista
+// vinculado (especialista.js). `conEvaluacion` es una declaración de función
+// (más abajo), así que ya existe aquí. Rutas /api/pacientes/:pacienteId/...; la lista
 // GET /api/pacientes sigue abajo, en este archivo.
-app.use('/api/pacientes', crearEspecialistaRouter(pool, { esPacienteVinculado, registrarAcceso }));
+app.use('/api/pacientes', crearEspecialistaRouter(pool, {
+  esPacienteVinculado, registrarAcceso, evaluarSesiones: conEvaluacion,
+}));
 
 // --- HISTORIAL DE UN PACIENTE ESPECÍFICO (registros recientes, sin exponer a otros pacientes) ---
 // Usado por la app móvil. GET /api/lecturas/:pacienteId?limite=50
