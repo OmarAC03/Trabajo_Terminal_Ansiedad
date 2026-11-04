@@ -5,6 +5,9 @@ const { ValidationError, HttpError } = require('./errors');
 const { validarEdicionAdmin } = require('./validation');
 const { verificarCambioSuspension } = require('./cuentas');
 const { BORRADO_PACIENTE, ANONIMIZAR_USUARIO, parametrosAnonimizar, verificarAtencion } = require('./eliminacion');
+const {
+  registrar: registrarBitacora, validarFiltrosBitacora, consultaBitacora, paginaBitacora,
+} = require('./bitacora');
 
 const FORMATO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -179,6 +182,19 @@ function crearAdminRouter(pool, opciones = {}) {
         }
       }
 
+      // Cambio de vinculación: a la bitácora, en la misma transacción.
+      if ('especialista_id' in set) {
+        await registrarBitacora(client, {
+          actorId: req.uid,
+          actorRol: 'admin',
+          accion: set.especialista_id ? 'vinculacion' : 'desvinculacion',
+          objetivoId: id,
+          detalle: set.especialista_id
+            ? { especialista_anterior: actual.especialista_id || null, especialista_nuevo: set.especialista_id, via: 'admin' }
+            : { especialista_anterior: actual.especialista_id, via: 'admin' },
+        });
+      }
+
       // Firebase al final, con la base todavía sin confirmar.
       let emailFirebaseAnterior;
       if (set.email) {
@@ -280,8 +296,15 @@ function crearAdminRouter(pool, opciones = {}) {
       }
       verificarCambioSuspension({ adminUid: req.uid, objetivo, suspender, otrosAdminsActivos });
 
+      // Solo un cambio real va a la bitácora (repetir la acción no).
       if (objetivo.suspendido !== suspender) {
         await client.query('UPDATE usuarios SET suspendido = $2 WHERE id = $1', [id, suspender]);
+        await registrarBitacora(client, {
+          actorId: req.uid,
+          actorRol: 'admin',
+          accion: suspender ? 'cuenta_suspendida' : 'cuenta_reactivada',
+          objetivoId: id,
+        });
       }
 
       try {
@@ -415,6 +438,13 @@ function crearAdminRouter(pool, opciones = {}) {
             [id, req.uid]
           )
         ).rows[0];
+        await registrarBitacora(client, {
+          actorId: req.uid,
+          actorRol: 'admin',
+          accion: 'cuenta_eliminada',
+          objetivoId: usuario.id,
+          detalle: { solicitud_id: solicitud.id },
+        });
       }
 
       await client.query('COMMIT');
@@ -466,6 +496,17 @@ function crearAdminRouter(pool, opciones = {}) {
     }
 
     res.status(200).json({ id: solicitud.id, estado: solicitud.estado, atendida_en: solicitud.atendida_en });
+  });
+
+  // GET /api/admin/bitacora?desde&hasta&usuario&accion&antes_de&limite
+  // (Bloque 2, paso 1: WEB-RF-31). Quién, qué acción, sobre quién y cuándo;
+  // nunca contenido clínico (bitacora.js). Más recientes primero, paginada
+  // con el cursor `siguiente`.
+  router.get('/bitacora', async (req, res) => {
+    const filtros = validarFiltrosBitacora(req.query);
+    const { sql, params } = consultaBitacora(filtros);
+    const result = await pool.query(sql, params);
+    res.status(200).json(paginaBitacora(result.rows, filtros.limite));
   });
 
   return router;

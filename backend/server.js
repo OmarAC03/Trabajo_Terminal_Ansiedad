@@ -18,6 +18,7 @@ const {
   CONFIG_CONSENTIMIENTO, validarConsentimiento, exigirConsentimiento, vistaConsentimiento, requiereConsentimiento,
 } = require('./consentimiento');
 const { validarSolicitudNueva, vistaSolicitudPaciente } = require('./eliminacion');
+const { registrar: registrarBitacora, DedupeAccesos } = require('./bitacora');
 const {
   validarLectura,
   validarUsuarioNuevo,
@@ -144,10 +145,36 @@ app.get('/api/lecturas', async (req, res) => {
 // especialista al que ese paciente esté vinculado (`usuarios.especialista_id`).
 // Antes bastaba con `rol === 'especialista'`, así que cualquier especialista
 // podía ver a cualquier paciente poniendo su id en la URL.
-async function autorizarLecturaPaciente(req, pacienteId, mensaje) {
+//
+// Bitácora (Bloque 2, paso 1): el acceso de un especialista se registra como
+// `acceso_datos_clinicos` con el `recurso` (bitacora.RECURSOS). El paciente
+// leyendo lo suyo no se registra.
+async function autorizarLecturaPaciente(req, pacienteId, mensaje, recurso) {
   if (pacienteId === req.uid) return;
-  if (req.rol === 'especialista' && (await esPacienteVinculado(pacienteId, req.uid))) return;
+  if (req.rol === 'especialista' && (await esPacienteVinculado(pacienteId, req.uid))) {
+    await registrarAcceso(req, pacienteId, recurso);
+    return;
+  }
   throw new AuthError(mensaje, 403);
+}
+
+// Decisión D2: si el registro de un acceso de LECTURA falla, la lectura se
+// sirve igual y queda un logger.error (las escrituras y exportaciones, en
+// cambio, van en la misma transacción que su registro). Uno por par
+// especialista–paciente cada 10 min (DedupeAccesos).
+const dedupeAccesos = new DedupeAccesos();
+async function registrarAcceso(req, pacienteId, recurso) {
+  if (!dedupeAccesos.reservar(req.uid, pacienteId)) return;
+  try {
+    await registrarBitacora(pool, {
+      actorId: req.uid, actorRol: req.rol, accion: 'acceso_datos_clinicos', objetivoId: pacienteId, detalle: { recurso },
+    });
+  } catch (error) {
+    dedupeAccesos.liberar(req.uid, pacienteId);
+    logger.error('Bitácora: no se registró un acceso a datos clínicos (la lectura se sirvió)', {
+      especialista_id: req.uid, paciente_id: pacienteId, recurso, detalle: error.message,
+    });
+  }
 }
 
 // ¿El paciente está vinculado a ese especialista? Usado por las lecturas, el
@@ -175,7 +202,7 @@ async function especialistaDePaciente(pacienteId) {
 // Usado por la app móvil. GET /api/lecturas/:pacienteId?limite=50
 app.get('/api/lecturas/:pacienteId', async (req, res) => {
   const { pacienteId } = req.params;
-  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver las lecturas de este paciente.');
+  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver las lecturas de este paciente.', 'lecturas');
   const limite = parseInt(req.query.limite) || 50;
 
   const query = `
@@ -195,7 +222,7 @@ app.get('/api/lecturas/:pacienteId', async (req, res) => {
 // (tendencias, rachas, etc.) sin tener que hacer una segunda llamada.
 app.get('/api/lecturas/:pacienteId/resumen', async (req, res) => {
   const { pacienteId } = req.params;
-  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver el resumen de este paciente.');
+  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver el resumen de este paciente.', 'lecturas');
   const periodo = req.query.periodo === 'mes' ? 'mes' : 'semana';
   const diasPorPeriodo = periodo === 'mes' ? 30 : 7;
   const rangoConsulta = diasPorPeriodo * 2; // periodo actual + periodo anterior
@@ -298,7 +325,7 @@ async function conEvaluacion(req, pacienteId, filas) {
 // (simulación y sensor tienen bases separadas). La banda, solo al especialista.
 app.get('/api/linea-base/:pacienteId', async (req, res) => {
   const { pacienteId } = req.params;
-  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver la línea base de este paciente.');
+  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver la línea base de este paciente.', 'linea_base');
 
   const ahora = new Date();
   const sesiones = await sesionesParaBase(pacienteId, ahora);
@@ -377,7 +404,7 @@ app.post('/api/sesiones', async (req, res) => {
 // todas las sesiones del paciente, como con las lecturas).
 app.get('/api/sesiones/:pacienteId', async (req, res) => {
   const { pacienteId } = req.params;
-  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver las sesiones de este paciente.');
+  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver las sesiones de este paciente.', 'sesiones');
   const limite = Math.min(Math.max(parseInt(req.query.limite) || 50, 1), 200);
 
   const query = `
@@ -396,7 +423,7 @@ app.get('/api/sesiones/:pacienteId', async (req, res) => {
 // de OTRO paciente responde 404 igual que una inexistente (no revela ids).
 app.get('/api/sesiones/:pacienteId/:sesionId', async (req, res) => {
   const { pacienteId, sesionId } = req.params;
-  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver las sesiones de este paciente.');
+  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver las sesiones de este paciente.', 'sesiones');
   if (!FORMATO_UUID.test(sesionId)) {
     throw new ValidationError('El identificador de la sesión no es válido.');
   }
@@ -542,7 +569,7 @@ app.post('/api/gad7', async (req, res) => {
 // especialista), del más reciente al más viejo.
 app.get('/api/gad7/:pacienteId', async (req, res) => {
   const { pacienteId } = req.params;
-  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver el cuestionario de este paciente.');
+  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver el cuestionario de este paciente.', 'gad7');
 
   const esEspecialista = req.rol === 'especialista';
   const result = await pool.query(
@@ -565,7 +592,7 @@ app.get('/api/gad7/:pacienteId', async (req, res) => {
 // cronológico.
 app.get('/api/mensajes/:pacienteId', async (req, res) => {
   const { pacienteId } = req.params;
-  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver los mensajes de este paciente.');
+  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver los mensajes de este paciente.', 'mensajes');
 
   const especialistaId = await especialistaDePaciente(pacienteId);
   if (!especialistaId) {
@@ -619,7 +646,7 @@ app.post('/api/ejercicios', async (req, res) => {
 // anterior. Más recientes primero.
 app.get('/api/ejercicios/:pacienteId', async (req, res) => {
   const { pacienteId } = req.params;
-  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver los ejercicios de este paciente.');
+  await autorizarLecturaPaciente(req, pacienteId, 'No autorizado para ver los ejercicios de este paciente.', 'ejercicios');
 
   const especialistaId = await especialistaDePaciente(pacienteId);
   if (!especialistaId) {
@@ -927,7 +954,31 @@ app.post('/api/vinculacion', async (req, res) => {
   }
   const { id: especialistaId, nombre: especialistaNombre } = especialista.rows[0];
 
-  await pool.query('UPDATE usuarios SET especialista_id = $1 WHERE id = $2', [especialistaId, req.uid]);
+  // El cambio y su registro en la bitácora van juntos (Bloque 2, paso 1).
+  // Repetir el código del especialista que ya se tiene no es un cambio: no se
+  // registra.
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const actual = await client.query('SELECT especialista_id FROM usuarios WHERE id = $1 FOR UPDATE', [req.uid]);
+    const anterior = actual.rows[0]?.especialista_id || null;
+    await client.query('UPDATE usuarios SET especialista_id = $1 WHERE id = $2', [especialistaId, req.uid]);
+    if (anterior !== especialistaId) {
+      await registrarBitacora(client, {
+        actorId: req.uid,
+        actorRol: req.rol,
+        accion: 'vinculacion',
+        objetivoId: req.uid,
+        detalle: { especialista_anterior: anterior, especialista_nuevo: especialistaId, via: 'codigo' },
+      });
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 
   logger.info('Paciente vinculado a especialista', { paciente_id: req.uid, especialista_id: especialistaId });
   res.status(200).json({

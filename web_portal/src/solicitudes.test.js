@@ -37,4 +37,5 @@ test('lo que se borra y lo que se conserva coincide con la decisión aprobada', 
   const conserva = SE_CONSERVA.join(' ');
   expect(conserva).toMatch(/consentimiento/);
   expect(conserva).toMatch(/sin nombre ni correo/);
+  expect(conserva).toMatch(/bitácora/);
 });

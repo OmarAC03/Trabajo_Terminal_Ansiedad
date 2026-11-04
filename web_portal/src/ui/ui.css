@@ -947,6 +947,35 @@
   padding: 0 20px 16px;
 }
 
+/* Filtros sobre una tabla (Bitácora del admin): se acomodan solos en filas. */
+.ui-filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  align-items: end;
+  gap: 12px;
+  padding: 0 20px 16px;
+}
+
+.ui-filtros .ui-field {
+  margin-bottom: 0;
+}
+
+.ui-filtros-acciones {
+  display: flex;
+  gap: 8px;
+}
+
+/* Pie de tabla: cuántas filas se ven y "Cargar más". */
+.ui-table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border, #e2e8f0);
+}
+
 .ui-search {
   position: relative;
   flex: 1;

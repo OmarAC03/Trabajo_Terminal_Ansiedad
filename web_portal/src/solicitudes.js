@@ -13,6 +13,7 @@ export const SE_BORRA = [
 export const SE_CONSERVA = [
   'Una fila anónima ("Cuenta eliminada", sin nombre ni correo) con la fecha de registro.',
   'El registro de su consentimiento y de esta solicitud, como evidencia.',
+  'Las entradas de la bitácora sobre la cuenta (quién, qué acción y cuándo; sin datos clínicos).',
 ];
 
 export const contarPendientes = (lista) => (lista || []).filter((s) => s.estado === 'pendiente').length;
