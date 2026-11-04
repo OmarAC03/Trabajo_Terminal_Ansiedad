@@ -15,11 +15,12 @@ const { ValidationError, HttpError } = require('./errors');
 
 const tablas = BORRADO_PACIENTE.map((p) => p.tabla);
 
-test('se borran las 6 tablas clínicas y de comunicación, y ninguna más', () => {
+test('se borran las tablas clínicas y de comunicación, y ninguna más', () => {
   assert.deepEqual([...tablas].sort(), [
     'ejercicios_asignados',
     'lecturas_biometricas',
     'mensajes_chat',
+    'notas_clinicas',
     'respuestas_eva',
     'respuestas_gad7',
     'sesiones_medicion',
@@ -27,7 +28,7 @@ test('se borran las 6 tablas clínicas y de comunicación, y ninguna más', () =
 });
 
 test('lo que se conserva (usuarios, consentimientos, solicitudes) no se borra', () => {
-  for (const conservada of ['usuarios', 'consentimientos', 'solicitudes_eliminacion']) {
+  for (const conservada of ['usuarios', 'consentimientos', 'solicitudes_eliminacion', 'bitacora']) {
     assert.ok(!tablas.includes(conservada), conservada);
     for (const paso of BORRADO_PACIENTE) {
       assert.doesNotMatch(paso.sql, new RegExp(`DELETE FROM ${conservada}\\b`));

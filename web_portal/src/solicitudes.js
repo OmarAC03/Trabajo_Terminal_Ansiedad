@@ -7,7 +7,7 @@
 // antes de confirmar.
 export const SE_BORRA = [
   'Sus sesiones de medición, respuestas EVA y GAD-7 y lecturas.',
-  'Su conversación con el especialista y los ejercicios asignados.',
+  'Su conversación con el especialista, los ejercicios asignados y las notas clínicas del especialista.',
   'Su cuenta de acceso (ya no podrá iniciar sesión y su correo queda libre).',
 ];
 export const SE_CONSERVA = [

@@ -10,6 +10,7 @@ const logger = require('./logger');
 const { AuthError, ValidationError, HttpError } = require('./errors');
 const { inicializarFirebaseAdmin, requiereAuth, requiereAuthSocket, requiereAdmin } = require('./auth');
 const { crearAdminRouter } = require('./admin');
+const { crearEspecialistaRouter } = require('./especialista');
 const { CONFIG_LINEA_BASE } = require('./linea_base');
 const { evaluarFilas, calibracionPara } = require('./linea_base_vista');
 const { CONFIG_GAD7, itemsDeFila, puntaje: puntajeGad7, severidad: severidadGad7, valorar: valorarGad7, estadoGad7 } = require('./gad7');
@@ -197,6 +198,11 @@ async function especialistaDePaciente(pacienteId) {
   );
   return result.rows[0]?.especialista_id || null;
 }
+
+// Notas, marcadores y reporte de un paciente (Bloque 2): solo su especialista
+// vinculado (especialista.js). Rutas /api/pacientes/:pacienteId/...; la lista
+// GET /api/pacientes sigue abajo, en este archivo.
+app.use('/api/pacientes', crearEspecialistaRouter(pool, { esPacienteVinculado, registrarAcceso }));
 
 // --- HISTORIAL DE UN PACIENTE ESPECÍFICO (registros recientes, sin exponer a otros pacientes) ---
 // Usado por la app móvil. GET /api/lecturas/:pacienteId?limite=50

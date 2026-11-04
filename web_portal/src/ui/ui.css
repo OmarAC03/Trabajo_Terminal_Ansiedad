@@ -1326,6 +1326,17 @@
   color: var(--color-text-secondary);
 }
 
+/* Historial de una nota clínica (Bloque 2): versiones anteriores. */
+.ui-nota-historial {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--color-border);
+}
+
+.ui-nota-version + .ui-nota-version {
+  margin-top: 10px;
+}
+
 /* Datos + ejercicios a la izquierda, chat a la derecha (fijo al hacer
    scroll). Por debajo de 1180px se apilan: datos, ejercicios, chat. */
 .ui-detail-cols {

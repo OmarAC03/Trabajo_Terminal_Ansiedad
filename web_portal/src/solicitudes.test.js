@@ -33,6 +33,7 @@ test('lo que se borra y lo que se conserva coincide con la decisión aprobada', 
   expect(borra).toMatch(/GAD-7/);
   expect(borra).toMatch(/conversación/);
   expect(borra).toMatch(/ejercicios/);
+  expect(borra).toMatch(/notas clínicas/);
   expect(borra).toMatch(/cuenta de acceso/);
   const conserva = SE_CONSERVA.join(' ');
   expect(conserva).toMatch(/consentimiento/);
