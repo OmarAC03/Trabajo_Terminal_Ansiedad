@@ -73,6 +73,7 @@ describe('resumenSesiones y datosTendencia', () => {
     const datos = datosTendencia(sesiones, { ahora });
     expect(datos.map((d) => d.hrv)).toEqual([50, 40]);
     expect(datos[1].bpm).toBe(70);
+    expect(datos[1].t).toBe(new Date('2026-10-13T15:30:00Z').getTime());
   });
 });
 

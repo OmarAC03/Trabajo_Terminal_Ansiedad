@@ -26,9 +26,11 @@ const BORRADO_PACIENTE = Object.freeze([
   { tabla: 'lecturas_biometricas', sql: 'DELETE FROM lecturas_biometricas WHERE paciente_id = $1' },
   { tabla: 'mensajes_chat', sql: 'DELETE FROM mensajes_chat WHERE paciente_id = $1' },
   { tabla: 'ejercicios_asignados', sql: 'DELETE FROM ejercicios_asignados WHERE paciente_id = $1' },
-  // Notas del especialista sobre el paciente (Bloque 2): sus versiones se van
-  // en cascada (FK ON DELETE CASCADE; el trigger solo impide el UPDATE).
+  // Notas y marcadores del especialista sobre el paciente (Bloque 2): las
+  // versiones de las notas se van en cascada (FK ON DELETE CASCADE; el
+  // trigger solo impide el UPDATE).
   { tabla: 'notas_clinicas', sql: 'DELETE FROM notas_clinicas WHERE paciente_id = $1' },
+  { tabla: 'marcadores_clinicos', sql: 'DELETE FROM marcadores_clinicos WHERE paciente_id = $1' },
 ]);
 
 // Lo que se conserva de la cuenta: id, rol y fecha_registro. `email` es NOT

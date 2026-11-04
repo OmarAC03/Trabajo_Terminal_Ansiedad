@@ -3,11 +3,13 @@ const logger = require('./logger');
 const { AuthError, ValidationError, HttpError } = require('./errors');
 const { registrar: registrarBitacora } = require('./bitacora');
 const notas = require('./notas');
+const marcadores = require('./marcadores');
 
 const FORMATO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Herramientas del especialista sobre un paciente (Bloque 2): notas clínicas
-// (paso 2). server.js monta este router en /api/pacientes.
+// (paso 2) y marcadores en la línea de tiempo (paso 3). server.js monta este
+// router en /api/pacientes.
 //
 // A diferencia de las lecturas (autorizarLecturaPaciente en server.js), aquí
 // no hay rama del paciente: solo el especialista vinculado ACTUAL. El
@@ -47,10 +49,11 @@ function crearEspecialistaRouter(pool, { esPacienteVinculado, registrarAcceso })
   const bitacora = (db, req, accion, pacienteId, detalle) =>
     registrarBitacora(db, { actorId: req.uid, actorRol: req.rol, accion, objetivoId: pacienteId, detalle });
 
-  function idNota(texto) {
-    if (!FORMATO_UUID.test(texto)) throw new ValidationError('El identificador de la nota no es válido.');
+  function uuid(texto, que) {
+    if (!FORMATO_UUID.test(texto)) throw new ValidationError(`El identificador ${que} no es válido.`);
     return texto;
   }
+  const idNota = (texto) => uuid(texto, 'de la nota');
 
   // --- NOTAS CLÍNICAS (WEB-RF-27 / RN-15) ---
 
@@ -115,6 +118,51 @@ function crearEspecialistaRouter(pool, { esPacienteVinculado, registrarAcceso })
     await registrarAcceso(req, pacienteId, 'notas');
     const result = await pool.query(notas.LISTAR_VERSIONES, [notaId]);
     res.status(200).json(result.rows);
+  });
+
+  // --- MARCADORES (WEB-RF-28) ---
+
+  // GET /api/pacientes/:pacienteId/marcadores — del par, por fecha (más
+  // antiguo primero, como la gráfica).
+  router.get('/:pacienteId/marcadores', async (req, res) => {
+    const { pacienteId } = req.params;
+    await autorizarEspecialistaVinculado(req, pacienteId);
+    await registrarAcceso(req, pacienteId, 'marcadores');
+    const result = await pool.query(marcadores.LISTAR_MARCADORES, [pacienteId, req.uid]);
+    res.status(200).json(result.rows);
+  });
+
+  // POST /api/pacientes/:pacienteId/marcadores { fecha, tipo, descripcion? }
+  router.post('/:pacienteId/marcadores', async (req, res) => {
+    const { pacienteId } = req.params;
+    await autorizarEspecialistaVinculado(req, pacienteId);
+    const datos = marcadores.validarMarcadorNuevo(req.body);
+
+    const marcador = await enTransaccion(async (client) => {
+      const fila = (await client.query(marcadores.INSERTAR_MARCADOR, [
+        pacienteId, req.uid, datos.fecha, datos.tipo, datos.descripcion,
+      ])).rows[0];
+      await bitacora(client, req, 'marcador_creado', pacienteId, { marcador_id: fila.id });
+      return fila;
+    });
+
+    res.status(201).json(marcador);
+  });
+
+  // DELETE /api/pacientes/:pacienteId/marcadores/:marcadorId — solo su autor
+  // (D6); el borrado y su registro van juntos.
+  router.delete('/:pacienteId/marcadores/:marcadorId', async (req, res) => {
+    const { pacienteId } = req.params;
+    await autorizarEspecialistaVinculado(req, pacienteId);
+    const marcadorId = uuid(req.params.marcadorId, 'del marcador');
+
+    await enTransaccion(async (client) => {
+      const borrado = await client.query(marcadores.BORRAR_MARCADOR, [marcadorId, pacienteId, req.uid]);
+      if (borrado.rowCount === 0) throw new HttpError('Marcador no encontrado.', 404);
+      await bitacora(client, req, 'marcador_eliminado', pacienteId, { marcador_id: marcadorId });
+    });
+
+    res.status(204).end();
   });
 
   return router;

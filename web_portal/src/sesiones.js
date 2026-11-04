@@ -77,6 +77,9 @@ export function datosTendencia(sesiones, { dias = 30, ahora = Date.now(), origen
       const ev = s.evaluacion || null;
       const rango = ev?.banda?.rango_hrv_ms;
       return {
+        // Eje de tiempo real (ms) desde el Bloque 2: los marcadores clínicos
+        // caen entre sesiones, así que el eje ya no es por categoría.
+        t: new Date(s.fecha_inicio).getTime(),
         x: fechaCorta(s.fecha_inicio),
         fecha: s.fecha_inicio,
         hrv: s.hrv_rmssd,

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Timer, Heart, Clock, ClipboardList, Activity, List, CircleAlert, Target } from 'lucide-react';
 import {
-  ResponsiveContainer, ComposedChart, Area, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid,
+  ResponsiveContainer, ComposedChart, Area, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ReferenceLine,
 } from 'recharts';
 import { auth } from './firebase';
 import { Card, KpiCard, Badge, Alert } from './ui/components';
@@ -14,12 +14,17 @@ import {
 } from './sesiones';
 import { colorEstado, textoEstado, textoSinEstado, textoEtapa, textoCalibracion } from './semaforo';
 import SesionDetalle from './SesionDetalle';
+import MarcadoresPanel from './MarcadoresPanel';
+import { marcadoresUrl, marcadoresEnGrafica, dominioTiempo, ticksDias, etiquetaTick, textoTipo } from './marcadores';
 
 // Mismos colores por métrica que SesionDetalle.js (FC = --color-primary,
 // HRV = --color-cyan). El verde/ámbar/rojo del estado solo aparece en los
 // puntos de HRV, que es lo que se clasifica; la franja del rango habitual va
 // en cian claro (es de la HRV, no un estado).
 const COLORES = { bpm: '#2563eb', hrv: '#0891b2' };
+// Marcadores clínicos (Bloque 2): gris pizarra punteado, fuera del semáforo y
+// de los colores de las métricas.
+const COLOR_MARCADOR = '#64748b';
 const EJE = { fontSize: 11, fill: '#94a3b8' };
 
 // Sesiones de medición del paciente (Fase M1, portal): indicadores de los
@@ -27,10 +32,14 @@ const EJE = { fontSize: 11, fill: '#94a3b8' };
 // de señal y su origen. Desde M3, el estado de cada sesión contra la línea
 // base INDIVIDUAL del paciente (solo el especialista lo ve; el paciente
 // nunca recibe la etiqueta), la franja de su rango habitual en la gráfica y
-// la calibración de la base por origen (GET /api/linea-base).
+// la calibración de la base por origen (GET /api/linea-base). Desde el
+// Bloque 2 (WEB-RF-28), los marcadores clínicos del especialista sobre la
+// gráfica, con eje de tiempo real.
 function SesionesPaciente({ paciente, recarga }) {
   const [sesiones, setSesiones] = useState([]);
   const [lineaBase, setLineaBase] = useState(null);
+  // null = no se pudieron cargar (la gráfica se muestra igual, sin ellos).
+  const [marcadores, setMarcadores] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   // Sesión abierta en el detalle (se muestra en lugar de la lista, sin router).
@@ -48,16 +57,22 @@ function SesionesPaciente({ paciente, recarga }) {
         const token = await auth.currentUser.getIdToken();
         const headers = { Authorization: `Bearer ${token}` };
         // La línea base no es indispensable: si falla, la lista se muestra igual.
-        const [res, base] = await Promise.all([
+        // Los marcadores tampoco: sin ellos la gráfica se ve como antes.
+        const [res, base, marcas] = await Promise.all([
           axios.get(`${SESIONES_URL}/${paciente.id}?limite=200`, { headers }),
           axios.get(`${LINEA_BASE_URL}/${paciente.id}`, { headers }).catch((e) => {
             console.error('Error al cargar la línea base del paciente:', e);
+            return null;
+          }),
+          axios.get(marcadoresUrl(paciente.id), { headers }).catch((e) => {
+            console.error('Error al cargar los marcadores del paciente:', e);
             return null;
           }),
         ]);
         if (cancelado) return;
         setSesiones(res.data.map(normalizarSesion));
         setLineaBase(base ? base.data : null);
+        setMarcadores(marcas ? marcas.data : null);
       } catch (e) {
         if (cancelado) return;
         console.error('Error al cargar las sesiones del paciente:', e);
@@ -82,10 +97,24 @@ function SesionesPaciente({ paciente, recarga }) {
   }
   if (error) return <Alert tone="altos" icon={CircleAlert}>{error}</Alert>;
   if (cargando) return <Card><div className="ui-empty">Cargando sesiones de medición…</div></Card>;
+  const marcas = marcadoresEnGrafica(marcadores || []);
+  const panel = marcadores === null ? (
+    <Alert tone="altos" icon={CircleAlert}>No se pudieron cargar los marcadores clínicos. Pulsa "Actualizar".</Alert>
+  ) : (
+    <MarcadoresPanel
+      paciente={paciente}
+      marcadores={marcadores}
+      numeros={new Map(marcas.map((m) => [m.id, m.numero]))}
+      onCambio={setMarcadores}
+    />
+  );
+
   if (sesiones.length === 0) {
     return (
       <Card title="Sesiones de medición" icon={ClipboardList}>
         <div className="ui-empty">Este paciente aún no tiene sesiones de medición.</div>
+        <hr className="ui-card-divider" />
+        {panel}
       </Card>
     );
   }
@@ -104,6 +133,8 @@ function SesionesPaciente({ paciente, recarga }) {
         origenes={origenes}
         origen={origenGrafica}
         onOrigen={setOrigen}
+        marcas={marcas}
+        panel={panel}
       />
       <TablaSesiones sesiones={sesiones} onSeleccionar={setSesionId} />
     </div>
@@ -209,7 +240,8 @@ function TooltipTendencia({ active, payload }) {
   );
 }
 
-function GraficaTendencia({ datos, origenes, origen, onOrigen }) {
+function GraficaTendencia({ datos, origenes, origen, onOrigen, marcas, panel }) {
+  const dominio = dominioTiempo(datos, marcas);
   const selector = origenes.length > 1 && (
     <div className="ui-segmented" role="group" aria-label="Origen de las sesiones">
       {origenes.map((o) => (
@@ -239,9 +271,20 @@ function GraficaTendencia({ datos, origenes, origen, onOrigen }) {
         <>
           <div style={{ width: '100%', height: 280 }}>
             <ResponsiveContainer>
-              <ComposedChart data={datos} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+              <ComposedChart data={datos} margin={{ top: marcas.length ? 22 : 10, right: 20, left: -10, bottom: 0 }}>
                 <CartesianGrid stroke="#e2e8f0" vertical={false} />
-                <XAxis dataKey="x" tick={EJE} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
+                {/* Eje de tiempo real: la separación entre puntos es la que hubo entre sesiones. */}
+                <XAxis
+                  dataKey="t"
+                  type="number"
+                  scale="time"
+                  domain={dominio}
+                  ticks={ticksDias(dominio)}
+                  tickFormatter={etiquetaTick}
+                  tick={EJE}
+                  axisLine={{ stroke: '#e2e8f0' }}
+                  tickLine={false}
+                />
                 <YAxis tick={EJE} axisLine={false} tickLine={false} />
                 <Tooltip content={<TooltipTendencia />} />
                 <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
@@ -267,15 +310,28 @@ function GraficaTendencia({ datos, origenes, origen, onOrigen }) {
                   isAnimationActive={false}
                 />
                 <Line type="monotone" dataKey="bpm" name="FC promedio (lpm)" stroke={COLORES.bpm} strokeWidth={2} dot={{ r: 3 }} />
+                {marcas.map((m) => (
+                  <ReferenceLine
+                    key={m.id}
+                    x={m.t}
+                    stroke={COLOR_MARCADOR}
+                    strokeDasharray="4 3"
+                    label={{ value: String(m.numero), position: 'top', fill: COLOR_MARCADOR, fontSize: 11, fontWeight: 600 }}
+                    aria-label={`Marcador ${m.numero}: ${textoTipo(m.tipo)}`}
+                  />
+                ))}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
           <p className="ui-muted" style={{ fontSize: 'var(--text-sm)', margin: '8px 0 0' }}>
             Puntos de HRV por estado contra su línea base: verde Normal, ámbar Elevados, rojo Altos; hueco gris
             si aún se calibra o la señal no alcanzó la calidad mínima. La franja se corta mientras no hay base.
+            {marcas.length > 0 && ' Las líneas punteadas numeradas son tus marcadores clínicos (lista abajo).'}
           </p>
         </>
       )}
+      <hr className="ui-card-divider" />
+      {panel}
     </Card>
   );
 }

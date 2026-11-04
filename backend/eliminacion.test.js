@@ -19,6 +19,7 @@ test('se borran las tablas clínicas y de comunicación, y ninguna más', () => 
   assert.deepEqual([...tablas].sort(), [
     'ejercicios_asignados',
     'lecturas_biometricas',
+    'marcadores_clinicos',
     'mensajes_chat',
     'notas_clinicas',
     'respuestas_eva',

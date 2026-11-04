@@ -57,13 +57,16 @@ async function servidor(pool, { vinculado = true } = {}) {
     });
     return { status: r.status, cuerpo: await r.json() };
   };
-  return { pedir, accesos, cerrar: () => new Promise((r) => http.close(r)) };
+  const crudo = (metodo, ruta, { uid = ESP, rol = 'especialista' } = {}) =>
+    fetch(base + ruta, { method: metodo, headers: { 'x-uid': uid, 'x-rol': rol } });
+  return { pedir, crudo, accesos, cerrar: () => new Promise((r) => http.close(r)) };
 }
 
 const hoy = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
 const notaFila = (extra = {}) => ({
   id: NOTA_ID, fecha: '2026-11-01', contenido: 'Texto', version: 1, creada_en: '2026-11-01T10:00:00Z', editada_en: null, ...extra,
 });
+const fetchStatus = async (s, metodo, ruta, quien) => (await s.crudo(metodo, ruta, quien)).status;
 const bitacoraDe = (consultas) => consultas.filter((c) => /INSERT INTO bitacora/.test(c.sql));
 
 test('solo el especialista vinculado: paciente, admin y otro especialista reciben 403', async () => {
@@ -195,6 +198,56 @@ test('versiones: 404 si la nota no es del par; si lo es, las lista y registra el
     assert.equal(r.status, 200);
     assert.equal(r.cuerpo[0].version, 1);
     assert.deepEqual(s.accesos.map((a) => a.recurso), ['notas']);
+  } finally {
+    await s.cerrar();
+  }
+});
+
+// --- Marcadores (paso 3) ---
+const MARCADOR_ID = '7a2d3c4e-2222-4b3c-8d4e-23456789abcd';
+
+test('marcadores: crear y borrar van con su bitácora; uno ajeno es 404', async () => {
+  let existe = true;
+  const { pool, consultas } = basesFalsas((sql) => {
+    if (/INSERT INTO marcadores_clinicos/.test(sql)) {
+      return [{ id: MARCADOR_ID, fecha: '2026-11-04T16:30:00.000Z', tipo: 'consulta', descripcion: null }];
+    }
+    if (/DELETE FROM marcadores_clinicos/.test(sql)) return existe ? [{ id: MARCADOR_ID }] : [];
+    return [];
+  });
+  const s = await servidor(pool);
+  try {
+    const creado = await s.pedir('POST', `/${PACIENTE}/marcadores`, {
+      cuerpo: { fecha: new Date(Date.now() - 60000).toISOString(), tipo: 'consulta', descripcion: 'Sesión 1' },
+    });
+    assert.equal(creado.status, 201);
+    const borrado = await fetchStatus(s, 'DELETE', `/${PACIENTE}/marcadores/${MARCADOR_ID}`);
+    assert.equal(borrado, 204);
+    const registros = bitacoraDe(consultas);
+    assert.deepEqual(registros.map((r) => r.params[2]), ['marcador_creado', 'marcador_eliminado']);
+    for (const r of registros) {
+      assert.equal(r.via, 'cliente');
+      assert.deepEqual(JSON.parse(r.params[4]), { marcador_id: MARCADOR_ID });
+    }
+    const del = consultas.find((c) => /DELETE FROM marcadores_clinicos/.test(c.sql));
+    assert.deepEqual(del.params, [MARCADOR_ID, PACIENTE, ESP]);
+
+    existe = false;
+    assert.equal(await fetchStatus(s, 'DELETE', `/${PACIENTE}/marcadores/${MARCADOR_ID}`), 404);
+    assert.equal(bitacoraDe(consultas).length, 2);
+    assert.equal(await fetchStatus(s, 'DELETE', `/${PACIENTE}/marcadores/x`), 400);
+    assert.equal(await fetchStatus(s, 'DELETE', `/${PACIENTE}/marcadores/${MARCADOR_ID}`, { uid: PACIENTE, rol: 'paciente' }), 403);
+  } finally {
+    await s.cerrar();
+  }
+});
+
+test('marcadores: listar registra el acceso como recurso "marcadores"', async () => {
+  const { pool } = basesFalsas(() => []);
+  const s = await servidor(pool);
+  try {
+    assert.equal((await s.pedir('GET', `/${PACIENTE}/marcadores`)).status, 200);
+    assert.deepEqual(s.accesos.map((a) => a.recurso), ['marcadores']);
   } finally {
     await s.cerrar();
   }
