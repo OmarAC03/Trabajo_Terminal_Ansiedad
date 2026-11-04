@@ -38,7 +38,7 @@
 | Enlace sensor–app | BLE GATT, 1 paquete/minuto | Bluetooth clásico SPP, 1 línea JSON/segundo (`CONTRATO_SENSOR.md` v1) |
 | Sensores | MAX30102 + GSR + termistor NTC | Solo MAX30102 |
 | Autenticación | JWT propio (`/auth/login`, `/auth/refresh`) | Firebase Auth. El backend verifica el ID token con `firebase-admin` y lee el rol de `usuarios`. |
-| Autorización | RLS de Supabase | En el backend, por ruta (`autorizarLecturaPaciente`, `autorizarPerfilPropio`, `esPacienteVinculado`, `requiereAdmin`). RLS desactivado. |
+| Autorización | RLS de Supabase | En el backend, por ruta (`autorizarLecturaPaciente`, `autorizarPerfilPropio`, `esPacienteVinculado`, `requiereAdmin`; en `especialista.js`, solo el especialista vinculado). RLS desactivado, salvo en las 4 tablas del Bloque 2 (activado sin políticas: la API REST de Supabase no las lee). |
 | Caché en tiempo real | Firebase Realtime Database (último score) | No se usa. El portal sondea `GET /api/pacientes` cada 15 s y el chat va por Socket.io. |
 | Hosting del portal | Vercel | Render |
 | Archivos / reportes | Bóveda de Supabase (Storage) | No se usa (no hay exportación). |
@@ -105,6 +105,10 @@
 | `ejercicios_asignados` | `id` uuid, `paciente_id`, `especialista_id`, `tecnica_id` (slug), `texto_personalizado`, `nota`, `fecha_asignacion` | `chk_ejercicio_origen` (exactamente uno de `tecnica_id` / `texto_personalizado`); índice `idx_ejercicios_paciente_fecha` | 2c |
 | `consentimientos` | `id` uuid, `usuario_id`, `version_aviso`, `version_consentimiento`, `origen` (`registro`/`inicio_sesion`), `aceptado_en` | `fk_consentimiento_usuario`, `chk_consentimiento_*`, `uq_consentimiento_version` (una fila por versión aceptada); índice `idx_consentimientos_usuario_fecha`. No se edita ni se borra (evidencia). | Bloque 1 |
 | `solicitudes_eliminacion` | `id` uuid, `usuario_id`, `estado` (`pendiente`/`atendida`), `fecha_solicitud`, `atendida_en`, `atendida_por` | `fk_solicitud_usuario`, `fk_solicitud_admin`, `chk_solicitud_estado`, `chk_solicitud_atencion`; índice único parcial `uq_solicitud_pendiente` (una pendiente por usuario) | Bloque 1 |
+| `notas_clinicas` | `id` uuid, `paciente_id`, `especialista_id`, `fecha` (date), `contenido` (1–5000), `version`, `creada_en`, `editada_en` | FK a `usuarios`; índice `idx_notas_par_fecha`. Sin borrado (salvo con la cuenta del paciente). RLS activado sin políticas. | Bloque 2 |
+| `notas_clinicas_versiones` | `id` identity, `nota_id`, `version`, `fecha`, `contenido`, `escrita_en`, `reemplazada_en` | FK a `notas_clinicas` `ON DELETE CASCADE`; `uq_nota_version`; trigger `trg_notas_versiones_inmutables` (sin UPDATE). RLS activado sin políticas. | Bloque 2 |
+| `marcadores_clinicos` | `id` uuid, `paciente_id`, `especialista_id`, `fecha` (timestamptz), `tipo`, `descripcion` (≤ 140), `creado_en` | CHECK de `tipo` (`consulta`, `periodo_examenes`, `evento_personal`, `intervencion`, `otro`); índice `idx_marcadores_par_fecha`. RLS activado sin políticas. | Bloque 2 |
+| `bitacora` | `id` identity, `fecha`, `actor_id`, `actor_rol`, `accion`, `objetivo_id`, `detalle` (jsonb) | CHECK de `accion` (11 acciones) y de `detalle` (objeto); **sin FK** a propósito; 4 índices; triggers `trg_bitacora_sin_update_delete` y `trg_bitacora_sin_truncate` (solo inserción). RLS activado sin políticas. | Bloque 2 |
 
 **La línea base no es una tabla**: se calcula al leer, a partir de `sesiones_medicion` (`linea_base.js`, versión de parámetros `m3-v1`).
 
@@ -123,8 +127,12 @@
 | `cuestionario` (catálogo) + `respuesta_cuestionario` | Una tabla por instrumento: `respuestas_gad7` (versión en columna) y `respuestas_eva` (ligada a la sesión) |
 | `indicacion` (estado enviada/leída/completada) | `ejercicios_asignados` ("visto" derivado de `usuarios.ultima_apertura_ejercicios`) |
 | *(no estaba en el TT1)* | `mensajes_chat` |
-| `nota_clinica`, `regla_evento`, `evento`, `auditoria`, `exportacion_reporte` | No existen. |
-| Políticas RLS (Tabla 65) | RLS desactivado. La autorización equivalente está en el backend. |
+| `nota_clinica` | `notas_clinicas` + `notas_clinicas_versiones` (historial inmutable) |
+| `evento` | `marcadores_clinicos` (los marca el especialista) |
+| `regla_evento` | No existe (no hay eventos automáticos). |
+| `auditoria` | `bitacora` (solo inserción, sin contenido clínico) |
+| `exportacion_reporte` | No es tabla: cada exportación queda en `bitacora` (`accion = 'exportacion'`, con formato, periodo y si fue seudonimizada) |
+| Políticas RLS (Tabla 65) | RLS desactivado en las tablas anteriores; activado **sin políticas** en las 4 del Bloque 2. La autorización está en el backend. |
 | PK UUID en todas las tablas | UUID en todas salvo `usuarios.id`, que es el uid de Firebase (varchar(50)) |
 
 ---
@@ -201,7 +209,23 @@ Sin el consentimiento vigente, `POST /api/sesiones`, `POST /api/sesiones/:id/eva
 | `POST /api/admin/usuarios/:id/suspender` | admin | Suspende: base + Firebase `disabled` + revocación de tokens + cierre de sus sockets. No a sí mismo, nunca cero admins. Idempotente. |
 | `POST /api/admin/usuarios/:id/reactivar` | admin | Reactiva (una eliminada → 409). Idempotente. |
 | `GET /api/admin/solicitudes-eliminacion` | admin | Solicitudes con nombre, correo, estado y fechas (pendientes primero). Sin datos clínicos. |
-| `POST /api/admin/solicitudes-eliminacion/:id/atender` | admin | Ejecuta la eliminación: borra lo clínico y la comunicación, anonimiza la fila y borra la cuenta de Firebase. Solo pacientes; repetirlo reintenta el borrado en Firebase. |
+| `POST /api/admin/solicitudes-eliminacion/:id/atender` | admin | Ejecuta la eliminación: borra lo clínico y la comunicación (también notas y marcadores), anonimiza la fila y borra la cuenta de Firebase. Solo pacientes; repetirlo reintenta el borrado en Firebase. |
+| `GET /api/admin/bitacora?desde&hasta&usuario&accion&antes_de&limite` | admin | Bitácora, más recientes primero, paginada con cursor. Sin contenido clínico. |
+
+### Herramientas del especialista (Bloque 2, `backend/especialista.js`, montado en `/api/pacientes`)
+
+Solo el especialista vinculado actual (paciente y admin → 403); todo filtrado por el par paciente–especialista.
+
+| Método y ruta | Quién | Qué hace |
+|---|---|---|
+| `GET /api/pacientes/:id/notas` | especialista vinculado | Notas del par en su versión vigente, por fecha clínica |
+| `POST /api/pacientes/:id/notas` | especialista vinculado | Crea una nota `{ fecha, contenido }` (y su entrada en la bitácora) |
+| `PUT /api/pacientes/:id/notas/:notaId` | especialista vinculado | Edita con `version`; guarda la anterior. Versión vieja → 409 `nota_desactualizada` |
+| `GET /api/pacientes/:id/notas/:notaId/versiones` | especialista vinculado | Versiones anteriores de la nota |
+| `GET /api/pacientes/:id/marcadores` | especialista vinculado | Marcadores del par |
+| `POST /api/pacientes/:id/marcadores` | especialista vinculado | Crea `{ fecha, tipo, descripcion? }` |
+| `DELETE /api/pacientes/:id/marcadores/:marcadorId` | su autor | Lo borra (queda en la bitácora) |
+| `GET /api/pacientes/:id/reporte?desde&hasta&formato&seudonimizado` | especialista vinculado | Datos del periodo para el CSV o el PDF; registra la exportación antes de responder |
 
 ### Socket.io (mismo servidor, token en el handshake)
 
@@ -210,7 +234,7 @@ Sin el consentimiento vigente, `POST /api/sesiones`, `POST /api/sesiones/:id/eva
 | `enviar_mensaje` | cliente → servidor | Valida el vínculo y guarda el mensaje. El servidor pone `remitente_id` y `especialista_id`. Responde por ack `{ ok, error }`. |
 | `recibir_mensaje` | servidor → clientes | Se emite solo a las salas `usuario:<paciente>` y `usuario:<especialista vinculado>` |
 
-**Total: 33 rutas REST** (27 en `server.js` + 6 en `admin.js`) **y 2 eventos de Socket.io.**
+**Total: 42 rutas REST** (27 en `server.js` + 7 en `admin.js` + 8 en `especialista.js`) **y 2 eventos de Socket.io.**
 
 ---
 
@@ -237,7 +261,7 @@ Sin el consentimiento vigente, `POST /api/sesiones`, `POST /api/sesiones/:id/eva
 | Acceso | `Login.js`, `RegistroEspecialista.js`, `RecuperarPassword.js` (`ui/AuthLayout.js`) | Login, registro con código de institución, restablecer contraseña (`continueUrl` al dominio publicado) |
 | Dashboard | `Dashboard.js` | KPIs de actividad, estado de la última sesión (barra apilada), tabla de pacientes |
 | Pacientes | `PacientesList.js`, `PacientesComun.js` | Tabla con búsqueda y filtro, columnas de estado y GAD-7 |
-| Detalle del paciente | `PacienteDetalle.js` + `SesionesPaciente.js`, `SesionDetalle.js`, `Gad7Paciente.js`, `EjerciciosPaciente.js`, `ChatPaciente.js` | Encabezado; línea base por origen; gráfica HRV/FC por sesión; tabla de sesiones con estado, calidad y EVA; detalle de una sesión; GAD-7; ejercicios; chat en vivo |
+| Detalle del paciente | `PacienteDetalle.js` + `SesionesPaciente.js`, `MarcadoresPanel.js`, `SesionDetalle.js`, `Gad7Paciente.js`, `NotasPaciente.js`, `EjerciciosPaciente.js`, `ExportarReporte.js` (+ `ReporteImpresion.js`), `ChatPaciente.js` | Encabezado; línea base por origen; gráfica HRV/FC con eje de tiempo y marcadores clínicos; tabla de sesiones con estado, calidad y EVA; detalle de una sesión; GAD-7; notas clínicas con historial; ejercicios; exportar reporte (CSV / imprimir-PDF, con o sin seudonimizar); chat en vivo |
 | Mi perfil | `PerfilEspecialista.js`, `CodigoVinculacion.js` | Nombre, código de vinculación con botón copiar, cambio de contraseña |
 
 ### 5.3 Portal web — administrador (`AdminApp.js`)
@@ -246,6 +270,7 @@ Sin el consentimiento vigente, `POST /api/sesiones`, `POST /api/sesiones/:id/eva
 |---|---|---|
 | Usuarios | `AdminUsuarios.js`, `EditarUsuario.js` | Lista de cuentas con rol, estado, vínculo y "Solicitó eliminación"; edición de nombre, correo y especialista; "Estado de la cuenta" con Suspender / Reactivar (con confirmación) |
 | Solicitudes de eliminación | `AdminSolicitudes.js` | Lista con contador en el sidebar; "Atender" muestra qué se borra y qué se conserva, y pide escribir el correo de la cuenta |
+| Bitácora | `AdminBitacora.js` | Filtros (desde, hasta, usuario, acción), tabla de quién, qué, sobre quién y cuándo, y "Cargar más" |
 | Mi perfil | `PerfilEspecialista.js` (reusado) | — |
 
 ---
@@ -282,9 +307,9 @@ Sin el consentimiento vigente, `POST /api/sesiones`, `POST /api/sesiones/:id/eva
 
 ## 7. Suites de pruebas
 
-### 7.1 Pruebas automatizadas (contadas en los archivos, 2026-11-03)
+### 7.1 Pruebas automatizadas (contadas en los archivos, 2026-11-04)
 
-**Backend — `node --test` (`npm test` en `backend/`): 82 pruebas**
+**Backend — `node --test` (`npm test` en `backend/`): 131 pruebas**
 
 | Archivo | Pruebas | Qué cubre |
 |---|---:|---|
@@ -294,9 +319,14 @@ Sin el consentimiento vigente, `POST /api/sesiones`, `POST /api/sesiones/:id/eva
 | `linea_base_vista.test.js` | 8 | El paciente nunca recibe la etiqueta ni la banda |
 | `cuentas.test.js` | 13 | Bloqueo de cuentas suspendidas o eliminadas; candados de suspensión (propia, último admin, eliminada); código en los errores |
 | `consentimiento.test.js` | 10 | Versión vigente, validación, 403 `consentimiento_requerido`, qué ve cada rol |
-| `eliminacion.test.js` | 9 | Qué se borra (6 tablas, en orden de FK), qué se conserva, lápida anónima, solo pacientes |
+| `eliminacion.test.js` | 9 | Qué se borra (8 tablas, en orden de FK, incluidas notas y marcadores), qué se conserva (también la bitácora), lápida anónima, solo pacientes |
+| `bitacora.test.js` | 22 | Claves permitidas por acción (ninguna de contenido clínico), dedupe de accesos, filtros y paginación de la consulta del admin |
+| `notas.test.js` | 7 | Validación (fecha no futura en día de México, 1–5000 caracteres reales), control de versión (409), SQL por el par y sin DELETE |
+| `marcadores.test.js` | 4 | Tipos D4, fecha ISO con zona y no futura, descripción ≤ 140, SQL por el par |
+| `reporte.test.js` | 5 | Seudónimo `P-` + SHA-256, periodo ≤ 366 días, versión seudonimizada sin nombre, correo, especialista ni texto libre |
+| `especialista.test.js` | 11 | Rutas con base falsa: 403 a paciente, admin y otro especialista; bitácora en la misma transacción; ROLLBACK si falla; 409/404/400 |
 
-**Portal — Jest (`npm test` en `web_portal/`): 61 pruebas**
+**Portal — Jest (`npm test` en `web_portal/`): 94 pruebas**
 
 | Archivo | Pruebas | Qué cubre |
 |---|---:|---|
@@ -307,6 +337,14 @@ Sin el consentimiento vigente, `POST /api/sesiones`, `POST /api/sesiones/:id/eva
 | `ui/components.test.js` | 3 | Tono de avatar estable por identidad |
 | `cuentas.test.js` | 6 | Reconocer el 403 de cuenta bloqueada, aviso de cierre, qué acción de estado se ofrece |
 | `solicitudes.test.js` | 5 | Conteo de pendientes, confirmación con el correo, qué se borra y qué se conserva |
+| `bitacora.test.js` | 8 | Textos de acción y detalle (nunca claves inesperadas), parámetros de consulta |
+| `AdminBitacora.test.js` | 1 | Render de la bitácora: un `contenido` inesperado no se muestra |
+| `notas.test.js` | 7 | Día local, texto de fechas sin corrimiento, validación del borrador, mensajes de error |
+| `NotasPaciente.test.js` | 2 | Lista e historial; editar manda la versión, un 409 recarga y conserva el borrador |
+| `marcadores.test.js` | 6 | Tipos D4, marcadores en la gráfica, dominio y marcas del eje de tiempo, `datetime-local` |
+| `MarcadoresPanel.test.js` | 2 | Agregar (fecha ISO) y borrar con confirmación |
+| `reporte.test.js` | 5 | CSV largo con BOM, sin inyección de fórmulas, versión seudonimizada, nombre de archivo |
+| `ExportarReporte.test.js` | 2 | Imprimir pide la versión seudonimizada y la vista no trae el nombre; periodo inválido |
 
 **App — `flutter test` (`app_ansiedad/`): 208 pruebas** (183 declaradas + 25 generadas en bucles)
 
@@ -329,13 +367,13 @@ Sin el consentimiento vigente, `POST /api/sesiones`, `POST /api/sesiones/:id/eva
 | `eliminar_cuenta_test.dart` | 9 | Solicitud de eliminación: enviar, pendiente sin cancelar, errores, textos |
 | `cuenta_bloqueada_test.dart` | 6 | Reconocer el 403 de cuenta suspendida o eliminada |
 
-**Total automatizado: 351 pruebas** (82 + 61 + 208).
+**Total automatizado: 433 pruebas** (131 + 94 + 208).
 
-Resultado de la última corrida (2026-11-04, Bloque 1, sobre el commit `4b6ef04`):
+Resultado de la última corrida (2026-11-04, Bloque 2, sobre el commit `c469e89`):
 
-- backend `npm test` 82/82;
-- portal `npm test` 61/61 (`npm run build` sin avisos);
-- app `flutter test` 208/208 (`flutter analyze` con los 11 avisos conocidos, ninguno nuevo).
+- backend `npm test` 131/131;
+- portal `npm test` 94/94 (`npm run build` sin avisos);
+- app: sin cambios en el Bloque 2 (última corrida, Bloque 1: `flutter test` 208/208).
 
 ### 7.2 Pruebas por comando contra el backend (PowerShell)
 
@@ -344,6 +382,7 @@ Resultado de la última corrida (2026-11-04, Bloque 1, sobre el commit `4b6ef04`
 | `backend/pruebas/prueba_sesiones.ps1` | Sesiones (validación, roles, `indice_calidad` oculto, detalle 404/400), EVA (13 casos, incluida la ventana de 15 min y el 409), `/api/pacientes` (`ultima_sesion`, `sesiones_7d`, estado), línea base por rol. 49 llamadas a `Caso`. | **47 OK / 0 FALLA** (2026-10-23, regresión de M5a) |
 | `backend/pruebas/prueba_gad7.ps1` | GAD-7 por rol, validación (casos en bucle), sin vínculo (403), **carrera real 201/409**, 409 con fecha, `ultimo_gad7_*`, regla de oro en vivo. 17 llamadas a `Caso`, algunas dentro de bucles. | **21 OK / 0 FALLA** (2026-10-23, local) |
 | `backend/pruebas/prueba_cuentas.ps1` | Bloque 1. Sección 1: suspender / reactivar (roles, candados, 403 con el token vigente, Firebase `USER_DISABLED`, código de un especialista suspendido). Sección 2: consentimiento (bloqueo de las 4 rutas de captura, versiones, registro con consentimiento en la misma transacción). Sección 3: solicitud y atención de la eliminación (lápida, token vigente → 403, idempotencia). Crea pacientes desechables `@example.com`. 58 llamadas a `Caso`. | **Pendiente de correr** (antes del push) |
+| `backend/pruebas/prueba_especialista.ps1` | Bloque 2. Sección 1: quién entra a notas, marcadores y reporte (paciente, otro paciente, admin y especialista no vinculado → 403). Sección 2: notas (validación, versión 1 → 2, 409 con versión vieja, sin cambios no versiona, historial). Sección 3: marcadores (tipos D4, fecha futura o sin zona → 400, borrar solo el autor, 404 al repetir). Sección 4: reporte con y sin seudonimizar (sin nombre, correo, uid ni texto libre; seudónimo estable). Sección 5: bitácora como admin (cada acción quedó, sin contenido clínico, los 403 no se registran, filtros). 40 llamadas a `Caso` (50 casos; 55 con el especialista F opcional). | **Pendiente de correr** (antes del push) |
 | `backend/pruebas/comun.ps1` | Funciones compartidas (`Obtener-Cuenta`, `Login-Firebase`, `Llamar`, `Caso`, `Exigir-Consentimiento`…) | — |
 | `backend/pruebas/semilla_m3.js`, `semilla_gad7.js` (+ `consentimiento_prueba.js`) | Generan SQL de datos de prueba (cuentas `PRUEBA`) y su limpieza; desde el Bloque 1 incluyen el consentimiento de las cuentas `PRUEBA` | — |
 
@@ -424,6 +463,10 @@ Sugerencia: guardarlas en `docs/tesis/capturas/`.
 | 40 | `web_13_chat.png` | Chat en vivo con el paciente |
 | 41 | `web_14_perfil.png` | Mi perfil: código de vinculación y cambio de contraseña |
 | 42 | `web_15_responsive.png` | Vista angosta (< 860 px) |
+| 65 | `web_23_grafica_marcadores.png` | Gráfica HRV/FC con la franja y un marcador numerado, y la lista de marcadores |
+| 66 | `web_24_notas_historial.png` | Notas clínicas con una nota editada y su historial abierto |
+| 67 | `web_25_exportar_reporte.png` | Tarjeta "Exportar reporte" (periodo y casilla Seudonimizado) |
+| 68 | `web_26_reporte_pdf.png` | Vista de impresión del reporte (o el PDF guardado), con identificación y seudonimizado |
 
 ### Portal web — administrador
 
@@ -435,6 +478,7 @@ Sugerencia: guardarlas en `docs/tesis/capturas/`.
 | 56 | `web_19_admin_solicitudes.png` | Solicitudes de eliminación con el contador del sidebar |
 | 57 | `web_20_admin_atender.png` | Confirmación de "Atender" (qué se borra / se conserva, correo escrito) |
 | 58 | `web_21_login_cuenta_suspendida.png` | Login del portal con el aviso de cuenta suspendida |
+| 64 | `web_22_admin_bitacora.png` | Bitácora con filtros y entradas de nota, marcador y exportación |
 
 ### Infraestructura y pruebas (evidencia para los capítulos de implementación y pruebas)
 

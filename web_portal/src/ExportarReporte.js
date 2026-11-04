@@ -107,8 +107,8 @@ function ExportarReporte({ paciente }) {
       <div style={{ marginTop: 16 }}>
         <Disclaimer icon={ShieldCheck}>
           Cada exportación queda registrada en la bitácora. La versión seudonimizada cambia el nombre por un
-          identificador (P-…) y quita el texto libre, pero conserva las fechas: no es anónima. Para guardar el
-          PDF, elige "Guardar como PDF" en el diálogo de impresión.
+          identificador (P-…) y quita el texto libre; conserva las fechas, y el identificador se puede recalcular
+          a partir de la cuenta. Para guardar el PDF, elige "Guardar como PDF" en el diálogo de impresión.
         </Disclaimer>
       </div>
 
