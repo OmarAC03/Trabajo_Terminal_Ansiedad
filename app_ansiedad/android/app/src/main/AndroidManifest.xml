@@ -7,6 +7,10 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <!-- Notificaciones (Bloque 3): permiso en tiempo de ejecucion en Android 13+. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Recordatorio local del GAD-7: el receiver de arranque del plugin lo
+         vuelve a programar tras reiniciar. Sin SCHEDULE_EXACT_ALARM ni
+         USE_EXACT_ALARM: la programacion es inexacta (inexactAllowWhileIdle). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     
     
     <application
@@ -40,6 +44,21 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- flutter_local_notifications: disparo de lo programado y
+             reprogramacion al arrancar el telefono o al actualizar la app. -->
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
         <!-- FCM (Bloque 3): icono pequeno (silueta blanca de la mascota), su
              color y el canal que crea la app (NotificacionesLocales.canalAvisos). -->
         <meta-data

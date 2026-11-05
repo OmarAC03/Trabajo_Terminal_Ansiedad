@@ -7,6 +7,7 @@ import '../providers/cuestionario_gad7_provider.dart';
 import '../repositories/gad7_repository.dart';
 import '../ui/app_colors.dart';
 import '../ui/widgets.dart';
+import '../notificaciones/recordatorio_gad7.dart';
 
 /// Cuestionario GAD-7 quincenal (Fase M5a): introducción → 7 preguntas (una
 /// por pantalla, avanza sola al elegir) → dificultad (solo si marcó algún
@@ -23,7 +24,7 @@ class Gad7Screen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => CuestionarioGad7Provider(repo: repo),
+      create: (_) => CuestionarioGad7Provider(repo: repo, recordatorio: RecordatorioGad7.instancia),
       child: const _Gad7View(),
     );
   }

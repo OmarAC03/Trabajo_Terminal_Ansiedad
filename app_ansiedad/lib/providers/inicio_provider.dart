@@ -3,6 +3,7 @@ import '../app_config.dart';
 import '../logger.dart';
 import '../models/calibracion.dart';
 import '../models/gad7.dart';
+import '../notificaciones/recordatorio_gad7.dart';
 import '../models/sesion_resumen.dart';
 import '../repositories/gad7_repository.dart';
 import '../repositories/sesion_repository.dart';
@@ -20,13 +21,22 @@ class InicioProvider extends ChangeNotifier {
   final String pacienteId;
   final SesionRepository _repo;
   final Gad7Repository _gad7Repo;
+  final RecordatorioGad7? _recordatorio;
 
   final Listenable? _aviso;
 
   /// Con [aviso], se recarga solo cuando se guarda una sesión nueva.
-  InicioProvider({required this.pacienteId, SesionRepository? repo, Gad7Repository? gad7Repo, Listenable? aviso})
-      : _repo = repo ?? SesionRepository(),
+  /// [recordatorio]: el recordatorio local del GAD-7 (Bloque 3); en las
+  /// pruebas se omite y no se programa nada.
+  InicioProvider({
+    required this.pacienteId,
+    SesionRepository? repo,
+    Gad7Repository? gad7Repo,
+    Listenable? aviso,
+    RecordatorioGad7? recordatorio,
+  })  : _repo = repo ?? SesionRepository(),
         _gad7Repo = gad7Repo ?? Gad7Repository(),
+        _recordatorio = recordatorio,
         _aviso = aviso {
     _aviso?.addListener(cargar);
   }
@@ -98,6 +108,9 @@ class InicioProvider extends ChangeNotifier {
   Future<void> _cargarGad7() async {
     try {
       _gad7 = await _gad7Repo.obtenerEstado(pacienteId);
+      // Reprograma el recordatorio con el estado real (o lo cancela si ya no
+      // tiene especialista). Si no se pudo cargar, se deja como estaba.
+      await _recordatorio?.actualizar(_gad7);
     } catch (e) {
       _gad7 = null;
       AppLogger.warning('No se pudo cargar el estado del GAD-7', tag: 'inicio', error: e);

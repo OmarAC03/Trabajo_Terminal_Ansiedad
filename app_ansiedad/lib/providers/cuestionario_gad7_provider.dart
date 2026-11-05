@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../logger.dart';
 import '../models/gad7.dart';
 import '../repositories/gad7_repository.dart';
+import '../notificaciones/recordatorio_gad7.dart';
 
 enum FaseGad7 { intro, pregunta, dificultad, enviando, gracias, error }
 
@@ -14,7 +15,12 @@ enum FaseGad7 { intro, pregunta, dificultad, enviando, gracias, error }
 class CuestionarioGad7Provider extends ChangeNotifier {
   final Gad7Repository _repo;
 
-  CuestionarioGad7Provider({Gad7Repository? repo}) : _repo = repo ?? Gad7Repository();
+  final RecordatorioGad7? _recordatorio;
+
+  /// [recordatorio]: al responder se programa el del siguiente (Bloque 3).
+  CuestionarioGad7Provider({Gad7Repository? repo, RecordatorioGad7? recordatorio})
+      : _repo = repo ?? Gad7Repository(),
+        _recordatorio = recordatorio;
 
   FaseGad7 _fase = FaseGad7.intro;
   FaseGad7 get fase => _fase;
@@ -115,6 +121,7 @@ class CuestionarioGad7Provider extends ChangeNotifier {
       final respuesta = RespuestaGad7(items: _respuestas.cast<int>(), dificultad: _dificultad);
       _resultado = await _repo.enviar(respuesta);
       _fase = FaseGad7.gracias;
+      await _recordatorio?.trasResponder();
     } on RepositoryException catch (e) {
       _error = e.mensaje;
       _fase = FaseGad7.error;

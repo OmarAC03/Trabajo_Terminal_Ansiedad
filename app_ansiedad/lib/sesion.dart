@@ -4,6 +4,7 @@ import 'auth_gate.dart';
 import 'cuenta_bloqueada.dart';
 import 'logger.dart';
 import 'notificaciones/servicio_push.dart';
+import 'notificaciones/recordatorio_gad7.dart';
 
 /// Cierre de sesión forzado desde fuera de las pantallas (Bloque 1, paso 1).
 ///
@@ -32,6 +33,7 @@ class Sesion {
   /// sesión para llamar al backend) y después se cierra la de Firebase.
   static Future<void> cerrarSesionUsuario() async {
     await ServicioPush.instancia.cerrarSesion();
+    await RecordatorioGad7.instancia.cancelarTodo();
     await FirebaseAuth.instance.signOut();
   }
 
@@ -44,6 +46,7 @@ class Sesion {
       _avisoCierre = mensajesBloqueo[codigo];
       // El backend ya borró sus tokens al suspender o eliminar la cuenta.
       await ServicioPush.instancia.limpiarPorBloqueo();
+      await RecordatorioGad7.instancia.cancelarTodo();
       await FirebaseAuth.instance.signOut();
       navigatorKey.currentState?.pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const AuthGate()),

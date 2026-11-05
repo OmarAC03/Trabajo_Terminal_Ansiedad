@@ -22,6 +22,7 @@ import '../ui/progreso_calibracion.dart';
 import '../ui/widgets.dart';
 import 'gad7_screen.dart';
 import 'medicion_screen.dart';
+import '../notificaciones/recordatorio_gad7.dart';
 
 /// Pantalla principal del paciente (Fase M1c). Reemplaza al Monitor en vivo:
 /// muestra la ÚLTIMA sesión guardada (no lecturas en vivo), explica cada
@@ -43,7 +44,11 @@ class InicioScreen extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AlertaProvider()),
         // Se recarga sola al guardarse una sesión nueva (AvisoSesiones).
         ChangeNotifierProvider(
-          create: (_) => InicioProvider(pacienteId: uid, aviso: AvisoSesiones.guardadas)..cargar(),
+          create: (_) => InicioProvider(
+            pacienteId: uid,
+            aviso: AvisoSesiones.guardadas,
+            recordatorio: RecordatorioGad7.instancia,
+          )..cargar(),
         ),
       ],
       child: const _InicioView(),
