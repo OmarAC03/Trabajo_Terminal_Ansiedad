@@ -7,6 +7,7 @@ import '../sesion.dart';
 import '../notificaciones/servicio_push.dart';
 import 'vinculacion_screen.dart';
 import 'eliminar_cuenta_screen.dart';
+import 'cambiar_password_screen.dart';
 import 'consentimiento_screen.dart';
 import '../app_config.dart';
 import '../avatar_widgets.dart';
@@ -166,7 +167,7 @@ class _PerfilView extends StatelessWidget {
                         ],
                         _buildTarjetaPerfil(context, p),
                         const SizedBox(height: 20),
-                        _buildSeccionCuenta(p),
+                        _buildSeccionCuenta(context, p),
                         if (p.rol == 'paciente') ...[
                           const SizedBox(height: 20),
                           _buildSeccionEspecialista(context),
@@ -263,10 +264,18 @@ class _PerfilView extends StatelessWidget {
     );
   }
 
-  Widget _buildSeccionCuenta(PerfilProvider p) {
+  Widget _buildSeccionCuenta(BuildContext context, PerfilProvider p) {
     return _buildSeccion("Cuenta", [
       _buildFila(Icons.email_outlined, "Correo electrónico", p.email),
       _buildFila(Icons.badge_outlined, "Tipo de cuenta", p.rol == 'especialista' ? "Especialista" : "Paciente"),
+      // Bloque 3 (HU10 CA4).
+      _buildFilaNavegable(
+        context,
+        Icons.lock_reset_outlined,
+        "Cambiar contraseña",
+        AppColors.primario,
+        const CambiarPasswordScreen(),
+      ),
     ]);
   }
 
