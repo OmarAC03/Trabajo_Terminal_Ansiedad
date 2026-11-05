@@ -59,18 +59,22 @@ function tokensAInvalidar(tokens, respuesta) {
   });
 }
 
-/** Errores que no invalidan el token, agrupados por código (para el log). */
-function otrosErrores(tokens, respuesta) {
+// Fallos agrupados por código de FCM (para el log), los que invalidan el
+// token o los demás.
+function contarCodigos(tokens, respuesta, invalidantes) {
   const codigos = {};
   tokens.forEach((_, i) => {
     const r = respuesta?.responses?.[i];
-    if (r && !r.success && !CODIGOS_TOKEN_INVALIDO.includes(r.error?.code)) {
+    if (r && !r.success && CODIGOS_TOKEN_INVALIDO.includes(r.error?.code) === invalidantes) {
       const codigo = r.error?.code || 'desconocido';
       codigos[codigo] = (codigos[codigo] || 0) + 1;
     }
   });
   return codigos;
 }
+
+/** Errores que no invalidan el token, agrupados por código (para el log). */
+const otrosErrores = (tokens, respuesta) => contarCodigos(tokens, respuesta, false);
 
 // Para el log: nunca el token completo.
 const colaToken = (token) => `…${String(token).slice(-6)}`;
@@ -108,7 +112,7 @@ function crearNotificador({ pool, messaging, logger }) {
         await pool.query(BORRAR_TOKENS, [invalidos]);
         resumen.invalidados = invalidos.length;
         logger.info('Push: tokens rechazados por FCM, borrados', {
-          paciente_id: pacienteId, tokens: invalidos.map(colaToken),
+          paciente_id: pacienteId, tokens: invalidos.map(colaToken), codigos: contarCodigos(tokens, respuesta, true),
         });
       }
       const otros = otrosErrores(tokens, respuesta);

@@ -14,7 +14,7 @@
     
     
     <application
-        android:label="app_ansiedad"
+        android:label="Monitor ESCOM"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

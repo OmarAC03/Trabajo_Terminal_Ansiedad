@@ -107,3 +107,13 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Icono de la app (Bloque 3, D6): la mascota avatar_feliz. Se regenera con
+#   dart run tool/generar_icono_launcher.dart && dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: false
+  image_path: "assets/mascota/3.0x/avatar_feliz.png"
+  adaptive_icon_background: "#EAF3FE"
+  adaptive_icon_foreground: "tool/icono/icono_primer_plano.png"
+  min_sdk_android: 24
