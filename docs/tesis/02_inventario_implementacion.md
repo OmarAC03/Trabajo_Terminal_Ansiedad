@@ -108,6 +108,7 @@
 | `notas_clinicas` | `id` uuid, `paciente_id`, `especialista_id`, `fecha` (date), `contenido` (1–5000), `version`, `creada_en`, `editada_en` | FK a `usuarios`; índice `idx_notas_par_fecha`. Sin borrado (salvo con la cuenta del paciente). RLS activado sin políticas. | Bloque 2 |
 | `notas_clinicas_versiones` | `id` identity, `nota_id`, `version`, `fecha`, `contenido`, `escrita_en`, `reemplazada_en` | FK a `notas_clinicas` `ON DELETE CASCADE`; `uq_nota_version`; trigger `trg_notas_versiones_inmutables` (sin UPDATE). RLS activado sin políticas. | Bloque 2 |
 | `marcadores_clinicos` | `id` uuid, `paciente_id`, `especialista_id`, `fecha` (timestamptz), `tipo`, `descripcion` (≤ 140), `creado_en` | CHECK de `tipo` (`consulta`, `periodo_examenes`, `evento_personal`, `intervencion`, `otro`); índice `idx_marcadores_par_fecha`. RLS activado sin políticas. | Bloque 2 |
+| `dispositivos_push` | `token` (PK, 20–4096), `usuario_id`, `plataforma` (`android`), `creado_en`, `actualizado_en` | FK a `usuarios` `ON DELETE CASCADE`; índice `idx_dispositivos_usuario`; máx. 5 por cuenta (backend). Se borran al cerrar sesión, al suspender, al eliminar y cuando FCM da el token por inexistente. RLS activado sin políticas. | Bloque 3 |
 | `bitacora` | `id` identity, `fecha`, `actor_id`, `actor_rol`, `accion`, `objetivo_id`, `detalle` (jsonb) | CHECK de `accion` (11 acciones) y de `detalle` (objeto); **sin FK** a propósito; 4 índices; triggers `trg_bitacora_sin_update_delete` y `trg_bitacora_sin_truncate` (solo inserción). RLS activado sin políticas. | Bloque 2 |
 
 **La línea base no es una tabla**: se calcula al leer, a partir de `sesiones_medicion` (`linea_base.js`, versión de parámetros `m3-v1`).
@@ -227,6 +228,16 @@ Solo el especialista vinculado actual (paciente y admin → 403); todo filtrado 
 | `DELETE /api/pacientes/:id/marcadores/:marcadorId` | su autor | Lo borra (queda en la bitácora) |
 | `GET /api/pacientes/:id/reporte?desde&hasta&formato&seudonimizado` | especialista vinculado | Datos del periodo para el CSV o el PDF; registra la exportación antes de responder |
 
+### Notificaciones push (Bloque 3, en `server.js`)
+
+| Método y ruta | Quién | Qué hace |
+|---|---|---|
+| `PUT /api/dispositivos` | paciente | Registra el token de FCM del teléfono (si era de otra cuenta, pasa a esta; máx. 5) |
+| `DELETE /api/dispositivos` | paciente | Borra un token propio (al cerrar sesión); 204 aunque no exista |
+| `GET /api/dispositivos` | paciente | `{ registrados }` (nunca los tokens) |
+
+Envío: después de guardar un mensaje del especialista o un ejercicio, `notificaciones.js` manda por FCM un texto fijo por tipo (nunca el contenido). El recordatorio del GAD-7 no pasa por el backend: lo programa la app.
+
 ### Socket.io (mismo servidor, token en el handshake)
 
 | Evento | Dirección | Qué hace |
@@ -234,7 +245,7 @@ Solo el especialista vinculado actual (paciente y admin → 403); todo filtrado 
 | `enviar_mensaje` | cliente → servidor | Valida el vínculo y guarda el mensaje. El servidor pone `remitente_id` y `especialista_id`. Responde por ack `{ ok, error }`. |
 | `recibir_mensaje` | servidor → clientes | Se emite solo a las salas `usuario:<paciente>` y `usuario:<especialista vinculado>` |
 
-**Total: 42 rutas REST** (27 en `server.js` + 7 en `admin.js` + 8 en `especialista.js`) **y 2 eventos de Socket.io.**
+**Total: 45 rutas REST** (30 en `server.js` + 7 en `admin.js` + 8 en `especialista.js`) **y 2 eventos de Socket.io.**
 
 ---
 
@@ -245,6 +256,7 @@ Solo el especialista vinculado actual (paciente y admin → 403); todo filtrado 
 | Pestaña / flujo | Pantalla(s) | Contenido |
 |---|---|---|
 | Acceso | `login_screen.dart`, `registro_screen.dart`, `recuperar_password_screen.dart` (+ `auth_gate.dart`) | Login con error genérico (y aviso si el servidor cerró la sesión por cuenta suspendida o eliminada), registro transaccional con la casilla del aviso de privacidad, restablecer contraseña |
+| Notificaciones (Bloque 3) | Hoja "¿Activar avisos?" en `main_layout.dart` (una sola vez); `lib/notificaciones/` | Explica para qué son (nunca muestran el contenido) antes del permiso de Android 13+. Tocar una notificación abre Mensajes, Técnicas o Inicio. Recordatorio local del GAD-7 a las 10:00 del día que toca. Icono "Monitor ESCOM" con la mascota. |
 | Puerta de consentimiento | `consentimiento_screen.dart` (dentro de `auth_gate.dart`) | Si el paciente no aceptó la versión vigente: aviso de privacidad + consentimiento (BORRADOR), dos casillas, "Aceptar y continuar" o "Cerrar sesión". Sin aceptar no ve la app. |
 | **Inicio** | `inicio_screen.dart` | Saludo, selector Simulación / Sensor, estado de la conexión, botón "Iniciar medición", última sesión con explicación de cada indicador, mascota de calibración ("día X de 7"), tarjeta del GAD-7 cuando le toca, disclaimer |
 | Medición (pantalla completa) | `medicion_screen.dart` | Preparación → captura (anillo de progreso y guía, sin valores en vivo) → EVA 0–10 + contexto → resultado (promedios, sin semáforo) → envío / reintentar |
@@ -252,7 +264,7 @@ Solo el especialista vinculado actual (paciente y admin → 403); todo filtrado 
 | **Historial** | `historial_screen.dart`, `sesion_detalle_screen.dart` | Sesiones agrupadas por día; detalle con gráficas de la serie y la EVA |
 | **Mensajes** | `mensajes_screen.dart` | Chat con el especialista (o aviso + "Vincular especialista") |
 | **Técnicas** | `tecnicas_screen.dart`, `ejercicios_asignados_screen.dart` | 4 técnicas con animación, voz y música; tarjeta de ejercicios asignados con badge |
-| **Perfil** | `perfil_screen.dart`, `vinculacion_screen.dart`, `eliminar_cuenta_screen.dart` | Avatar, nombre, rol, especialista vinculado, Privacidad (releer el aviso, "Eliminar mi cuenta"), "Acerca de la app", cerrar sesión |
+| **Perfil** | `perfil_screen.dart`, `vinculacion_screen.dart`, `eliminar_cuenta_screen.dart`, `cambiar_password_screen.dart` | Avatar, nombre, rol, "Cambiar contraseña" (Bloque 3), especialista vinculado, Notificaciones (estado y Activar, Bloque 3), Privacidad (releer el aviso, "Eliminar mi cuenta"), "Acerca de la app", cerrar sesión |
 
 ### 5.2 Portal web — especialista (`App.js`, `ui/Layout.js`)
 
@@ -309,7 +321,7 @@ Solo el especialista vinculado actual (paciente y admin → 403); todo filtrado 
 
 ### 7.1 Pruebas automatizadas (contadas en los archivos, 2026-11-04)
 
-**Backend — `node --test` (`npm test` en `backend/`): 132 pruebas**
+**Backend — `node --test` (`npm test` en `backend/`): 144 pruebas**
 
 | Archivo | Pruebas | Qué cubre |
 |---|---:|---|
@@ -324,6 +336,8 @@ Solo el especialista vinculado actual (paciente y admin → 403); todo filtrado 
 | `notas.test.js` | 7 | Validación (fecha no futura en día de México, 1–5000 caracteres reales), control de versión (409), SQL por el par y sin DELETE |
 | `marcadores.test.js` | 4 | Tipos D4, fecha ISO con zona y no futura, descripción ≤ 140, SQL por el par |
 | `reporte.test.js` | 5 | Seudónimo `P-` + SHA-256, periodo ≤ 366 días, versión seudonimizada sin nombre, correo, especialista ni texto libre |
+| `notificaciones.test.js` | 8 | Regla de oro (texto fijo, el contenido nunca se envía), solo se borran los tokens con los dos códigos de FCM, errores de red o FCM no lanzan, el log no lleva tokens completos |
+| `dispositivos.test.js` | 4 | Validación del token, reasignación entre cuentas, tope de 5, borrar solo lo propio |
 | `especialista.test.js` | 11 | Rutas con base falsa: 403 a paciente, admin y otro especialista; bitácora en la misma transacción; ROLLBACK si falla; 409/404/400 |
 
 **Portal — Jest (`npm test` en `web_portal/`): 94 pruebas**
@@ -346,7 +360,7 @@ Solo el especialista vinculado actual (paciente y admin → 403); todo filtrado 
 | `reporte.test.js` | 5 | CSV largo con BOM, sin inyección de fórmulas, versión seudonimizada, nombre de archivo |
 | `ExportarReporte.test.js` | 2 | Imprimir pide la versión seudonimizada y la vista no trae el nombre; periodo inválido |
 
-**App — `flutter test` (`app_ansiedad/`): 208 pruebas** (183 declaradas + 25 generadas en bucles)
+**App — `flutter test` (`app_ansiedad/`): 233 pruebas** (208 declaradas + 25 generadas en bucles)
 
 | Archivo | Pruebas | Qué cubre |
 |---|---:|---|
@@ -366,14 +380,17 @@ Solo el especialista vinculado actual (paciente y admin → 403); todo filtrado 
 | `consentimiento_test.dart` | 12 | Puerta de consentimiento (pide, deja pasar, error → Reintentar), casillas, versiones iguales al backend, borrador |
 | `eliminar_cuenta_test.dart` | 9 | Solicitud de eliminación: enviar, pendiente sin cancelar, errores, textos |
 | `cuenta_bloqueada_test.dart` | 6 | Reconocer el 403 de cuenta suspendida o eliminada |
+| `notificaciones_push_test.dart` | 9 | Pestaña por tipo, registro del token y sus renovaciones, explicación una sola vez, orden al cerrar sesión (backend y luego FCM), cuenta bloqueada |
+| `recordatorio_gad7_test.dart` | 10 | 10:00 del día que toca y +3 días, vencimiento guardado (no se recorre), sin especialista nada, tras responder +14, cancelar al cerrar sesión |
+| `cambiar_password_test.dart` | 6 | Reglas del portal, mensajes de Firebase, pantalla con error y con éxito |
 
-**Total automatizado: 434 pruebas** (132 + 94 + 208).
+**Total automatizado: 471 pruebas** (144 + 94 + 233).
 
-Resultado de la última corrida (2026-11-04, Bloque 2, sobre el commit `c469e89`):
+Resultado de la última corrida (2026-11-05, Bloque 3, sobre el commit `e69b6a8`):
 
-- backend `npm test` 132/132;
-- portal `npm test` 94/94 (`npm run build` sin avisos);
-- app: sin cambios en el Bloque 2 (última corrida, Bloque 1: `flutter test` 208/208).
+- backend `npm test` 144/144;
+- portal `npm test` 94/94;
+- app `flutter test` 233/233 (`flutter analyze` con los 11 avisos conocidos, ninguno nuevo); `flutter build apk --release` 63.5 MB.
 
 ### 7.2 Pruebas por comando contra el backend (PowerShell)
 
@@ -383,6 +400,7 @@ Resultado de la última corrida (2026-11-04, Bloque 2, sobre el commit `c469e89`
 | `backend/pruebas/prueba_gad7.ps1` | GAD-7 por rol, validación (casos en bucle), sin vínculo (403), **carrera real 201/409**, 409 con fecha, `ultimo_gad7_*`, regla de oro en vivo. 17 llamadas a `Caso`, algunas dentro de bucles. | **21 OK / 0 FALLA** (2026-10-23, local) |
 | `backend/pruebas/prueba_cuentas.ps1` | Bloque 1. Sección 1: suspender / reactivar (roles, candados, 403 con el token vigente, Firebase `USER_DISABLED`, código de un especialista suspendido). Sección 2: consentimiento (bloqueo de las 4 rutas de captura, versiones, registro con consentimiento en la misma transacción). Sección 3: solicitud y atención de la eliminación (lápida, token vigente → 403, idempotencia). Crea pacientes desechables `@example.com`. 58 llamadas a `Caso`. | **Pendiente de correr** (antes del push) |
 | `backend/pruebas/prueba_especialista.ps1` | Bloque 2. Sección 1: quién entra a notas, marcadores y reporte (paciente, otro paciente, admin y especialista no vinculado → 403). Sección 2: notas (validación, versión 1 → 2, 409 con versión vieja, sin cambios no versiona, historial). Sección 3: marcadores (tipos D4, fecha futura o sin zona → 400, borrar solo el autor, 404 al repetir). Sección 4: reporte con y sin seudonimizar (sin nombre, correo, uid ni texto libre; seudónimo estable). Sección 5: bitácora como admin (cada acción quedó, sin contenido clínico, los 403 no se registran, filtros). 40 llamadas a `Caso` (50 casos; 55 con el especialista F opcional). | **Pendiente de correr** (antes del push) |
+| `backend/pruebas/prueba_notificaciones.ps1` | Bloque 3. Roles (solo pacientes), validación del token, reasignación entre cuentas, borrado propio, suspender borra los tokens, y envío REAL a FCM con tokens falsos: forma real → `registration-token-not-registered` → se borra; texto arbitrario → `invalid-argument` → se conserva. | **Pendiente de correr** (antes del push) |
 | `backend/pruebas/comun.ps1` | Funciones compartidas (`Obtener-Cuenta`, `Login-Firebase`, `Llamar`, `Caso`, `Exigir-Consentimiento`…) | — |
 | `backend/pruebas/semilla_m3.js`, `semilla_gad7.js` (+ `consentimiento_prueba.js`) | Generan SQL de datos de prueba (cuentas `PRUEBA`) y su limpieza; desde el Bloque 1 incluyen el consentimiento de las cuentas `PRUEBA` | — |
 
@@ -442,6 +460,11 @@ Sugerencia: guardarlas en `docs/tesis/capturas/`.
 | 60 | `app_29_puerta_consentimiento.png` | Puerta de consentimiento (cuenta existente) |
 | 61 | `app_30_eliminar_cuenta.png` | "Eliminar mi cuenta" antes de enviar |
 | 62 | `app_31_eliminar_cuenta_pendiente.png` | Solicitud enviada / pendiente |
+| 70 | `app_33_permiso_notificaciones.png` | Hoja "¿Activar avisos?" y el diálogo de Android 13 |
+| 71 | `app_34_notificacion_bloqueo.png` | Notificación de mensaje en la pantalla de bloqueo (texto neutro) |
+| 72 | `app_35_recordatorio_gad7.png` | Recordatorio del cuestionario quincenal |
+| 73 | `app_36_icono_launcher.png` | Icono con la mascota y el nombre "Monitor ESCOM" |
+| 74 | `app_37_cambiar_password.png` | Cambiar contraseña desde Perfil |
 | 63 | `app_32_login_cuenta_suspendida.png` | Login con el aviso "Tu cuenta está suspendida" |
 
 ### Portal web — especialista
@@ -478,7 +501,7 @@ Sugerencia: guardarlas en `docs/tesis/capturas/`.
 | 56 | `web_19_admin_solicitudes.png` | Solicitudes de eliminación con el contador del sidebar |
 | 57 | `web_20_admin_atender.png` | Confirmación de "Atender" (qué se borra / se conserva, correo escrito) |
 | 58 | `web_21_login_cuenta_suspendida.png` | Login del portal con el aviso de cuenta suspendida |
-| 64 | `web_22_admin_bitacora.png` | Bitácora con filtros y entradas de nota, marcador y exportación |
+| 69 | `web_22_admin_bitacora.png` | Bitácora con filtros y entradas de nota, marcador y exportación |
 
 ### Infraestructura y pruebas (evidencia para los capítulos de implementación y pruebas)
 
