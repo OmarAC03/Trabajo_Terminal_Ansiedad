@@ -19,6 +19,11 @@ const {
   CONFIG_CONSENTIMIENTO, validarConsentimiento, exigirConsentimiento, vistaConsentimiento, requiereConsentimiento,
 } = require('./consentimiento');
 const { validarSolicitudNueva, vistaSolicitudPaciente } = require('./eliminacion');
+const firebaseAdmin = require('firebase-admin');
+const { crearNotificador } = require('./notificaciones');
+const {
+  validarToken, REGISTRAR_TOKEN, RECORTAR_TOKENS, BORRAR_TOKEN_PROPIO, CONTAR_TOKENS,
+} = require('./dispositivos');
 const { registrar: registrarBitacora, DedupeAccesos } = require('./bitacora');
 const {
   validarLectura,
@@ -646,6 +651,8 @@ app.post('/api/ejercicios', async (req, res) => {
   const result = await pool.query(query, values);
 
   logger.info('Ejercicio asignado', { paciente_id: datos.paciente_id, especialista_id: req.uid });
+  // Push (Bloque 3): después de guardar, sin esperar; si falla, solo log.
+  notificador.avisar(datos.paciente_id, 'ejercicio');
   res.status(201).json({ mensaje: 'Ejercicio asignado con éxito', data: result.rows[0] });
 });
 
@@ -672,6 +679,56 @@ app.get('/api/ejercicios/:pacienteId', async (req, res) => {
   `;
   const result = await pool.query(query, [pacienteId, especialistaId]);
   res.status(200).json(result.rows);
+});
+
+// --- NOTIFICACIONES PUSH (Bloque 3) ---
+// El notificador (notificaciones.js) avisa al paciente de un mensaje de su
+// especialista o de un ejercicio asignado, con un texto FIJO (regla de oro:
+// nunca el contenido). Se llama después de guardar y no se espera.
+const notificador = crearNotificador({ pool, messaging: () => firebaseAdmin.messaging(), logger });
+
+// Tokens de FCM del aparato del paciente (tabla `dispositivos_push`). Solo
+// pacientes: el especialista y el admin no usan la app.
+function exigirPacienteDispositivo(req) {
+  if (req.rol !== 'paciente') {
+    throw new AuthError('Solo la app del paciente registra dispositivos para notificaciones.', 403);
+  }
+}
+
+// PUT /api/dispositivos { token } — registra el token (o lo pasa a esta
+// cuenta si el aparato era de otra) y deja como máximo 5 por cuenta.
+app.put('/api/dispositivos', async (req, res) => {
+  exigirPacienteDispositivo(req);
+  const token = validarToken(req.body);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(REGISTRAR_TOKEN, [token, req.uid]);
+    await client.query(RECORTAR_TOKENS, [req.uid]);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+  res.status(200).json({ registrado: true });
+});
+
+// DELETE /api/dispositivos { token } — al cerrar sesión. Solo un token
+// propio; si no existe (o es de otra cuenta) responde 204 igual.
+app.delete('/api/dispositivos', async (req, res) => {
+  exigirPacienteDispositivo(req);
+  const token = validarToken(req.body);
+  await pool.query(BORRAR_TOKEN_PROPIO, [token, req.uid]);
+  res.status(204).end();
+});
+
+// GET /api/dispositivos — cuántos tokens tiene la cuenta (nunca los tokens).
+app.get('/api/dispositivos', async (req, res) => {
+  exigirPacienteDispositivo(req);
+  const result = await pool.query(CONTAR_TOKENS, [req.uid]);
+  res.status(200).json({ registrados: result.rows[0].registrados });
 });
 
 // --- INDICADORES DE PENDIENTE (badges de la app, Fase 2c) ---
@@ -1257,6 +1314,8 @@ io.on('connection', (socket) => {
       // 2. Enviar el mensaje ya guardado (con su id y fecha) SOLO a los dos
       // participantes de la conversación.
       io.to(salaUsuario(datos.paciente_id)).to(salaUsuario(especialistaId)).emit('recibir_mensaje', result.rows[0]);
+      // Push al paciente solo si escribió el especialista (Bloque 3). Texto fijo.
+      if (rol === 'especialista') notificador.avisar(datos.paciente_id, 'mensaje');
       responder(ack, { ok: true });
     } catch (error) {
       logger.error('Error al guardar el mensaje', { detalle: error.message, socketId: socket.id });

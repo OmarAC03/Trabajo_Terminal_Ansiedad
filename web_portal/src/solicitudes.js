@@ -8,7 +8,7 @@
 export const SE_BORRA = [
   'Sus sesiones de medición, respuestas EVA y GAD-7 y lecturas.',
   'Su conversación con el especialista, los ejercicios asignados, y las notas clínicas y marcadores del especialista.',
-  'Su cuenta de acceso (ya no podrá iniciar sesión y su correo queda libre).',
+  'Su cuenta de acceso (ya no podrá iniciar sesión y su correo queda libre) y el registro de notificaciones de su teléfono.',
 ];
 export const SE_CONSERVA = [
   'Una fila anónima ("Cuenta eliminada", sin nombre ni correo) con la fecha de registro.',

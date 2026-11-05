@@ -5,6 +5,7 @@ const { ValidationError, HttpError } = require('./errors');
 const { validarEdicionAdmin } = require('./validation');
 const { verificarCambioSuspension } = require('./cuentas');
 const { BORRADO_PACIENTE, ANONIMIZAR_USUARIO, parametrosAnonimizar, verificarAtencion } = require('./eliminacion');
+const { BORRAR_TOKENS_DE_CUENTA } = require('./dispositivos');
 const {
   registrar: registrarBitacora, validarFiltrosBitacora, consultaBitacora, paginaBitacora,
 } = require('./bitacora');
@@ -306,6 +307,9 @@ function crearAdminRouter(pool, opciones = {}) {
           objetivoId: id,
         });
       }
+      // Bloque 3: una cuenta suspendida no recibe notificaciones; sus tokens
+      // se borran (al reactivar, la app los registra de nuevo al entrar).
+      if (suspender) await client.query(BORRAR_TOKENS_DE_CUENTA, [id]);
 
       try {
         await admin.auth().updateUser(id, { disabled: suspender });

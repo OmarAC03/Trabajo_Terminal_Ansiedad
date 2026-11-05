@@ -31,6 +31,8 @@ const BORRADO_PACIENTE = Object.freeze([
   // trigger solo impide el UPDATE).
   { tabla: 'notas_clinicas', sql: 'DELETE FROM notas_clinicas WHERE paciente_id = $1' },
   { tabla: 'marcadores_clinicos', sql: 'DELETE FROM marcadores_clinicos WHERE paciente_id = $1' },
+  // Tokens de notificaciones push de sus teléfonos (Bloque 3).
+  { tabla: 'dispositivos_push', sql: 'DELETE FROM dispositivos_push WHERE usuario_id = $1' },
 ]);
 
 // Lo que se conserva de la cuenta: id, rol y fecha_registro. `email` es NOT

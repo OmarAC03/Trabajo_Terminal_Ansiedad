@@ -17,6 +17,7 @@ const tablas = BORRADO_PACIENTE.map((p) => p.tabla);
 
 test('se borran las tablas clínicas y de comunicación, y ninguna más', () => {
   assert.deepEqual([...tablas].sort(), [
+    'dispositivos_push',
     'ejercicios_asignados',
     'lecturas_biometricas',
     'marcadores_clinicos',
@@ -45,7 +46,7 @@ test('el orden respeta las FK: la EVA antes que sus sesiones', () => {
 test('cada borrado es un DELETE limitado al paciente ($1)', () => {
   for (const paso of BORRADO_PACIENTE) {
     assert.match(paso.sql, new RegExp(`^DELETE FROM ${paso.tabla} WHERE `));
-    assert.match(paso.sql, /paciente_id = \$1/);
+    assert.match(paso.sql, /(paciente_id|usuario_id) = \$1/);
   }
   // Los mensajes por paciente_id: cubre los dos sentidos de su conversación.
   assert.match(BORRADO_PACIENTE.find((p) => p.tabla === 'mensajes_chat').sql, /WHERE paciente_id = \$1$/);
