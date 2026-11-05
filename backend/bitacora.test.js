@@ -152,6 +152,27 @@ test('todos los filtros van como parámetros, nunca en el SQL', () => {
   assert.match(sql, /b\.id < \$6/);
 });
 
+// Postgres rechaza un parámetro que el SQL no usa ("could not determine data
+// type of parameter $1"): con `usuario` solo, o sin filtros, la zona horaria
+// iba como $1 sin aparecer en la consulta y la ruta respondía 500.
+test('cada parámetro aparece en el SQL ($1..$n, sin huecos), con cualquier combinación de filtros', () => {
+  const valores = {
+    desde: '2026-11-01', hasta: '2026-11-04', usuario: 'abc123', accion: 'exportacion', antes_de: '500', limite: '20',
+  };
+  const campos = Object.keys(valores);
+  for (let mascara = 0; mascara < 2 ** campos.length; mascara++) {
+    const query = {};
+    campos.forEach((c, i) => { if (mascara & (1 << i)) query[c] = valores[c]; });
+    const { sql, params } = consultaBitacora(validarFiltrosBitacora(query));
+    const usados = new Set([...sql.matchAll(/\$(\d+)/g)].map((m) => Number(m[1])));
+    for (let n = 1; n <= params.length; n++) {
+      assert.ok(usados.has(n), `$${n} no aparece en el SQL con ${JSON.stringify(query)}`);
+    }
+    assert.equal(Math.max(...usados), params.length, JSON.stringify(query));
+    assert.equal(params.includes('America/Mexico_City'), Boolean(query.desde || query.hasta), JSON.stringify(query));
+  }
+});
+
 test('la consulta no trae columnas de tablas clínicas', () => {
   const { sql } = consultaBitacora(validarFiltrosBitacora({}));
   assert.doesNotMatch(sql, /notas_clinicas|marcadores|sesiones|gad7|mensajes/);

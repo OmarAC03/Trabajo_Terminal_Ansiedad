@@ -309,7 +309,7 @@ Solo el especialista vinculado actual (paciente y admin → 403); todo filtrado 
 
 ### 7.1 Pruebas automatizadas (contadas en los archivos, 2026-11-04)
 
-**Backend — `node --test` (`npm test` en `backend/`): 131 pruebas**
+**Backend — `node --test` (`npm test` en `backend/`): 132 pruebas**
 
 | Archivo | Pruebas | Qué cubre |
 |---|---:|---|
@@ -320,7 +320,7 @@ Solo el especialista vinculado actual (paciente y admin → 403); todo filtrado 
 | `cuentas.test.js` | 13 | Bloqueo de cuentas suspendidas o eliminadas; candados de suspensión (propia, último admin, eliminada); código en los errores |
 | `consentimiento.test.js` | 10 | Versión vigente, validación, 403 `consentimiento_requerido`, qué ve cada rol |
 | `eliminacion.test.js` | 9 | Qué se borra (8 tablas, en orden de FK, incluidas notas y marcadores), qué se conserva (también la bitácora), lápida anónima, solo pacientes |
-| `bitacora.test.js` | 22 | Claves permitidas por acción (ninguna de contenido clínico), dedupe de accesos, filtros y paginación de la consulta del admin |
+| `bitacora.test.js` | 23 | Claves permitidas por acción (ninguna de contenido clínico), dedupe de accesos, filtros y paginación de la consulta del admin; cada parámetro aparece en el SQL con cualquier combinación de filtros |
 | `notas.test.js` | 7 | Validación (fecha no futura en día de México, 1–5000 caracteres reales), control de versión (409), SQL por el par y sin DELETE |
 | `marcadores.test.js` | 4 | Tipos D4, fecha ISO con zona y no futura, descripción ≤ 140, SQL por el par |
 | `reporte.test.js` | 5 | Seudónimo `P-` + SHA-256, periodo ≤ 366 días, versión seudonimizada sin nombre, correo, especialista ni texto libre |
@@ -367,11 +367,11 @@ Solo el especialista vinculado actual (paciente y admin → 403); todo filtrado 
 | `eliminar_cuenta_test.dart` | 9 | Solicitud de eliminación: enviar, pendiente sin cancelar, errores, textos |
 | `cuenta_bloqueada_test.dart` | 6 | Reconocer el 403 de cuenta suspendida o eliminada |
 
-**Total automatizado: 433 pruebas** (131 + 94 + 208).
+**Total automatizado: 434 pruebas** (132 + 94 + 208).
 
 Resultado de la última corrida (2026-11-04, Bloque 2, sobre el commit `c469e89`):
 
-- backend `npm test` 131/131;
+- backend `npm test` 132/132;
 - portal `npm test` 94/94 (`npm run build` sin avisos);
 - app: sin cambios en el Bloque 2 (última corrida, Bloque 1: `flutter test` 208/208).
 

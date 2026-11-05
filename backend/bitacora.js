@@ -175,9 +175,18 @@ function consultaBitacora(filtros) {
     params.push(valor);
     return `$${params.length}`;
   };
-  const zona = p(ZONA_HORARIA);
-  if (filtros.desde) condiciones.push(`b.fecha >= (${p(filtros.desde)}::date)::timestamp AT TIME ZONE ${zona}`);
-  if (filtros.hasta) condiciones.push(`b.fecha < (${p(filtros.hasta)}::date + 1)::timestamp AT TIME ZONE ${zona}`);
+  // La zona solo entra si hay fechas: un parámetro que el SQL no usa hace
+  // fallar a Postgres ("could not determine data type of parameter $1").
+  let zona = null;
+  const pZona = () => zona ?? (zona = p(ZONA_HORARIA));
+  if (filtros.desde) {
+    const z = pZona();
+    condiciones.push(`b.fecha >= (${p(filtros.desde)}::date)::timestamp AT TIME ZONE ${z}`);
+  }
+  if (filtros.hasta) {
+    const z = pZona();
+    condiciones.push(`b.fecha < (${p(filtros.hasta)}::date + 1)::timestamp AT TIME ZONE ${z}`);
+  }
   if (filtros.usuario) {
     const u = p(filtros.usuario);
     condiciones.push(`(b.actor_id = ${u} OR b.objetivo_id = ${u})`);
