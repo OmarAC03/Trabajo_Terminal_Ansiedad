@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Notificaciones (Bloque 3): permiso en tiempo de ejecucion en Android 13+. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     
     
     <application
@@ -38,6 +40,17 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- FCM (Bloque 3): icono pequeno (silueta blanca de la mascota), su
+             color y el canal que crea la app (NotificacionesLocales.canalAvisos). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notificacion" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notificacion" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="avisos" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'auth_gate.dart';
 import 'logger.dart';
+import 'notificaciones/notificaciones_locales.dart';
 import 'sesion.dart';
 import 'ui/app_colors.dart';
 import 'ui/app_theme.dart';
@@ -47,6 +48,9 @@ void main() {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+
+    // 6. Canales de notificación y recordatorios locales (Bloque 3).
+    await NotificacionesLocales.iniciar();
 
     runApp(const AppAnsiedad());
   }, (Object error, StackTrace stack) {

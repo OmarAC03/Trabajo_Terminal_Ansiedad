@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../auth_gate.dart';
+import '../sesion.dart';
+import '../notificaciones/servicio_push.dart';
 import 'vinculacion_screen.dart';
 import 'eliminar_cuenta_screen.dart';
 import 'consentimiento_screen.dart';
@@ -105,7 +108,7 @@ class _PerfilView extends StatelessWidget {
 
     if (confirmar != true) return;
 
-    await FirebaseAuth.instance.signOut();
+    await Sesion.cerrarSesionUsuario();
     if (!context.mounted) return;
 
     // A AuthGate (no directo al login): así el siguiente inicio de sesión pasa
@@ -167,6 +170,8 @@ class _PerfilView extends StatelessWidget {
                         if (p.rol == 'paciente') ...[
                           const SizedBox(height: 20),
                           _buildSeccionEspecialista(context),
+                          const SizedBox(height: 20),
+                          const _SeccionNotificaciones(),
                           const SizedBox(height: 20),
                           _buildSeccionPrivacidad(context),
                         ],
@@ -408,6 +413,102 @@ class _PerfilView extends StatelessWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppColors.radio)),
         ),
       ),
+    );
+  }
+}
+
+/// Bloque 3: estado del permiso de notificaciones y cómo activarlo. Si nunca
+/// se pidió, "Activar" muestra el diálogo del sistema; si ya se negó, Android
+/// no lo vuelve a mostrar y hay que ir a Ajustes.
+class _SeccionNotificaciones extends StatefulWidget {
+  const _SeccionNotificaciones();
+
+  @override
+  State<_SeccionNotificaciones> createState() => _SeccionNotificacionesState();
+}
+
+class _SeccionNotificacionesState extends State<_SeccionNotificaciones> with WidgetsBindingObserver {
+  PermisoNotificaciones? _estado;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _leer();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Al volver de Ajustes, el permiso pudo cambiar.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _leer();
+  }
+
+  Future<void> _leer() async {
+    try {
+      final estado = await ServicioPush.instancia.fuente.estadoPermiso();
+      if (!mounted) return;
+      setState(() => _estado = estado);
+      if (estado == PermisoNotificaciones.concedido) await ServicioPush.instancia.registrar();
+    } catch (_) {
+      if (mounted) setState(() => _estado = PermisoNotificaciones.denegado);
+    }
+  }
+
+  Future<void> _activar() async {
+    final push = ServicioPush.instancia;
+    if (await push.prefs.yaPregunto() || _estado == PermisoNotificaciones.bloqueado) {
+      await openAppSettings();
+      return;
+    }
+    final estado = await push.pedirPermiso();
+    if (mounted) setState(() => _estado = estado);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final activadas = _estado == PermisoNotificaciones.concedido;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(left: 4, bottom: 8),
+          child: EtiquetaSeccion("Notificaciones"),
+        ),
+        Tarjeta(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(activadas ? Icons.notifications_active_outlined : Icons.notifications_off_outlined,
+                      size: 18, color: activadas ? AppColors.primario : AppColors.textoSecundario),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _estado == null ? 'Revisando…' : (activadas ? 'Activadas' : 'Desactivadas'),
+                      style: const TextStyle(color: AppColors.texto, fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  if (_estado != null && !activadas)
+                    TextButton(onPressed: _activar, child: const Text('Activar')),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Te avisamos cuando tu especialista te escribe o te asigna un ejercicio, y cuando toca el '
+                'cuestionario quincenal. El aviso nunca muestra el contenido.',
+                style: TextStyle(color: AppColors.textoAyuda, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -65,6 +65,9 @@ class ApiClient {
   static Future<RespuestaRed> put(Uri url, {Map<String, String>? headers, Object? body}) =>
       _ejecutar(() async => http.put(url, headers: await _conHeaderAuth(headers), body: body));
 
+  static Future<RespuestaRed> delete(Uri url, {Map<String, String>? headers, Object? body}) =>
+      _ejecutar(() async => http.delete(url, headers: await _conHeaderAuth(headers), body: body));
+
   /// Agrega `Authorization: Bearer <idToken>` a los headers si hay sesión
   /// Firebase activa. Centralizado aquí para que ningún repositorio tenga
   /// que acordarse de mandar el token: todo pasa por ApiClient.

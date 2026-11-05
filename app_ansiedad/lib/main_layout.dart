@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'models/pendientes.dart';
 import 'providers/pendientes_provider.dart';
+import 'notificaciones/servicio_push.dart';
+import 'notificaciones/notificaciones_locales.dart';
 import 'screens/inicio_screen.dart';
 import 'screens/historial_screen.dart';
 import 'screens/mensajes_screen.dart'; // ¡Nueva pantalla!
@@ -34,17 +37,94 @@ class _MainLayoutState extends State<MainLayout> with WidgetsBindingObserver {
     const PerfilScreen(),
   ];
 
+  // Notificaciones push (Bloque 3): tocar una abre su pestaña (D8); con la
+  // app abierta no se muestran y solo se refrescan los badges (D5).
+  final List<StreamSubscription<Object?>> _suscripciones = [];
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _iniciarPush());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    for (final s in _suscripciones) {
+      s.cancel();
+    }
+    NotificacionesLocales.tocada.removeListener(_alTocarLocal);
     _pendientes.dispose();
     super.dispose();
+  }
+
+  Future<void> _iniciarPush() async {
+    final push = ServicioPush.instancia;
+    try {
+      _suscripciones.add(push.fuente.tiposAbiertos.listen(_abrirTipo));
+      _suscripciones.add(push.fuente.enPrimerPlano.listen((_) => _pendientes.refrescar()));
+      // Notificación local tocada (recordatorio del GAD-7).
+      NotificacionesLocales.tocada.addListener(_alTocarLocal);
+      _alTocarLocal();
+      final inicial = await push.fuente.tipoDeArranque();
+      if (inicial != null) _abrirTipo(inicial);
+      await push.registrar();
+      if (mounted && await push.debePreguntar()) await _explicarPermiso(push);
+    } catch (_) {
+      // Sin Firebase Messaging (p. ej. en pruebas) la app sigue igual.
+    }
+  }
+
+  void _alTocarLocal() {
+    final tipo = NotificacionesLocales.tocada.value;
+    if (tipo == null) return;
+    NotificacionesLocales.tocada.value = null;
+    _abrirTipo(tipo);
+  }
+
+  void _abrirTipo(String tipo) {
+    final indice = pestanaParaTipo(tipo);
+    if (indice != null && mounted) _cambiarPestana(indice);
+  }
+
+  /// Explicación antes del diálogo del sistema (se muestra una sola vez).
+  Future<void> _explicarPermiso(ServicioPush push) async {
+    final activar = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Icon(Icons.notifications_active_outlined, size: 40, color: AppColors.primario),
+              const SizedBox(height: 12),
+              const Text('¿Activar avisos?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.texto)),
+              const SizedBox(height: 8),
+              const Text(
+                'Te avisamos de mensajes y ejercicios de tu especialista, y cuando toca el cuestionario '
+                'quincenal. Nunca mostramos su contenido. Puedes cambiarlo después en Perfil.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: AppColors.textoSecundario),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Activar avisos')),
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Ahora no')),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (activar == true) {
+      await push.pedirPermiso();
+    } else {
+      await push.posponer();
+    }
   }
 
   // Sin sondeo en segundo plano; al volver se consulta de inmediato.

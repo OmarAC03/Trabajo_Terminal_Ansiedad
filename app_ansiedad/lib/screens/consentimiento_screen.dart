@@ -1,5 +1,5 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../sesion.dart';
 import 'package:provider/provider.dart';
 import '../contenido/privacidad_textos.dart';
 import '../providers/consentimiento_provider.dart';
@@ -78,7 +78,7 @@ class _PantallaConsentimiento extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             TextButton(
-              onPressed: p.enviando ? null : () => FirebaseAuth.instance.signOut(),
+              onPressed: p.enviando ? null : Sesion.cerrarSesionUsuario,
               child: const Text(TextosPrivacidad.salir),
             ),
           ],
@@ -129,7 +129,7 @@ class _PantallaErrorPuerta extends StatelessWidget {
                 BotonPrimario(texto: TextosPrivacidad.reintentar, onPressed: onReintentar, icono: Icons.refresh),
                 const SizedBox(height: 8),
                 TextButton(
-                  onPressed: () => FirebaseAuth.instance.signOut(),
+                  onPressed: Sesion.cerrarSesionUsuario,
                   child: const Text(TextosPrivacidad.salir),
                 ),
               ],
