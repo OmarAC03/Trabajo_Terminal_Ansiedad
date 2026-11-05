@@ -8,13 +8,14 @@
 // El avatar trae un círculo claro con una orilla gris: se quita todo lo que
 // se alcanza desde las esquinas sin cruzar a la mascota (relleno por
 // inundación), y queda solo el personaje. Android recorta el icono
-// adaptativo (108 dp) a la zona segura del centro (66 dp ≈ 264 px de 432):
-// la mascota se deja en 240 px de ancho para que ningún launcher la corte.
+// adaptativo (108 dp) a la zona segura del centro (66 dp de diámetro), y
+// flutter_launcher_icons le pone además un margen interno de 16 % (queda en
+// 73 dp): con 350 px de 432 la mascota mide ~59 dp y ningún launcher la corta.
 import 'dart:collection';
 import 'dart:io';
 import 'package:image/image.dart' as img;
 
-const anchoMascota = 240;
+const anchoMascota = 350;
 const lado = 432;
 
 // Píxel de la mascota: azul del cuerpo o los trazos oscuros de la cara.
