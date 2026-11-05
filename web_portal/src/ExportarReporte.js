@@ -76,9 +76,13 @@ function ExportarReporte({ paciente }) {
       subtitle="Sesiones, GAD-7 y marcadores del periodo, en CSV o para imprimir / guardar como PDF"
       icon={FileDown}
     >
-      <form className="ui-filtros ui-filtros-en-card" onSubmit={(e) => e.preventDefault()}>
-        <Field id="reporte-desde" label="Desde" type="date" max={hoy} value={rango.desde} onChange={(e) => setRango((r) => ({ ...r, desde: e.target.value }))} />
-        <Field id="reporte-hasta" label="Hasta" type="date" max={hoy} value={rango.hasta} onChange={(e) => setRango((r) => ({ ...r, hasta: e.target.value }))} />
+      {/* Tres filas que bajan de línea solas (ui.css, .ui-exportar): fechas,
+          casilla y botones. Nada tiene ancho fijo, así cabe en cualquier ancho. */}
+      <form className="ui-exportar" onSubmit={(e) => e.preventDefault()}>
+        <div className="ui-exportar-fechas">
+          <Field id="reporte-desde" label="Desde" type="date" max={hoy} value={rango.desde} onChange={(e) => setRango((r) => ({ ...r, desde: e.target.value }))} />
+          <Field id="reporte-hasta" label="Hasta" type="date" max={hoy} value={rango.hasta} onChange={(e) => setRango((r) => ({ ...r, hasta: e.target.value }))} />
+        </div>
         <label className="ui-check" htmlFor="reporte-seudonimizado">
           <input
             id="reporte-seudonimizado"
@@ -88,7 +92,7 @@ function ExportarReporte({ paciente }) {
           />
           Seudonimizado (sin nombre, correo ni texto libre)
         </label>
-        <div className="ui-filtros-acciones">
+        <div className="ui-exportar-acciones">
           <Button icon={FileDown} onClick={() => exportar('csv')} disabled={Boolean(problema) || Boolean(cargando)}>
             {cargando === 'csv' ? 'Generando…' : 'Descargar CSV'}
           </Button>
@@ -106,9 +110,9 @@ function ExportarReporte({ paciente }) {
 
       <div style={{ marginTop: 16 }}>
         <Disclaimer icon={ShieldCheck}>
-          Cada exportación queda registrada en la bitácora. La versión seudonimizada cambia el nombre por un
-          identificador (P-…) y quita el texto libre; conserva las fechas, y el identificador se puede recalcular
-          a partir de la cuenta. Para guardar el PDF, elige "Guardar como PDF" en el diálogo de impresión.
+          Cada exportación queda registrada en la bitácora. La versión seudonimizada reemplaza el nombre por un
+          código (P-…) y quita los textos libres; conserva las fechas. No es anónima: el código corresponde siempre
+          a la misma cuenta. Para el PDF, elige «Guardar como PDF» en el diálogo de impresión.
         </Disclaimer>
       </div>
 

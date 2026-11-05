@@ -1679,6 +1679,48 @@
   text-align: center;
 }
 
+/* Controles de "Exportar reporte": fila 1 fechas, fila 2 casilla, fila 3
+   botones. Todo envuelve con gap y puede encogerse (min-width: 0), así nada
+   se sale de la tarjeta, ni en la vista angosta (< 860 px). */
+.ui-exportar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ui-exportar-fechas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.ui-exportar-fechas .ui-field {
+  flex: 1 1 160px;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.ui-exportar-fechas .ui-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.ui-exportar .ui-check {
+  min-height: 0;
+}
+
+.ui-exportar-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ui-exportar-acciones .ui-btn {
+  max-width: 100%;
+}
+
 /* ---------- Reporte para imprimir / PDF (Bloque 2, paso 4) ----------
    ExportarReporte monta .reporte-impresion directo en <body>. En pantalla no
    se ve; al imprimir se oculta todo lo demás (la app vive en #root). */
