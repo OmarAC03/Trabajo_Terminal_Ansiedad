@@ -9,6 +9,7 @@ require('dotenv').config();
 const logger = require('./logger');
 const { AuthError, ValidationError, HttpError } = require('./errors');
 const { rutaSalud } = require('./salud');
+const { origenesPermitidos, opcionesCors, opcionesSocket, crearLimites, RUTAS_ESTRICTAS } = require('./seguridad');
 const { inicializarFirebaseAdmin, requiereAuth, requiereAuthSocket, requiereAdmin } = require('./auth');
 const { crearAdminRouter } = require('./admin');
 const { crearEspecialistaRouter } = require('./especialista');
@@ -44,15 +45,21 @@ const {
 const app = express();
 const server = http.createServer(app);
 
-// Configuración de WebSockets
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
+// Render pone un proxy delante: sin esto todas las peticiones parecerían
+// venir de la misma IP y el límite por IP no serviría (Fase S).
+app.set('trust proxy', 1);
 
-app.use(cors());
+// CORS (Fase S): solo el portal publicado (y localhost:3000 fuera de
+// producción), en HTTP y en Socket.io. La app nativa no manda Origin.
+const ORIGENES = origenesPermitidos();
+const io = new Server(server, opcionesSocket(ORIGENES));
+
+app.use(cors(opcionesCors(ORIGENES)));
+
+// Límites de peticiones (Fase S): por IP antes de autenticar; por cuenta y
+// los estrictos, después (abajo, tras requiereAuth). Responden 429.
+const limites = crearLimites();
+app.use('/api', limites.porIp);
 app.use(express.json());
 
 // --- CONEXIÓN A LA BASE DE DATOS (Supabase) ---
@@ -100,6 +107,13 @@ try {
 app.get('/api/salud', rutaSalud);
 
 app.use('/api', requiereAuth(pool));
+
+// Límite por cuenta en todo /api y, en registro, consentimiento y GAD-7, el
+// estricto. Van antes de las rutas para que corran primero.
+app.use('/api', limites.porUsuario);
+for (const [metodo, ruta] of RUTAS_ESTRICTAS) {
+  app[metodo.toLowerCase()](ruta, limites.estricto);
+}
 
 // Rol Admin (Fase C): todo /api/admin/* pasa por requiereAdmin (403 a
 // cualquier otro rol) antes de llegar a cualquier ruta del router. Las rutas
