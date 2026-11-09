@@ -8,8 +8,8 @@ import '../notificaciones/servicio_push.dart';
 import 'vinculacion_screen.dart';
 import 'eliminar_cuenta_screen.dart';
 import 'cambiar_password_screen.dart';
+import 'acerca_widgets.dart';
 import 'consentimiento_screen.dart';
-import '../app_config.dart';
 import '../avatar_widgets.dart';
 import '../providers/perfil_provider.dart';
 import '../ui/app_colors.dart';
@@ -177,7 +177,9 @@ class _PerfilView extends StatelessWidget {
                           _buildSeccionPrivacidad(context),
                         ],
                         const SizedBox(height: 20),
-                        _buildSeccionAcerca(),
+                        const SeccionAcercaApp(),
+                        const SizedBox(height: 20),
+                        const SeccionAcercaProyecto(),
                         const SizedBox(height: 24),
                         _buildBotonCerrarSesion(context),
                         const SizedBox(height: 8),
@@ -348,17 +350,6 @@ class _PerfilView extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Widget _buildSeccionAcerca() {
-    return _buildSeccion("Acerca de la app", [
-      _buildFila(Icons.info_outline, "Proyecto", "Trabajo Terminal — Sistema de Ansiedad"),
-      _buildFila(Icons.cloud_outlined, "Servidor", "Conectado (Render + Supabase)"),
-      const Padding(
-        padding: EdgeInsets.fromLTRB(16, 12, 16, 14),
-        child: DisclaimerNota(Disclaimers.alcance),
-      ),
-    ]);
   }
 
   /// Título gris en mayúsculas + tarjeta con filas separadas por líneas.

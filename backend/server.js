@@ -8,6 +8,7 @@ require('dotenv').config();
 
 const logger = require('./logger');
 const { AuthError, ValidationError, HttpError } = require('./errors');
+const { rutaSalud } = require('./salud');
 const { inicializarFirebaseAdmin, requiereAuth, requiereAuthSocket, requiereAdmin } = require('./auth');
 const { crearAdminRouter } = require('./admin');
 const { crearEspecialistaRouter } = require('./especialista');
@@ -94,6 +95,10 @@ try {
 // null si el token es válido pero aún no hay fila en `usuarios`). La
 // autorización específica de cada ruta (dueño vs. especialista, etc.) se
 // decide abajo, al inicio de cada handler.
+// Única ruta pública de /api: la app la usa para mostrar "Conectado" o
+// "Sin conexión" sin ningún dato técnico (versión final, punto 6).
+app.get('/api/salud', rutaSalud);
+
 app.use('/api', requiereAuth(pool));
 
 // Rol Admin (Fase C): todo /api/admin/* pasa por requiereAdmin (403 a

@@ -53,6 +53,11 @@ class AppConfig {
   static const String urlConsentimiento = '$backendUrl/api/consentimiento';
   static const String urlSolicitudEliminacion = '$backendUrl/api/solicitud-eliminacion';
   static const String urlDispositivos = '$backendUrl/api/dispositivos';
+  static const String urlSalud = '$backendUrl/api/salud';
+
+  /// Versión visible en Perfil → Acerca de. Debe ser igual a `version:` de
+  /// pubspec.yaml (sin el número de compilación); una prueba lo comprueba.
+  static const String versionApp = '1.0.0';
 }
 
 /// Parámetros de la sesión de medición (Fase M1b, DISENO_FLUJO_MEDICION.md §3).
