@@ -203,7 +203,7 @@ class _PerfilView extends StatelessWidget {
               clipBehavior: Clip.none,
               children: [
                 p.avatar != null
-                    ? AnimalAvatar(tipo: p.avatar!, size: 84)
+                    ? MascotaAvatar(tipo: p.avatar!, size: 84)
                     : CircleAvatar(
                         radius: 42,
                         backgroundColor: AppColors.primario,
