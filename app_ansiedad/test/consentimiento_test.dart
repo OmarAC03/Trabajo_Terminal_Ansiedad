@@ -133,11 +133,11 @@ void main() {
 
   group('TextosPrivacidad (VERIFICAR: borrador)', () {
     test('las versiones son las mismas que en backend/consentimiento.js', () {
-      expect(TextosPrivacidad.versionAviso, 'privacidad-v0-borrador');
-      expect(TextosPrivacidad.versionConsentimiento, 'consentimiento-v0-borrador');
+      expect(TextosPrivacidad.versionAviso, 'privacidad-v1-borrador');
+      expect(TextosPrivacidad.versionConsentimiento, 'consentimiento-v1-borrador');
       expect(ConsentimientoRepository.versionesVigentes, {
-        'version_aviso': 'privacidad-v0-borrador',
-        'version_consentimiento': 'consentimiento-v0-borrador',
+        'version_aviso': 'privacidad-v1-borrador',
+        'version_consentimiento': 'consentimiento-v1-borrador',
       });
     });
 
@@ -156,7 +156,46 @@ void main() {
       final todo = [...TextosPrivacidad.aviso, ...TextosPrivacidad.consentimiento].join(' ');
       expect(todo, contains('no emite diagnósticos'));
       expect(todo, contains('eliminación de tu cuenta'));
-      expect(todo, contains('datos personales sensibles'));
+      expect(todo, contains('Datos de salud (sensibles)'));
+    });
+
+    test('mientras queden [corchetes] la versión sigue siendo borrador', () {
+      if (TextosPrivacidad.tieneCorchetes) {
+        expect(TextosPrivacidad.esBorrador, isTrue);
+        expect(TextosPrivacidad.versionAviso, contains('borrador'));
+        expect(TextosPrivacidad.versionConsentimiento, contains('borrador'));
+      }
+    });
+
+    test('responsable: la ESCOM del IPN; ARCO ante la Unidad de Transparencia del IPN', () {
+      final todo = TextosPrivacidad.aviso.join(' ');
+      expect(todo, contains('La ESCOM es la responsable'));
+      expect(todo, contains('Unidad de Transparencia del IPN'));
+      expect(todo, contains('token de notificaciones'));
+    });
+
+    test('el consentimiento trae la Línea de la Vida y dice que no atiende emergencias', () {
+      final c = TextosPrivacidad.consentimiento.join(' ');
+      expect(c, contains('800 911 2000'));
+      expect(c, contains('no atiende emergencias'));
+    });
+
+    test('regla de oro: ningún texto habla de resultados, niveles ni etiquetas del estado', () {
+      final prohibidas = RegExp(r'puntaje|severidad|\bbanda|\bleve|moderad|grave|elevad|ansiedad (alta|baja)',
+          caseSensitive: false);
+      for (final t in [...TextosPrivacidad.aviso, ...TextosPrivacidad.consentimiento]) {
+        expect(t, isNot(contains(prohibidas)), reason: t);
+      }
+    });
+
+    test('las negritas van en pares (ningún ** suelto)', () {
+      for (final b in [
+        ...TextosPrivacidad.avisoSimplificado,
+        ...TextosPrivacidad.avisoIntegral,
+        ...TextosPrivacidad.consentimientoInformado
+      ]) {
+        expect('**'.allMatches(b.texto).length.isEven, isTrue, reason: b.texto);
+      }
     });
   });
 }

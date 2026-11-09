@@ -9,12 +9,12 @@ const { ValidationError, AuthError } = require('./errors');
 // del texto = versión nueva aquí y en la app: cada paciente vuelve a aceptar
 // (la tabla `consentimientos` guarda una fila por versión aceptada).
 //
-// VERIFICAR: los textos son un BORRADOR. Cuando llegue la redacción final
-// revisada (datos de salud sensibles, LFPDPPP), quitar "-borrador" de las dos
-// versiones aquí y en la app.
+// Versión 1 (docs/version_final/AVISO_PRIVACIDAD_Y_CONSENTIMIENTO.md). Sigue
+// con "-borrador" mientras el texto tenga datos entre [corchetes]; al
+// completarlos, quitarlo aquí y en la app AL MISMO TIEMPO (mismo despliegue).
 const CONFIG_CONSENTIMIENTO = Object.freeze({
-  version_aviso: 'privacidad-v0-borrador',
-  version_consentimiento: 'consentimiento-v0-borrador',
+  version_aviso: 'privacidad-v1-borrador',
+  version_consentimiento: 'consentimiento-v1-borrador',
 });
 
 const CODIGO_CONSENTIMIENTO_REQUERIDO = 'consentimiento_requerido';

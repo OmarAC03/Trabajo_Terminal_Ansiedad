@@ -3,6 +3,8 @@ import 'package:app_ansiedad/contenido/gad7_textos.dart';
 
 /// Protege el texto del instrumento (gad7-es-v1) contra cambios accidentales y
 /// revisa que ningún texto que ve el paciente hable del resultado.
+final prohibidasApoyo = RegExp(r'puntaje|resultado|severidad|ansiedad (alta|baja)', caseSensitive: false);
+
 void main() {
   group('el instrumento es EXACTAMENTE gad7-es-v1', () {
     test('versión', () => expect(TextosGad7.version, 'gad7-es-v1'));
@@ -89,9 +91,14 @@ void main() {
       }
     });
 
-    test('el mensaje de apoyo NO publica un teléfono sin verificar', () {
+    test('el mensaje de apoyo solo publica los números verificados (911 y Línea de la Vida)', () {
       expect(TextosGad7.apoyo, isNot(contains(RegExp(r'\d'))));
-      expect(TextosGad7.apoyoLinea, isNull, reason: 'Solo se activa cuando Omar verifique el número oficial.');
+      const linea = TextosGad7.apoyoLinea;
+      expect(linea, contains('800 911 2000'));
+      expect(linea, contains('911'));
+      expect(linea.replaceAll('800 911 2000', '').replaceAll('911', '').replaceAll('24 horas', ''),
+          isNot(contains(RegExp(r'\d'))));
+      expect(linea, isNot(contains(prohibidasApoyo)));
     });
   });
 }

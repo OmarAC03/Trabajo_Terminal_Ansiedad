@@ -89,14 +89,14 @@ class TextosGad7 {
 
   /// Igual para todos (no depende de las respuestas, para no delatarlas).
   ///
-  /// VERIFICAR: cuando Omar confirme el número oficial de la Línea de la Vida,
-  /// agregarlo aquí (y en `apoyoLinea`). NO publicar un número sin verificar.
   static const String apoyo =
       'Si en algún momento te sientes muy mal, habla con tu especialista o busca ayuda profesional.';
 
-  /// VERIFICAR: texto con el número oficial de la Línea de la Vida. Mientras
-  /// sea null no se muestra nada.
-  static const String? apoyoLinea = null;
+  /// Línea de la Vida (CONASAMA, 24/7), verificada el 20/08/2026. Igual para
+  /// todos: no depende de las respuestas.
+  static const String apoyoLinea =
+      'Esta app no atiende emergencias. Si te sientes en crisis o en peligro, llama al 911 o a la '
+      'Línea de la Vida 800 911 2000 (gratuita, 24 horas, todos los días).';
 }
 
 /// Aviso de alcance del cuestionario (no es diagnóstico).

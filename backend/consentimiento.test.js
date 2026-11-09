@@ -16,8 +16,8 @@ const es400 = (fn) => assert.throws(fn, (e) => e instanceof ValidationError && e
 
 test('las versiones vigentes son las del borrador (VERIFICAR) y coinciden con la app', () => {
   // Si cambian aquí, cambiar también privacidad_textos.dart en la app.
-  assert.equal(CONFIG_CONSENTIMIENTO.version_aviso, 'privacidad-v0-borrador');
-  assert.equal(CONFIG_CONSENTIMIENTO.version_consentimiento, 'consentimiento-v0-borrador');
+  assert.equal(CONFIG_CONSENTIMIENTO.version_aviso, 'privacidad-v1-borrador');
+  assert.equal(CONFIG_CONSENTIMIENTO.version_consentimiento, 'consentimiento-v1-borrador');
   assert.ok(Object.isFrozen(CONFIG_CONSENTIMIENTO));
 });
 

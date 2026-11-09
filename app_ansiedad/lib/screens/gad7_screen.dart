@@ -380,15 +380,13 @@ class _Gracias extends StatelessWidget {
           color: AppColors.primario,
           fondo: AppColors.primarioSuave,
         ),
-        if (TextosGad7.apoyoLinea != null) ...[
-          const SizedBox(height: 8),
-          const Aviso(
-            TextosGad7.apoyoLinea ?? '',
-            icono: Icons.phone_outlined,
-            color: AppColors.primario,
-            fondo: AppColors.primarioSuave,
-          ),
-        ],
+        const SizedBox(height: 8),
+        const Aviso(
+          TextosGad7.apoyoLinea,
+          icono: Icons.phone_outlined,
+          color: AppColors.primario,
+          fondo: AppColors.primarioSuave,
+        ),
         const SizedBox(height: 20),
         BotonPrimario(texto: TextosGad7.listo, onPressed: onListo),
       ],

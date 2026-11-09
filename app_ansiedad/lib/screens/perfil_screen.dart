@@ -312,7 +312,7 @@ class _PerfilView extends StatelessWidget {
       _buildFilaNavegable(
         context,
         Icons.description_outlined,
-        "Aviso de privacidad y consentimiento",
+        "Aviso de privacidad",
         AppColors.primario,
         const TextosPrivacidadScreen(),
       ),

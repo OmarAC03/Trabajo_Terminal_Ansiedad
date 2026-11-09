@@ -53,13 +53,20 @@ class _PantallaConsentimiento extends StatelessWidget {
           children: [
             const Text(TextosPrivacidad.introduccion, style: TextStyle(fontSize: 14, color: AppColors.texto)),
             const SizedBox(height: 16),
-            const ContenidoPrivacidad(),
-            const SizedBox(height: 8),
+            if (TextosPrivacidad.esBorrador) ...[const MarcaBorrador(), const SizedBox(height: 12)],
+            // A (simplificado) con su enlace al integral (B), y su casilla.
+            const TarjetaTexto(titulo: TextosPrivacidad.tituloAviso, bloques: TextosPrivacidad.avisoSimplificado),
+            const EnlaceAvisoCompleto(),
             _Casilla(
               texto: TextosPrivacidad.casillaAviso,
               valor: p.aceptaAviso,
               onChanged: p.enviando ? null : p.marcarAviso,
             ),
+            const SizedBox(height: 12),
+            // C (consentimiento) con su casilla propia. Las dos empiezan sin marcar.
+            const TarjetaTexto(
+                titulo: TextosPrivacidad.tituloConsentimiento, bloques: TextosPrivacidad.consentimientoInformado),
+            const SizedBox(height: 4),
             _Casilla(
               texto: TextosPrivacidad.casillaConsentimiento,
               valor: p.aceptaConsentimiento,
@@ -140,7 +147,8 @@ class _PantallaErrorPuerta extends StatelessWidget {
   }
 }
 
-/// Solo lectura del aviso y el consentimiento (enlace del registro).
+/// Solo lectura del aviso simplificado y el consentimiento (enlace del
+/// registro y Perfil → Privacidad → Aviso de privacidad).
 class TextosPrivacidadScreen extends StatelessWidget {
   const TextosPrivacidadScreen({super.key});
 
@@ -156,36 +164,81 @@ class TextosPrivacidadScreen extends StatelessWidget {
   }
 }
 
-/// Los dos textos en tarjetas, con la marca de borrador mientras lo sean.
+/// El aviso integral (B).
+class AvisoIntegralScreen extends StatelessWidget {
+  const AvisoIntegralScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.fondo,
+      appBar: appBarGradiente(TextosPrivacidad.tituloAviso),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: const [
+            if (TextosPrivacidad.esBorrador) ...[MarcaBorrador(), SizedBox(height: 12)],
+            TarjetaTexto(titulo: TextosPrivacidad.tituloAvisoIntegral, bloques: TextosPrivacidad.avisoIntegral),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A, el enlace a B y C, con la marca de borrador mientras lo sean.
 class ContenidoPrivacidad extends StatelessWidget {
   const ContenidoPrivacidad({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (TextosPrivacidad.esBorrador) ...[
-          const Aviso(
-            TextosPrivacidad.marcaBorrador,
-            icono: Icons.edit_note,
-            color: AppColors.guia,
-            fondo: AppColors.guiaFondo,
-          ),
-          const SizedBox(height: 12),
-        ],
-        const _Seccion(titulo: TextosPrivacidad.tituloAviso, parrafos: TextosPrivacidad.aviso),
-        const SizedBox(height: 12),
-        const _Seccion(titulo: TextosPrivacidad.tituloConsentimiento, parrafos: TextosPrivacidad.consentimiento),
+        if (TextosPrivacidad.esBorrador) ...[MarcaBorrador(), SizedBox(height: 12)],
+        TarjetaTexto(titulo: TextosPrivacidad.tituloAviso, bloques: TextosPrivacidad.avisoSimplificado),
+        EnlaceAvisoCompleto(),
+        TarjetaTexto(titulo: TextosPrivacidad.tituloConsentimiento, bloques: TextosPrivacidad.consentimientoInformado),
       ],
     );
   }
 }
 
-class _Seccion extends StatelessWidget {
+class MarcaBorrador extends StatelessWidget {
+  const MarcaBorrador({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Aviso(
+        TextosPrivacidad.marcaBorrador,
+        icono: Icons.edit_note,
+        color: AppColors.guia,
+        fondo: AppColors.guiaFondo,
+      );
+}
+
+class EnlaceAvisoCompleto extends StatelessWidget {
+  const EnlaceAvisoCompleto({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AvisoIntegralScreen())),
+        icon: const Icon(Icons.article_outlined, size: 18),
+        label: const Text(TextosPrivacidad.leerCompleto),
+      ),
+    );
+  }
+}
+
+/// Tarjeta con título y bloques (subtítulos, párrafos y viñetas).
+class TarjetaTexto extends StatelessWidget {
   final String titulo;
-  final List<String> parrafos;
-  const _Seccion({required this.titulo, required this.parrafos});
+  final List<BloqueTexto> bloques;
+  const TarjetaTexto({super.key, required this.titulo, required this.bloques});
+
+  static const _estilo = TextStyle(fontSize: 13.5, height: 1.4, color: AppColors.texto);
 
   @override
   Widget build(BuildContext context) {
@@ -194,12 +247,49 @@ class _Seccion extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(titulo, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.texto)),
-          for (final parrafo in parrafos) ...[
-            const SizedBox(height: 10),
-            Text(parrafo, style: const TextStyle(fontSize: 13.5, height: 1.4, color: AppColors.texto)),
-          ],
+          for (final b in bloques)
+            switch (b.tipo) {
+              TipoBloque.subtitulo => Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Text(b.texto,
+                      style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: AppColors.texto)),
+                ),
+              TipoBloque.parrafo => Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: TextoConNegritas(b.texto, estilo: _estilo),
+                ),
+              TipoBloque.vineta => Padding(
+                  padding: const EdgeInsets.only(top: 6, left: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('•  ', style: _estilo),
+                      Expanded(child: TextoConNegritas(b.texto, estilo: _estilo)),
+                    ],
+                  ),
+                ),
+            },
         ],
       ),
     );
+  }
+}
+
+/// Texto con tramos en **negrita**.
+class TextoConNegritas extends StatelessWidget {
+  final String texto;
+  final TextStyle estilo;
+  const TextoConNegritas(this.texto, {super.key, required this.estilo});
+
+  @override
+  Widget build(BuildContext context) {
+    final partes = texto.split('**');
+    return Text.rich(TextSpan(
+      style: estilo,
+      children: [
+        for (var i = 0; i < partes.length; i++)
+          TextSpan(text: partes[i], style: i.isOdd ? const TextStyle(fontWeight: FontWeight.w700) : null),
+      ],
+    ));
   }
 }

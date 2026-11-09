@@ -51,7 +51,7 @@ function Codigo-Es($resp, $codigo) {
 function Como-Caso($cumple, $texto) { return @{ status = [int][bool]$cumple; texto = $texto } }
 
 # Version vigente del aviso y el consentimiento (backend/consentimiento.js).
-$Version = @{ version_aviso = 'privacidad-v0-borrador'; version_consentimiento = 'consentimiento-v0-borrador' }
+$Version = @{ version_aviso = 'privacidad-v1-borrador'; version_consentimiento = 'consentimiento-v1-borrador' }
 
 # Pacientes desechables "PRUEBA - Desechable ...": cuenta nueva en Firebase
 # (correo @example.com, contrasena aleatoria) + POST /api/usuarios, con o sin
