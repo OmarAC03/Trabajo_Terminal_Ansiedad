@@ -19,6 +19,7 @@ import '../ui/app_colors.dart';
 import '../ui/fila_indicador.dart';
 import '../ui/formato_fecha.dart';
 import '../ui/progreso_calibracion.dart';
+import '../ui/selector_fuente.dart';
 import '../ui/widgets.dart';
 import 'gad7_screen.dart';
 import 'medicion_screen.dart';
@@ -41,7 +42,12 @@ class InicioScreen extends StatelessWidget {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? "";
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AlertaProvider()),
+        // PILOTO: solo hay sensor, así que se conecta al abrir Inicio.
+        ChangeNotifierProvider(create: (_) {
+          final alerta = AlertaProvider();
+          if (!AppConfig.conSimulador()) alerta.elegirSensor();
+          return alerta;
+        }),
         // Se recarga sola al guardarse una sesión nueva (AvisoSesiones).
         ChangeNotifierProvider(
           create: (_) => InicioProvider(
@@ -103,10 +109,10 @@ class _InicioView extends StatelessWidget {
                     ),
                     if (alerta.fuente == FuenteLecturas.ninguna) ...[
                       const SizedBox(height: 8),
-                      const Text(
-                        'Elige "Simulación" o "Sensor" (arriba) para iniciar una medición.',
+                      Text(
+                        textoSinFuente(),
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, color: AppColors.textoAyuda),
+                        style: const TextStyle(fontSize: 12, color: AppColors.textoAyuda),
                       ),
                     ],
                     if (alerta.fuente == FuenteLecturas.sensor) ...[
@@ -254,7 +260,7 @@ class _EncabezadoState extends State<_Encabezado> {
                         style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13),
                       ),
                     const SizedBox(height: 12),
-                    _ChipFuente(widget.alerta),
+                    SelectorFuente(widget.alerta),
                   ],
                 ),
               ),
@@ -271,76 +277,6 @@ class _EncabezadoState extends State<_Encabezado> {
                 ),
                 child: Image.asset(mascota, fit: BoxFit.contain),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Chip translúcido para elegir la fuente de lecturas: Simulación o Sensor
-/// (Fase M7a). Mientras se busca el sensor no se puede cambiar.
-class _ChipFuente extends StatelessWidget {
-  final AlertaProvider alerta;
-  const _ChipFuente(this.alerta);
-
-  @override
-  Widget build(BuildContext context) {
-    final bloqueado = alerta.ocupado;
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _OpcionFuente(
-            texto: 'Simulación',
-            icono: Icons.science,
-            activa: alerta.fuente == FuenteLecturas.simulacion,
-            onTap: bloqueado ? null : alerta.elegirSimulacion,
-          ),
-          _OpcionFuente(
-            texto: 'Sensor',
-            icono: alerta.fuente == FuenteLecturas.sensor && alerta.estadoSensor == EstadoSensor.listo
-                ? Icons.sensors
-                : Icons.sensors_off,
-            activa: alerta.fuente == FuenteLecturas.sensor,
-            onTap: bloqueado ? null : alerta.elegirSensor,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OpcionFuente extends StatelessWidget {
-  final String texto;
-  final IconData icono;
-  final bool activa;
-  final VoidCallback? onTap;
-  const _OpcionFuente({required this.texto, required this.icono, required this.activa, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = activa ? AppColors.primarioOscuro : Colors.white;
-    return Material(
-      color: activa ? Colors.white : Colors.transparent,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icono, color: color, size: 14),
-              const SizedBox(width: 5),
-              Text(texto, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
             ],
           ),
         ),

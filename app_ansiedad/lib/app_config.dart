@@ -7,8 +7,27 @@ import 'ui/app_colors.dart';
 /// Cualquier cambio (ej. mover el backend a otro dominio) obligaba a buscar y
 /// reemplazar en todos lados, con riesgo de olvidar alguno. Ahora vive en un
 /// único lugar.
+/// Sabor de compilación (versión final). PILOTO es la app de los usuarios
+/// reales: solo el sensor, sin simulador ni selector de fuente. DEMO es la de
+/// presentaciones: todo como antes. Se elige al compilar:
+///   flutter build apk --release --dart-define=SABOR=DEMO
+/// Sin la bandera sale PILOTO, para que nunca se entregue un simulador por
+/// descuido.
+enum Sabor { piloto, demo }
+
+Sabor saborDesde(String valor) => valor.trim().toUpperCase() == 'DEMO' ? Sabor.demo : Sabor.piloto;
+
 class AppConfig {
   AppConfig._(); // no instanciable
+
+  static const String _saborCompilado = String.fromEnvironment('SABOR', defaultValue: 'PILOTO');
+
+  /// Sabor de esta compilación. Las pantallas aceptan otro para las pruebas.
+  static final Sabor sabor = saborDesde(_saborCompilado);
+
+  /// Si se ofrece la simulación (solo DEMO). El código del simulador sigue
+  /// existiendo en los dos sabores: lo usan las pruebas.
+  static bool conSimulador([Sabor? s]) => (s ?? sabor) == Sabor.demo;
 
   /// URL base del backend (Render). Si algún día cambia el dominio, se edita
   /// SOLO aquí.

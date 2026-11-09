@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../contenido/privacidad_textos.dart';
 import '../providers/consentimiento_provider.dart';
 import '../ui/app_colors.dart';
+import '../ui/pantalla_cargando.dart';
 import '../ui/widgets.dart';
 
 /// Puerta de consentimiento (Bloque 1, paso 2): va entre "hay sesión" y la
@@ -28,10 +29,8 @@ class PuertaConsentimiento extends StatelessWidget {
             case EstadoPuerta.error:
               return _PantallaErrorPuerta(mensaje: p.error, onReintentar: p.cargar);
             case EstadoPuerta.cargando:
-              return const Scaffold(
-                backgroundColor: AppColors.fondo,
-                body: Center(child: CircularProgressIndicator(color: AppColors.primario)),
-              );
+              // Primera petición al servidor: aquí se nota si Render despierta.
+              return const PantallaCargando();
           }
         },
       ),
