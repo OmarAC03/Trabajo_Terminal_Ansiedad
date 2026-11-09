@@ -9,12 +9,12 @@ const { ValidationError, AuthError } = require('./errors');
 // del texto = versión nueva aquí y en la app: cada paciente vuelve a aceptar
 // (la tabla `consentimientos` guarda una fila por versión aceptada).
 //
-// Versión 1 (docs/version_final/AVISO_PRIVACIDAD_Y_CONSENTIMIENTO.md). Sigue
-// con "-borrador" mientras el texto tenga datos entre [corchetes]; al
-// completarlos, quitarlo aquí y en la app AL MISMO TIEMPO (mismo despliegue).
+// Versión 1 publicada (docs/version_final/AVISO_PRIVACIDAD_Y_CONSENTIMIENTO.md).
+// Cualquier cambio de versión va aquí y en la app AL MISMO TIEMPO (mismo
+// despliegue): con versiones distintas nadie podría aceptar.
 const CONFIG_CONSENTIMIENTO = Object.freeze({
-  version_aviso: 'privacidad-v1-borrador',
-  version_consentimiento: 'consentimiento-v1-borrador',
+  version_aviso: 'privacidad-v1',
+  version_consentimiento: 'consentimiento-v1',
 });
 
 const CODIGO_CONSENTIMIENTO_REQUERIDO = 'consentimiento_requerido';

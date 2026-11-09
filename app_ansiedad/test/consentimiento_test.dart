@@ -133,11 +133,11 @@ void main() {
 
   group('TextosPrivacidad (VERIFICAR: borrador)', () {
     test('las versiones son las mismas que en backend/consentimiento.js', () {
-      expect(TextosPrivacidad.versionAviso, 'privacidad-v1-borrador');
-      expect(TextosPrivacidad.versionConsentimiento, 'consentimiento-v1-borrador');
+      expect(TextosPrivacidad.versionAviso, 'privacidad-v1');
+      expect(TextosPrivacidad.versionConsentimiento, 'consentimiento-v1');
       expect(ConsentimientoRepository.versionesVigentes, {
-        'version_aviso': 'privacidad-v1-borrador',
-        'version_consentimiento': 'consentimiento-v1-borrador',
+        'version_aviso': 'privacidad-v1',
+        'version_consentimiento': 'consentimiento-v1',
       });
     });
 
@@ -190,15 +190,16 @@ void main() {
 
     test('datos completados: desarrolladores, región, conservación, fecha y "seudonimizado"', () {
       final todo = [...TextosPrivacidad.aviso, ...TextosPrivacidad.consentimiento].join(' ');
-      expect(todo, contains('Omar Alejandro Angeles Carcamo'));
+      expect(todo, contains('Omar Alejandro Angeles Carcamo y Luis Enrique Marín Nostroza'));
+      expect(todo, contains('oangelesc1800@alumno.ipn.mx'));
       expect(todo, contains('región East US'));
       expect(todo, contains('31 de enero de 2027'));
       expect(todo, contains('Fecha: 10 de noviembre de 2026'));
       expect(todo, contains('registro seudonimizado'));
       expect(todo.toLowerCase(), isNot(contains('anónim')));
-      // Lo único que queda entre corchetes es el correo de contacto.
-      final corchetes = RegExp(r'\[[^\]]*\]').allMatches(todo).map((m) => m.group(0)).toSet();
-      expect(corchetes, {'[correo de contacto del proyecto]'});
+      // Ya no queda ningún dato entre corchetes: la versión es la publicada.
+      expect(TextosPrivacidad.tieneCorchetes, isFalse);
+      expect(TextosPrivacidad.esBorrador, isFalse);
     });
 
     test('las negritas van en pares (ningún ** suelto)', () {

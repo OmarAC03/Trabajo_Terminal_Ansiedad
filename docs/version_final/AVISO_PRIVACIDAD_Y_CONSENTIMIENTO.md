@@ -9,7 +9,7 @@
 >
 > **Responsable confirmado: ESCOM del IPN** (mismo modelo que los avisos integrales de las escuelas del IPN, donde la escuela es la responsable y los derechos ARCO se ejercen ante la Unidad de Transparencia del IPN).
 >
-> **Falta un solo dato entre [corchetes]:** el correo de contacto del proyecto. Los otros cuatro se completaron el 9 de noviembre de 2026.
+> **Datos completos** (9 de noviembre de 2026): ya no queda ningún dato entre corchetes. Versiones publicadas: `privacidad-v1` y `consentimiento-v1`.
 >
 > **Marco legal:**
 > - El IPN es una institución pública y, como sujeto obligado, se rige por la **Ley General de Protección de Datos Personales en Posesión de Sujetos Obligados** (DOF 20/03/2025), no por la LFPDPPP. Esa ley considera **sensibles** los datos de salud (art. 3, fr. IX) y pide aviso simplificado y aviso integral (arts. 21 y 22).
@@ -32,7 +32,7 @@ Usamos tus datos para:
 
 Algunos de estos datos son **datos de salud** y por eso te pedimos tu consentimiento expreso.
 
-Con datos **agregados y sin identificarte** se evaluará el funcionamiento del prototipo dentro del Trabajo Terminal. Si no quieres que tus datos se usen para esto, escríbenos a [correo de contacto del proyecto].
+Con datos **agregados y sin identificarte** se evaluará el funcionamiento del prototipo dentro del Trabajo Terminal. Si no quieres que tus datos se usen para esto, escríbenos a oangelesc1800@alumno.ipn.mx.
 
 No vendemos tus datos ni los compartimos con terceros para otros fines.
 
@@ -50,7 +50,7 @@ Consulta el aviso completo en **Perfil → Privacidad → Aviso de privacidad**.
 
 La Escuela Superior de Cómputo (ESCOM) del Instituto Politécnico Nacional, con domicilio en Av. Juan de Dios Bátiz s/n, esq. Miguel Othón de Mendizábal, Col. Lindavista, Alcaldía Gustavo A. Madero, C.P. 07738, Ciudad de México, es la responsable del tratamiento de los datos personales que se recaben mediante este prototipo, conforme a la Ley General de Protección de Datos Personales en Posesión de Sujetos Obligados.
 
-El prototipo lo desarrollan Omar Alejandro Angeles Carcamo y Luis Enrique Lopez Marin como parte del Trabajo Terminal 2026-B085. Lo dirigen el Dr. José Alfredo Jiménez Benítez y la M. en C. Jacqueline Arzate Gordillo.
+El prototipo lo desarrollan Omar Alejandro Angeles Carcamo y Luis Enrique Marín Nostroza como parte del Trabajo Terminal 2026-B085. Lo dirigen el Dr. José Alfredo Jiménez Benítez y la M. en C. Jacqueline Arzate Gordillo.
 
 ### 2. Datos personales que se tratan
 
@@ -83,7 +83,7 @@ El prototipo lo desarrollan Omar Alejandro Angeles Carcamo y Luis Enrique Lopez 
 
 **Adicional:**
 
-5. Evaluar el funcionamiento del prototipo con datos **agregados y sin identificarte**, dentro del Trabajo Terminal y su documento. Puedes negarte escribiendo a [correo de contacto del proyecto]; tu negativa no afecta el uso de la app.
+5. Evaluar el funcionamiento del prototipo con datos **agregados y sin identificarte**, dentro del Trabajo Terminal y su documento. Puedes negarte escribiendo a oangelesc1800@alumno.ipn.mx; tu negativa no afecta el uso de la app.
 
 La app **no emite diagnósticos** y no sustituye la atención de un profesional de la salud.
 
@@ -126,7 +126,7 @@ Tienes derecho a acceder a tus datos, rectificarlos, cancelarlos u oponerte a su
   - consultar tus mediciones en Historial;
   - corregir tu nombre en Perfil;
   - pedir la eliminación de tu cuenta en Perfil → Privacidad → Eliminar mi cuenta.
-- **Por escrito:** a [correo de contacto del proyecto].
+- **Por escrito:** a oangelesc1800@alumno.ipn.mx.
 - **Ante la Unidad de Transparencia del IPN:** Av. Wilfrido Massieu s/n, Edificio «Adolfo Ruiz Cortines», planta baja, Unidad Profesional Adolfo López Mateos, Zacatenco, Alcaldía Gustavo A. Madero, C.P. 07738, Ciudad de México. Teléfono 55 5729 6000, extensiones 50128 y 51992. Correo: acceinfo@ipn.mx.
 
 Puedes **retirar tu consentimiento** en cualquier momento solicitando la eliminación de tu cuenta.

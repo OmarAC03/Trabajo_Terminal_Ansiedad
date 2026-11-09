@@ -32,10 +32,10 @@ class TextosPrivacidad {
 
   /// Mientras sea true, una prueba exige que las versiones digan "borrador":
   /// así no se publica un texto incompleto con una versión que parezca final.
-  static const bool esBorrador = true;
+  static const bool esBorrador = false;
 
-  static const String versionAviso = 'privacidad-v1-borrador';
-  static const String versionConsentimiento = 'consentimiento-v1-borrador';
+  static const String versionAviso = 'privacidad-v1';
+  static const String versionConsentimiento = 'consentimiento-v1';
 
   // --- Pantalla de la puerta (cuentas existentes) ---
   static const String titulo = 'Antes de continuar';
@@ -74,8 +74,8 @@ class TextosPrivacidad {
         'Algunos de estos datos son **datos de salud** y por eso te pedimos tu consentimiento expreso.'),
     BloqueTexto.parrafo(
         'Con datos **agregados y sin identificarte** se evaluará el funcionamiento del prototipo dentro del '
-        'Trabajo Terminal. Si no quieres que tus datos se usen para esto, escríbenos a [correo de contacto del '
-        'proyecto].'),
+        'Trabajo Terminal. Si no quieres que tus datos se usen para esto, escríbenos a '
+        'oangelesc1800@alumno.ipn.mx.'),
     BloqueTexto.parrafo('No vendemos tus datos ni los compartimos con terceros para otros fines.'),
     BloqueTexto.parrafo('Puedes pedir la eliminación de tu cuenta en **Perfil → Privacidad**.'),
     BloqueTexto.parrafo(
@@ -93,8 +93,8 @@ class TextosPrivacidad {
         'mediante este prototipo, conforme a la Ley General de Protección de Datos Personales en Posesión de '
         'Sujetos Obligados.'),
     BloqueTexto.parrafo(
-        'El prototipo lo desarrollan Omar Alejandro Angeles Carcamo y Luis Enrique Lopez Marin como parte del '
-        'Trabajo Terminal 2026-B085. Lo dirigen el Dr. José Alfredo Jiménez Benítez y la M. en C. Jacqueline Arzate '
+        'El prototipo lo desarrollan Omar Alejandro Angeles Carcamo y Luis Enrique Marín Nostroza como parte '
+        'del Trabajo Terminal 2026-B085. Lo dirigen el Dr. José Alfredo Jiménez Benítez y la M. en C. Jacqueline Arzate '
         'Gordillo.'),
     BloqueTexto.subtitulo('2. Datos personales que se tratan'),
     BloqueTexto.parrafo('**Datos de identificación y de cuenta:**'),
@@ -132,7 +132,7 @@ class TextosPrivacidad {
     BloqueTexto.parrafo('**Adicional:**'),
     BloqueTexto.vineta(
         '5. Evaluar el funcionamiento del prototipo con datos **agregados y sin identificarte**, dentro del '
-        'Trabajo Terminal y su documento. Puedes negarte escribiendo a [correo de contacto del proyecto]; tu '
+        'Trabajo Terminal y su documento. Puedes negarte escribiendo a oangelesc1800@alumno.ipn.mx; tu '
         'negativa no afecta el uso de la app.'),
     BloqueTexto.parrafo(
         'La app **no emite diagnósticos** y no sustituye la atención de un profesional de la salud.'),
@@ -186,7 +186,7 @@ class TextosPrivacidad {
     BloqueTexto.vineta('consultar tus mediciones en Historial;'),
     BloqueTexto.vineta('corregir tu nombre en Perfil;'),
     BloqueTexto.vineta('pedir la eliminación de tu cuenta en Perfil → Privacidad → Eliminar mi cuenta.'),
-    BloqueTexto.parrafo('**Por escrito:** a [correo de contacto del proyecto].'),
+    BloqueTexto.parrafo('**Por escrito:** a oangelesc1800@alumno.ipn.mx.'),
     BloqueTexto.parrafo(
         '**Ante la Unidad de Transparencia del IPN:** Av. Wilfrido Massieu s/n, Edificio «Adolfo Ruiz '
         'Cortines», planta baja, Unidad Profesional Adolfo López Mateos, Zacatenco, Alcaldía Gustavo A. Madero, '
