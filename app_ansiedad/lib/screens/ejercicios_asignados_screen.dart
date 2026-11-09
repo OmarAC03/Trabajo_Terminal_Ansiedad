@@ -6,6 +6,7 @@ import '../models/ejercicio_asignado.dart';
 import '../providers/ejercicios_provider.dart';
 import '../providers/pendientes_provider.dart';
 import '../ui/app_colors.dart';
+import '../ui/fondo_paisaje.dart';
 import '../ui/widgets.dart';
 import 'tecnicas_screen.dart';
 
@@ -19,10 +20,8 @@ class EjerciciosAsignadosScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? "";
     return ChangeNotifierProvider(
-      create: (context) => EjerciciosProvider(
-        pacienteId: uid,
-        marcarVisto: context.read<PendientesProvider>().marcarVisto,
-      ),
+      create: (context) =>
+          EjerciciosProvider(pacienteId: uid, marcarVisto: context.read<PendientesProvider>().marcarVisto),
       child: const _EjerciciosView(),
     );
   }
@@ -46,20 +45,33 @@ class _EjerciciosView extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.fondo,
       appBar: appBarGradiente("Ejercicios asignados"),
-      body: RefreshIndicator(
-        onRefresh: p.cargar,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          // Para que el "jalar para actualizar" funcione aun con la lista vacía.
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: [
-            const Text("Ejercicios asignados por tu especialista",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.texto)),
-            const SizedBox(height: 8),
-            const DisclaimerNota(Disclaimers.ejercicios),
-            const SizedBox(height: 16),
-            ..._buildContenido(context, p),
-          ],
+      // Paisaje tranquilo de fondo; los textos van en tarjetas o en un panel
+      // blanco translúcido para seguir legibles.
+      body: FondoPaisaje(
+        child: RefreshIndicator(
+          onRefresh: p.cargar,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            // Para que el "jalar para actualizar" funcione aun con la lista vacía.
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              const PanelLegible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Ejercicios asignados por tu especialista",
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.texto),
+                    ),
+                    SizedBox(height: 8),
+                    DisclaimerNota(Disclaimers.ejercicios),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              ..._buildContenido(context, p),
+            ],
+          ),
         ),
       ),
     );
@@ -78,7 +90,9 @@ class _EjerciciosView extends StatelessWidget {
       return [
         _buildAviso(Icons.cloud_off, "No se pudieron cargar tus ejercicios", p.errorMsg!),
         const SizedBox(height: 12),
-        Center(child: ElevatedButton(onPressed: p.cargar, child: const Text("Reintentar"))),
+        Center(
+          child: ElevatedButton(onPressed: p.cargar, child: const Text("Reintentar")),
+        ),
       ];
     }
     if (p.ejercicios.isEmpty) {
@@ -96,23 +110,30 @@ class _EjerciciosView extends StatelessWidget {
 
   Widget _buildAviso(IconData icono, String titulo, String detalle) {
     return Padding(
-      padding: const EdgeInsets.only(top: 40, left: 8, right: 8),
-      child: Column(
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: const BoxDecoration(color: AppColors.primarioSuave, shape: BoxShape.circle),
-            child: Icon(icono, size: 34, color: AppColors.primario),
-          ),
-          const SizedBox(height: 12),
-          Text(titulo,
+      padding: const EdgeInsets.only(top: 24),
+      child: PanelLegible(
+        child: Column(
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: const BoxDecoration(color: AppColors.primarioSuave, shape: BoxShape.circle),
+              child: Icon(icono, size: 34, color: AppColors.primario),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              titulo,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.texto, fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
-          Text(detalle,
-              textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textoAyuda, fontSize: 13)),
-        ],
+              style: const TextStyle(color: AppColors.texto, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              detalle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.textoAyuda, fontSize: 13),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -150,8 +171,10 @@ class _EjerciciosView extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(titulo,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.texto)),
+                      Text(
+                        titulo,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.texto),
+                      ),
                       const SizedBox(height: 2),
                       Text(
                         tecnica != null ? "Técnica de la app · toca para practicarla" : "Ejercicio de tu especialista",
@@ -164,8 +187,10 @@ class _EjerciciosView extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(color: AppColors.primario, borderRadius: BorderRadius.circular(999)),
-                    child: const Text("Nuevo",
-                        style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      "Nuevo",
+                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
                   )
                 else if (tecnica != null)
                   const Icon(Icons.chevron_right, color: AppColors.textoSecundario),
@@ -189,8 +214,10 @@ class _EjerciciosView extends StatelessWidget {
               children: [
                 const Icon(Icons.event_outlined, size: 13, color: AppColors.textoSecundario),
                 const SizedBox(width: 4),
-                Text("Asignado el ${_fecha(e.fechaAsignacion)}",
-                    style: const TextStyle(color: AppColors.textoSecundario, fontSize: 11)),
+                Text(
+                  "Asignado el ${_fecha(e.fechaAsignacion)}",
+                  style: const TextStyle(color: AppColors.textoSecundario, fontSize: 11),
+                ),
               ],
             ),
           ],
