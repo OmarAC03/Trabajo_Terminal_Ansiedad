@@ -42,7 +42,7 @@ class TextosPrivacidad {
   static const String introduccion =
       'Para usar la app necesitamos que leas y aceptes el aviso de privacidad y el consentimiento informado. '
       'Sin tu aceptación no se pueden registrar mediciones ni cuestionarios.';
-  static const String marcaBorrador = 'BORRADOR — faltan algunos datos por confirmar (entre corchetes).';
+  static const String marcaBorrador = 'BORRADOR — falta el correo de contacto del proyecto (entre corchetes).';
 
   static const String casillaAviso = 'Leí y acepto el aviso de privacidad.';
   static const String casillaConsentimiento =
@@ -93,8 +93,8 @@ class TextosPrivacidad {
         'mediante este prototipo, conforme a la Ley General de Protección de Datos Personales en Posesión de '
         'Sujetos Obligados.'),
     BloqueTexto.parrafo(
-        'El prototipo lo desarrollan Omar [apellidos] y Luis Enrique Marín Nostroza como parte del Trabajo '
-        'Terminal 2026-B085. Lo dirigen el Dr. José Alfredo Jiménez Benítez y la M. en C. Jacqueline Arzate '
+        'El prototipo lo desarrollan Omar Alejandro Angeles Carcamo y Luis Enrique Lopez Marin como parte del '
+        'Trabajo Terminal 2026-B085. Lo dirigen el Dr. José Alfredo Jiménez Benítez y la M. en C. Jacqueline Arzate '
         'Gordillo.'),
     BloqueTexto.subtitulo('2. Datos personales que se tratan'),
     BloqueTexto.parrafo('**Datos de identificación y de cuenta:**'),
@@ -155,20 +155,20 @@ class TextosPrivacidad {
     BloqueTexto.vineta('**Supabase:** base de datos.'),
     BloqueTexto.vineta('**Render:** servidor de la aplicación y portal web.'),
     BloqueTexto.parrafo(
-        'Estos servicios pueden almacenar la información en servidores fuera de México. [Confirmar región de '
-        'Supabase y Render.]'),
+        'Estos servicios pueden almacenar la información en servidores fuera de México. La base de datos '
+        '(Supabase) y el servidor (Render) están en la región East US, en Estados Unidos.'),
     BloqueTexto.parrafo(
         'No se hacen otras transferencias, salvo las que exija una autoridad competente conforme a la ley.'),
     BloqueTexto.subtitulo('6. Cuánto tiempo se conservan'),
     BloqueTexto.parrafo(
-        'Tus datos se conservan mientras tu cuenta esté activa y dure el Trabajo Terminal. [Fecha límite: '
-        'confirmar con directores.]'),
+        'Tus datos se conservan mientras tu cuenta esté activa y dure el Trabajo Terminal, como máximo hasta el '
+        '31 de enero de 2027.'),
     BloqueTexto.parrafo('Cuando el administrador atiende una solicitud de eliminación:'),
     BloqueTexto.vineta(
         '**se borran** tus mediciones, cuestionarios, mensajes y ejercicios, así como tu cuenta de acceso;'),
     BloqueTexto.vineta(
-        '**se conserva** solo un registro anónimo que indica que la cuenta existió, que aceptaste este aviso y '
-        'que pediste la eliminación. Ese registro no contiene tu nombre ni tu correo.'),
+        '**se conserva** solo un registro seudonimizado (identificado solo con un código interno, sin tu nombre '
+        'ni tu correo) que indica que la cuenta existió, que aceptaste este aviso y que pediste la eliminación.'),
     BloqueTexto.vineta(
         '**se conserva** la bitácora de seguridad del sistema: un registro de qué acciones se hicieron sobre la '
         'cuenta y cuándo (por ejemplo, que un especialista consultó tus datos o que se atendió tu solicitud). '
@@ -198,7 +198,7 @@ class TextosPrivacidad {
     BloqueTexto.parrafo(
         'Si este aviso cambia, la app te mostrará la nueva versión y te pedirá aceptarla antes de seguir '
         'midiendo.'),
-    BloqueTexto.parrafo('Versión: $versionAviso · Fecha: [fecha de publicación].'),
+    BloqueTexto.parrafo('Versión: $versionAviso · Fecha: 10 de noviembre de 2026.'),
   ];
 
   // --- C. Consentimiento informado (segunda casilla) ---
@@ -225,7 +225,7 @@ class TextosPrivacidad {
     BloqueTexto.vineta(
         '6. **Si necesito ayuda.** Esta app no atiende emergencias. Si me siento en crisis o en peligro, llamo '
         'al **911** o a la **Línea de la Vida 800 911 2000** (gratuita, 24 horas, todos los días).'),
-    BloqueTexto.parrafo('Versión: $versionConsentimiento · Fecha: [fecha de publicación].'),
+    BloqueTexto.parrafo('Versión: $versionConsentimiento · Fecha: 10 de noviembre de 2026.'),
   ];
 
   /// Textos planos del aviso (simplificado + integral) y del consentimiento;

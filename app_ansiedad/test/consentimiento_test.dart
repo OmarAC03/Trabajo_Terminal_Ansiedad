@@ -188,6 +188,19 @@ void main() {
       }
     });
 
+    test('datos completados: desarrolladores, región, conservación, fecha y "seudonimizado"', () {
+      final todo = [...TextosPrivacidad.aviso, ...TextosPrivacidad.consentimiento].join(' ');
+      expect(todo, contains('Omar Alejandro Angeles Carcamo'));
+      expect(todo, contains('región East US'));
+      expect(todo, contains('31 de enero de 2027'));
+      expect(todo, contains('Fecha: 10 de noviembre de 2026'));
+      expect(todo, contains('registro seudonimizado'));
+      expect(todo.toLowerCase(), isNot(contains('anónim')));
+      // Lo único que queda entre corchetes es el correo de contacto.
+      final corchetes = RegExp(r'\[[^\]]*\]').allMatches(todo).map((m) => m.group(0)).toSet();
+      expect(corchetes, {'[correo de contacto del proyecto]'});
+    });
+
     test('las negritas van en pares (ningún ** suelto)', () {
       for (final b in [
         ...TextosPrivacidad.avisoSimplificado,
