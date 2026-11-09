@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/mensaje.dart';
 import '../providers/mensajes_provider.dart';
 import '../ui/app_colors.dart';
+import '../ui/fechas_chat.dart';
 import '../ui/widgets.dart';
 import 'vinculacion_screen.dart';
 
@@ -113,12 +114,19 @@ class _MensajesViewState extends State<_MensajesView> {
                     )
                   // reverse: la lista arranca abajo (en el último mensaje), como
                   // cualquier chat, sin tener que manejar un ScrollController.
-                  : ListView.builder(
-                      reverse: true,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: p.mensajes.length,
-                      itemBuilder: (context, index) => _buildBurbuja(p, p.mensajes[p.mensajes.length - 1 - index]),
-                    ),
+                  : Builder(builder: (context) {
+                      // Separadores por día (hora de la Ciudad de México).
+                      final elementos = conSeparadores(p.mensajes, (Mensaje m) => m.fechaEnvio, ahora: DateTime.now());
+                      return ListView.builder(
+                        reverse: true,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: elementos.length,
+                        itemBuilder: (context, index) {
+                          final e = elementos[elementos.length - 1 - index];
+                          return e.esSeparador ? SeparadorDia(e.separador!) : _buildBurbuja(p, e.mensaje!, e.hora);
+                        },
+                      );
+                    }),
             ),
             _buildCajaTexto(p),
           ],
@@ -154,14 +162,10 @@ class _MensajesViewState extends State<_MensajesView> {
     );
   }
 
-  static String _hora(DateTime? f) =>
-      f == null ? '' : "${f.hour.toString().padLeft(2, '0')}:${f.minute.toString().padLeft(2, '0')}";
-
   /// Burbujas como en el portal: las propias en azul a la derecha, las del
   /// especialista en blanco con borde a la izquierda; hora debajo.
-  Widget _buildBurbuja(MensajesProvider p, Mensaje msg) {
+  Widget _buildBurbuja(MensajesProvider p, Mensaje msg, String hora) {
     final esMio = p.esMio(msg);
-    final hora = _hora(msg.fechaEnvio);
     return Align(
       alignment: esMio ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
@@ -246,6 +250,31 @@ class _MensajesViewState extends State<_MensajesView> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Píldora centrada con el día ("Hoy", "Ayer", "lunes 9 de noviembre").
+class SeparadorDia extends StatelessWidget {
+  final String texto;
+  const SeparadorDia(this.texto, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            color: AppColors.primarioSuave,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppColors.borde),
+          ),
+          child: Text(texto,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textoSecundario)),
+        ),
       ),
     );
   }
