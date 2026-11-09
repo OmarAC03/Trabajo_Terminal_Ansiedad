@@ -157,11 +157,17 @@ app.post('/api/lecturas', async (req, res) => {
 // --- NUEVA RUTA PARA CONSULTAR EL HISTORIAL ---
 app.get('/api/lecturas', async (req, res) => {
   if (req.rol !== 'especialista') {
-    throw new AuthError('Solo un especialista puede ver las lecturas de todos los pacientes.', 403);
+    throw new AuthError('Solo un especialista puede ver las lecturas de sus pacientes.', 403);
   }
-  // "ORDER BY 1" ordena por la primera columna (normalmente el ID o la fecha)
-  const query = 'SELECT * FROM lecturas_biometricas ORDER BY 1 DESC';
-  const result = await pool.query(query);
+  // Fase S: antes devolvía las lecturas de TODOS los pacientes a cualquier
+  // especialista. Ahora solo las de sus pacientes vinculados (mismo criterio
+  // que autorizarLecturaPaciente). Ningún cliente la usa; se conserva filtrada.
+  const query = `
+    SELECT l.* FROM lecturas_biometricas l
+    JOIN usuarios u ON u.id = l.paciente_id
+    WHERE u.rol = 'paciente' AND u.especialista_id = $1
+    ORDER BY 1 DESC`;
+  const result = await pool.query(query, [req.uid]);
   logger.info('Registros recuperados', { total: result.rows.length });
   res.status(200).json(result.rows);
 });

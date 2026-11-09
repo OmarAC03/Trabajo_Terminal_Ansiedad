@@ -281,6 +281,14 @@ Referencia: `MARCO_ALCANCE_Y_LENGUAJE.md`. El sistema monitorea parámetros fisi
 
 ---
 
+## 4sexies. Versión final para el piloto (rama `version-final`, 9 nov 2026)
+
+- **Sabores:** `--dart-define=SABOR=PILOTO` (por defecto: solo sensor, sin simulador ni selector) o `SABOR=DEMO` (como antes). `AppConfig.conSimulador()`.
+- **Aviso y consentimiento publicados:** `privacidad-v1` / `consentimiento-v1` (docs/version_final), iguales en app, backend y `prueba_cuentas.ps1`; deben desplegarse juntos. Responsable: la ESCOM del IPN.
+- **App:** pantalla de arranque con la mascota, Acerca de sin datos técnicos (+ Acerca del proyecto), separadores por día en Mensajes (hora de México), avatares de la mascota (11, sin `preocupado`), paisaje en Ejercicios.
+- **Seguridad (Fase S):** `GET /api/salud` pública; CORS solo `https://monitor-ansiedad-escom.onrender.com` (+ `http://localhost:3000` si `NODE_ENV` ≠ `production`) en HTTP y Socket.io (`backend/seguridad.js`); express-rate-limit con `trust proxy` (1000/15 min por IP, 300/15 min por cuenta, 10/h por cuenta en registro, consentimiento y GAD-7; el contador vive en memoria y se reinicia al reiniciar el backend). `GET /api/lecturas` ya solo devuelve las de los pacientes vinculados (antes, todas a cualquier especialista). RLS activada en todas las tablas y sin privilegios para `anon`/`authenticated` (DDL ejecutado por Omar).
+- **Prueba de aislamiento:** `backend/pruebas/prueba_aislamiento.ps1` (+ `aislamiento_socket.js`, socket.io-client solo en devDependencies) con las cuentas PRUEBA B y F de `semilla_aislamiento.js` (@example.com).
+
 ## 5. Deuda técnica / pendientes conocidos
 
 - **Seguridad (Inc. 6a, ✅ CERRADO):** `GET /api/lecturas` y el resto de endpoints ya exigen token Firebase y el portal web ya exige login — verificado end-to-end (ver sección 4). El pendiente menor de confirmar el rol especialista quedó cerrado al verificar la Fase D del sistema de vinculación (sección 4ter).
