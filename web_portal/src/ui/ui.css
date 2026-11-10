@@ -1138,29 +1138,26 @@
   object-fit: contain;
 }
 
-/* Riti en el login. Es azul como el panel: en vez de un cuadro blanco lleva
-   un halo de luz redondo que se desvanece hacia el azul, sin bordes. */
+/* Riti en el login: el avatar ya trae su fondo redondo azul claro; un aro
+   blanco circular lo separa del panel azul. */
 .ui-auth-mascota {
   display: grid;
   place-items: center;
-  width: 76px;
-  height: 76px;
+  width: 72px;
+  height: 72px;
+  padding: 3px;
+  box-sizing: border-box;
   border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    rgba(255, 255, 255, 0.95) 0%,
-    rgba(255, 255, 255, 0.85) 42%,
-    rgba(255, 255, 255, 0.3) 60%,
-    rgba(255, 255, 255, 0) 71%
-  );
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
   flex-shrink: 0;
 }
 
 .ui-auth-mascota img {
-  width: 78%;
-  height: 78%;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
   object-fit: contain;
-  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.18));
 }
 
 .ui-auth-accent {
@@ -1290,8 +1287,8 @@
   }
 
   .ui-auth-mascota {
-    width: clamp(76px, 7vw, 108px);
-    height: clamp(76px, 7vw, 108px);
+    width: clamp(72px, 6.5vw, 100px);
+    height: clamp(72px, 6.5vw, 100px);
   }
 
   .ui-auth-lema {

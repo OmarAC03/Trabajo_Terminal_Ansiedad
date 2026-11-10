@@ -18,6 +18,9 @@ class EstructuraAcceso extends StatelessWidget {
   /// Muestra la flecha de regreso en la banda (pantallas abiertas con push).
   final bool conRegreso;
 
+  /// Avatar de Riti en la banda: uno distinto por pantalla.
+  final String avatar;
+
   const EstructuraAcceso({
     super.key,
     required this.titulo,
@@ -25,10 +28,13 @@ class EstructuraAcceso extends StatelessWidget {
     required this.formulario,
     this.pie,
     this.conRegreso = false,
+    this.avatar = avatarLogin,
   });
 
-  /// Riti en la banda de marca del login y el registro.
-  static const String mascota = 'assets/mascota/mascota_saludando.png';
+  /// El login siempre con Riti meditando; registro y recuperar contraseña, otros.
+  static const String avatarLogin = 'assets/mascota/avatar_meditando.png';
+  static const String avatarRegistro = 'assets/mascota/avatar_saludando.png';
+  static const String avatarRecuperar = 'assets/mascota/avatar_pensativo.png';
 
   @override
   Widget build(BuildContext context) {
@@ -104,21 +110,21 @@ class EstructuraAcceso extends StatelessWidget {
                       )
                     : const SizedBox(height: 48),
               ),
-              // Riti saludando. Es azul como la banda: en vez de un cuadro
-              // blanco lleva un halo de luz redondo que se desvanece, sin bordes.
+              // Riti en un círculo blanco (el avatar ya trae su fondo redondo
+              // azul claro; el aro blanco lo separa de la banda azul).
               Container(
-                width: 116,
-                height: 116,
-                padding: const EdgeInsets.all(20),
-                decoration: const BoxDecoration(
+                width: 104,
+                height: 104,
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [Color(0xF2FFFFFF), Color(0xD9FFFFFF), Color(0x4DFFFFFF), Color(0x00FFFFFF)],
-                    stops: [0, 0.6, 0.85, 1],
-                  ),
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 12, offset: const Offset(0, 4)),
+                  ],
                 ),
                 child: Image.asset(
-                  EstructuraAcceso.mascota,
+                  avatar,
                   fit: BoxFit.contain,
                   semanticLabel: Marca.nombreMascota,
                 ),

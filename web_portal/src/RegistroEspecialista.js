@@ -61,6 +61,7 @@ function RegistroEspecialista({ onVolver, onRegistrado }) {
 
   return (
     <AuthLayout
+      avatar="registro"
       title="Registro de especialista"
       subtitle="Crea tu cuenta con el código que te entregó tu institución."
       footer={

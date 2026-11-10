@@ -1,18 +1,23 @@
 import { Info } from 'lucide-react';
 import { NOMBRE_APP, LEMA, NOMBRE_MASCOTA } from '../marca';
-import mascota from './mascota_saludando.png';
+import avatarLogin from './avatar_meditando.png';
+import avatarRegistro from './avatar_saludando.png';
+import avatarRecuperar from './avatar_pensativo.png';
 import './ui.css';
+
+// Riti en el panel: el login siempre meditando; registro y recuperar, otros.
+export const AVATARES = { login: avatarLogin, registro: avatarRegistro, recuperar: avatarRecuperar };
 
 // Estructura de las pantallas sin sesión (Fase A, paso 7): Login, Registro y
 // Recuperar contraseña. Panel de marca con el alcance del sistema a la
 // izquierda y la tarjeta del formulario a la derecha; en pantallas angostas
 // queda en una sola columna.
-function AuthLayout({ title, subtitle, children, footer }) {
+function AuthLayout({ title, subtitle, children, footer, avatar = 'login' }) {
   return (
     <div className="ui-auth">
       <aside className="ui-auth-brand">
         <div className="ui-auth-logo">
-          <span className="ui-auth-mascota"><img src={mascota} alt={NOMBRE_MASCOTA} /></span>
+          <span className="ui-auth-mascota"><img src={AVATARES[avatar] || avatarLogin} alt={NOMBRE_MASCOTA} /></span>
           <span className="ui-auth-marca">
             <span>{NOMBRE_APP}</span>
             <span className="ui-auth-lema">{LEMA}</span>

@@ -62,6 +62,7 @@ function RecuperarPassword({ emailInicial = '', onVolver }) {
 
   return (
     <AuthLayout
+      avatar="recuperar"
       title="Restablecer contraseña"
       subtitle="Te enviaremos un enlace a tu correo para crear una contraseña nueva."
       footer={

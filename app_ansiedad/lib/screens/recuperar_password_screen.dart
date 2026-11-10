@@ -106,6 +106,7 @@ class _RecuperarPasswordScreenState extends State<RecuperarPasswordScreen> {
   Widget build(BuildContext context) {
     return EstructuraAcceso(
       conRegreso: true,
+      avatar: EstructuraAcceso.avatarRecuperar,
       titulo: 'Restablecer contraseña',
       subtitulo: 'Te enviaremos un enlace a tu correo para crear una contraseña nueva.',
       formulario: Column(

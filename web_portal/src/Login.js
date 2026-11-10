@@ -44,6 +44,7 @@ function Login({ onIrARegistro, onOlvidePassword }) {
 
   return (
     <AuthLayout
+      avatar="login"
       title="Iniciar sesión"
       subtitle="Acceso para especialistas"
       footer={

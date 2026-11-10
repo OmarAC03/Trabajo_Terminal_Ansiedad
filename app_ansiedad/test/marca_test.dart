@@ -58,9 +58,26 @@ void main() {
     for (final p in _prohibidos) {
       expect(todo.toLowerCase(), isNot(contains(p.toLowerCase())), reason: p);
     }
-    // Riti en lugar del dibujo de la señal.
-    expect(find.image(const AssetImage(EstructuraAcceso.mascota)), findsOneWidget);
+    // Riti meditando en lugar del dibujo de la señal.
+    expect(find.image(const AssetImage(EstructuraAcceso.avatarLogin)), findsOneWidget);
     expect(find.byIcon(Icons.monitor_heart), findsNothing);
+  });
+
+  test('el login usa a Riti meditando; registro y recuperar contraseña, otro avatar cada uno', () {
+    expect(EstructuraAcceso.avatarLogin, 'assets/mascota/avatar_meditando.png');
+    final avatares = {
+      EstructuraAcceso.avatarLogin,
+      EstructuraAcceso.avatarRegistro,
+      EstructuraAcceso.avatarRecuperar,
+    };
+    expect(avatares.length, 3);
+    for (final a in avatares) {
+      expect(File(a).existsSync(), isTrue, reason: a);
+    }
+    expect(File('lib/screens/login_screen.dart').readAsStringSync(), contains('EstructuraAcceso.avatarLogin'));
+    expect(File('lib/screens/registro_screen.dart').readAsStringSync(), contains('EstructuraAcceso.avatarRegistro'));
+    expect(File('lib/screens/recuperar_password_screen.dart').readAsStringSync(),
+        contains('EstructuraAcceso.avatarRecuperar'));
   });
 
   testWidgets('Acerca de la app muestra el ícono de la app junto al nombre', (tester) async {

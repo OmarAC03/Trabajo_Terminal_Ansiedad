@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { render } from '@testing-library/react';
-import AuthLayout from './ui/AuthLayout';
+import AuthLayout, { AVATARES } from './ui/AuthLayout';
 import Layout from './ui/Layout';
 import { NOMBRE_APP, LEMA, NOMBRE_MASCOTA, FRASE_MASCOTA } from './marca';
 
@@ -62,5 +62,21 @@ describe('marca del portal', () => {
     for (const archivo of iconos) {
       expect(fs.existsSync(path.join(__dirname, '..', 'public', archivo))).toBe(true);
     }
+  });
+
+  test('el login usa a Riti meditando y registro y recuperar, otro avatar cada uno', () => {
+    const imagen = (avatar) => {
+      const { container, unmount } = render(<AuthLayout title="t" avatar={avatar}><p>x</p></AuthLayout>);
+      const src = container.querySelector(`img[alt="${NOMBRE_MASCOTA}"]`).getAttribute('src');
+      unmount();
+      return src;
+    };
+    expect(AVATARES.login).toMatch(/avatar_meditando/);
+    expect(imagen(undefined)).toBe(AVATARES.login);
+    expect(new Set([imagen('login'), imagen('registro'), imagen('recuperar')]).size).toBe(3);
+    const fuente = (archivo) => fs.readFileSync(path.join(__dirname, archivo), 'utf8');
+    expect(fuente('Login.js')).toContain('avatar="login"');
+    expect(fuente('RegistroEspecialista.js')).toContain('avatar="registro"');
+    expect(fuente('RecuperarPassword.js')).toContain('avatar="recuperar"');
   });
 });

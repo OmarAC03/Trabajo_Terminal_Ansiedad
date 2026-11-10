@@ -102,6 +102,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return EstructuraAcceso(
+      avatar: EstructuraAcceso.avatarLogin,
       titulo: 'Bienvenido',
       subtitulo: 'Inicia sesión para continuar',
       formulario: Column(

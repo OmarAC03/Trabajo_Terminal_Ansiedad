@@ -160,6 +160,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
   Widget build(BuildContext context) {
     return EstructuraAcceso(
       conRegreso: true,
+      avatar: EstructuraAcceso.avatarRegistro,
       titulo: 'Crear cuenta',
       subtitulo: 'Regístrate para comenzar tu monitoreo biométrico',
       formulario: Column(
