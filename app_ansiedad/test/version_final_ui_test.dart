@@ -110,32 +110,67 @@ void main() {
   });
 
   group('Botón de medir', () {
-    testWidgets('listo: habilitado, con la leyenda y el anillo', (tester) async {
+    const detalle = 'Unos 3 minutos · sensor listo';
+
+    testWidgets('listo: tarjeta de 96 dp, habilitada, con título, detalle y brillo', (tester) async {
       var toques = 0;
-      await tester.pumpWidget(_app(BotonMedir(habilitado: true, motivo: 'Enciende el sensor', onTap: () => toques++)));
-      expect(find.text(BotonMedir.leyenda), findsOneWidget);
+      await tester.pumpWidget(_app(
+          BotonMedir(habilitado: true, motivo: 'Enciende el sensor', detalle: detalle, onTap: () => toques++)));
+      expect(find.text(BotonMedir.titulo), findsOneWidget);
+      expect(find.text(detalle), findsOneWidget);
+      expect(find.byKey(const ValueKey('motivo_boton_medir')), findsNothing);
       expect(find.text('Enciende el sensor'), findsNothing);
-      expect(tester.hasRunningAnimations, isTrue);
-      await tester.tap(find.byIcon(Icons.play_arrow_rounded));
+      expect(find.byIcon(Icons.monitor_heart_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
+      expect(tester.getSize(find.byType(BotonMedir)).height, BotonMedir.alto);
+      expect(tester.hasRunningAnimations, isTrue); // el brillo del contorno
+      await tester.tap(find.text(BotonMedir.titulo));
       expect(toques, 1);
     });
 
-    testWidgets('no listo: deshabilitado y con el motivo visible', (tester) async {
+    testWidgets('listo: escala 0.98 mientras se presiona', (tester) async {
+      await tester.pumpWidget(_app(BotonMedir(habilitado: true, motivo: '', detalle: detalle, onTap: () {})));
+      final gesto = await tester.startGesture(tester.getCenter(find.text(BotonMedir.titulo)));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale, 0.98);
+      await gesto.up();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale, 1);
+    });
+
+    testWidgets('no listo: deshabilitado, sin brillo y con el motivo en la pastilla', (tester) async {
       var toques = 0;
-      await tester.pumpWidget(_app(BotonMedir(habilitado: false, motivo: 'Conectando…', onTap: () => toques++)));
+      await tester.pumpWidget(
+          _app(BotonMedir(habilitado: false, motivo: 'Conectando…', detalle: detalle, onTap: () => toques++)));
+      expect(find.byKey(const ValueKey('motivo_boton_medir')), findsOneWidget);
       expect(find.text('Conectando…'), findsOneWidget);
-      expect(find.text(BotonMedir.leyenda), findsNothing);
-      await tester.tap(find.byIcon(Icons.play_arrow_rounded), warnIfMissed: false);
+      expect(find.text(detalle), findsNothing);
+      await tester.tap(find.text(BotonMedir.titulo));
       expect(toques, 0);
-      final ink = tester.widget<InkWell>(find.byType(InkWell));
-      expect(ink.onTap, isNull);
+      expect(tester.widget<InkWell>(find.byType(InkWell)).onTap, isNull);
       expect(tester.hasRunningAnimations, isFalse);
     });
 
-    testWidgets('con disableAnimations no hay anillo que pulse', (tester) async {
-      await tester.pumpWidget(_app(BotonMedir(habilitado: true, motivo: '', onTap: () {}), sinAnimaciones: true));
-      expect(find.text(BotonMedir.leyenda), findsOneWidget);
+    testWidgets('con disableAnimations no hay brillo ni escala', (tester) async {
+      await tester.pumpWidget(
+          _app(BotonMedir(habilitado: true, motivo: '', detalle: detalle, onTap: () {}), sinAnimaciones: true));
+      expect(find.text(BotonMedir.titulo), findsOneWidget);
       expect(tester.hasRunningAnimations, isFalse);
+      final gesto = await tester.startGesture(tester.getCenter(find.text(BotonMedir.titulo)));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale, 1);
+      await gesto.up();
+    });
+
+    test('contraste AA de los textos de la tarjeta', () {
+      expect(_contraste(AppColors.texto, AppColors.superficie), greaterThanOrEqualTo(4.5));
+      expect(_contraste(BotonMedir.textoDetalle, AppColors.superficie), greaterThanOrEqualTo(4.5));
+      expect(_contraste(BotonMedir.textoDetalle, BotonMedir.fondoNoListo), greaterThanOrEqualTo(4.5));
+      expect(_contraste(BotonMedir.pastillaTexto, BotonMedir.pastillaFondo), greaterThanOrEqualTo(4.5));
+      // Ícono blanco sobre los dos extremos del degradado (no texto: basta 3:1, se pide 4.5).
+      expect(_contraste(Colors.white, BotonMedir.degradadoInicio), greaterThanOrEqualTo(4.5));
+      expect(_contraste(Colors.white, BotonMedir.degradadoFin), greaterThanOrEqualTo(4.5));
+      expect(_contraste(BotonMedir.textoDetalle, BotonMedir.bordeNoListo), greaterThanOrEqualTo(3));
     });
 
     test('el motivo solo habla de la conexión', () {

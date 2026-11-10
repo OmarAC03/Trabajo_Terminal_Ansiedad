@@ -104,17 +104,16 @@ class _InicioView extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Botón circular al centro (versión final): gris y con el
-                    // motivo mientras no se puede medir.
-                    Center(
-                      child: BotonMedir(
-                        habilitado: alerta.puedeMedir,
-                        motivo: alerta.fuente == FuenteLecturas.ninguna
-                            ? textoSinFuente()
-                            : motivoNoListo(alerta.fuente, alerta.estadoSensor),
-                        detalle: alerta.puedeMedir ? 'Unos ${ConfigMedicion.objetivoValidoSeg ~/ 60} minutos en reposo' : '',
-                        onTap: () => _iniciarMedicion(context, yaHabiaMedidoHoy: calibracion?.medidoHoy ?? false),
-                      ),
+                    // Tarjeta de acción (versión final): gris y con el motivo
+                    // mientras no se puede medir.
+                    BotonMedir(
+                      habilitado: alerta.puedeMedir,
+                      motivo: alerta.fuente == FuenteLecturas.ninguna
+                          ? textoSinFuente()
+                          : motivoNoListo(alerta.fuente, alerta.estadoSensor),
+                      detalle: 'Unos ${ConfigMedicion.objetivoValidoSeg ~/ 60} minutos · '
+                          '${alerta.modoSimulacion ? 'simulación lista' : 'sensor listo'}',
+                      onTap: () => _iniciarMedicion(context, yaHabiaMedidoHoy: calibracion?.medidoHoy ?? false),
                     ),
                     if (alerta.fuente == FuenteLecturas.sensor) ...[
                       const SizedBox(height: 12),
