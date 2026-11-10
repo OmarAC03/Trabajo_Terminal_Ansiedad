@@ -1,4 +1,5 @@
 import { Activity, Info } from 'lucide-react';
+import { NOMBRE_APP, LEMA } from '../marca';
 import './ui.css';
 
 // Estructura de las pantallas sin sesión (Fase A, paso 7): Login, Registro y
@@ -11,7 +12,10 @@ function AuthLayout({ title, subtitle, children, footer }) {
       <aside className="ui-auth-brand">
         <div className="ui-auth-logo">
           <span className="ui-brand-logo"><Activity size={18} /></span>
-          <span>Portal <span className="ui-auth-accent">Clínico TT</span></span>
+          <span className="ui-auth-marca">
+            <span>{NOMBRE_APP}</span>
+            <span className="ui-auth-lema">{LEMA}</span>
+          </span>
         </div>
         <div className="ui-auth-pitch">
           <h2 className="ui-auth-pitch-title">Monitoreo de indicadores fisiológicos</h2>

@@ -14,7 +14,7 @@
     
     
     <application
-        android:label="Monitor ESCOM"
+        android:label="Mi Ritmo"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

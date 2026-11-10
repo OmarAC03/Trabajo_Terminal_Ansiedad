@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../app_config.dart';
+import '../contenido/marca.dart';
 import 'app_colors.dart';
 import 'widgets.dart';
 
@@ -111,13 +112,13 @@ class EstructuraAcceso extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               const Text(
-                'Sistema de Ansiedad',
+                Marca.nombreApp,
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
               Text(
-                'Sistema de Monitoreo Biométrico',
+                Marca.lema,
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13),
               ),

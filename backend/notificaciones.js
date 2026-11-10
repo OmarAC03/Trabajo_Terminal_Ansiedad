@@ -12,7 +12,7 @@
 // teléfono (decisión D1 del Bloque 3; Render gratuito no tiene un proceso
 // despierto para avisar a una hora).
 
-const TITULO = 'Monitor ESCOM';
+const TITULO = 'Mi Ritmo';
 const TEXTOS = Object.freeze({
   mensaje: 'Tienes un mensaje nuevo de tu especialista',
   ejercicio: 'Tu especialista te asignó un ejercicio',

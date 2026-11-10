@@ -1,3 +1,5 @@
+import 'marca.dart';
+
 /// "Acerca del proyecto" (versión final, punto 6). Texto exacto entregado por
 /// Omar; el portal usará el mismo (Fase 2).
 class TextosAcerca {
@@ -19,7 +21,7 @@ class TextosAcerca {
   ];
 
   static const String pie =
-      'Trabajo Terminal 2026-B085 · Escuela Superior de Cómputo · Instituto Politécnico Nacional';
+      '${Marca.nombreApp} · Escuela Superior de Cómputo · Instituto Politécnico Nacional';
 
   /// Cuántos párrafos se ven antes de "Leer más".
   static const int parrafosVisibles = 2;

@@ -71,7 +71,7 @@ void main() {
       expect(todo, startsWith('En la Escuela Superior de Cómputo, como en cualquier universidad'));
       expect(todo, contains('la ansiedad y el estrés con los que los estudiantes lidiamos día a día.'));
       expect(todo, endsWith('como cualquier otra materia.'));
-      expect(TextosAcerca.pie, 'Trabajo Terminal 2026-B085 · Escuela Superior de Cómputo · Instituto Politécnico Nacional');
+      expect(TextosAcerca.pie, 'Mi Ritmo · Escuela Superior de Cómputo · Instituto Politécnico Nacional');
     });
   });
 }

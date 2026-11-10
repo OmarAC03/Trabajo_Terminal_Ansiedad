@@ -1127,6 +1127,18 @@
   opacity: 0.8;
 }
 
+.ui-auth-marca {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.ui-auth-lema {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  opacity: 0.9;
+}
+
 .ui-auth-pitch {
   margin-top: auto;
 }

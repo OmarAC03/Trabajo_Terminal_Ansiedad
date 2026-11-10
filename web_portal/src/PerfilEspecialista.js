@@ -1,3 +1,4 @@
+import { NOMBRE_APP, LEMA } from './marca';
 import { useState } from 'react';
 import axios from 'axios';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
@@ -61,7 +62,7 @@ function PerfilEspecialista({ perfil, onPerfilActualizado, esAdmin = false }) {
       </div>
       <div style={{ marginTop: 20 }}>
         <Disclaimer icon={Info}>
-          Acerca del sistema: el Portal Clínico TT muestra parámetros fisiológicos (frecuencia cardiaca,
+          Acerca del sistema: {NOMBRE_APP} ({LEMA}) muestra parámetros fisiológicos (frecuencia cardiaca,
           SpO2 y HRV) asociados a la ansiedad como apoyo al especialista. No emite diagnósticos: la
           interpretación clínica de los datos corresponde al profesional de salud.
         </Disclaimer>

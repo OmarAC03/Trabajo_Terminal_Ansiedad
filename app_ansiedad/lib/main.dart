@@ -1,3 +1,4 @@
+import 'contenido/marca.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -66,7 +67,7 @@ class AppAnsiedad extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       navigatorKey: Sesion.navigatorKey, // para cerrar la sesión sin `context` (sesion.dart)
-      title: 'Sistema de Ansiedad',
+      title: Marca.nombreApp,
       theme: AppTheme.claro,
       home: const AuthGate(), // Decide solo entre Login y la app según la sesión
     );

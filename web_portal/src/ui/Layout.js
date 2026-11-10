@@ -1,3 +1,4 @@
+import { NOMBRE_APP } from '../marca';
 import { Activity } from 'lucide-react';
 import { Avatar } from './components';
 import './ui.css';
@@ -14,7 +15,7 @@ function Layout({ secciones, activa, onNavegar, usuarioNombre, usuarioRol, child
       <aside className="ui-sidebar">
         <div className="ui-brand">
           <span className="ui-brand-logo"><Activity size={18} /></span>
-          <span>Portal <span className="ui-brand-accent">Clínico TT</span></span>
+          <span>{NOMBRE_APP}</span>
         </div>
         <nav className="ui-nav" aria-label="Navegación principal">
           {secciones.map((seccion) => (

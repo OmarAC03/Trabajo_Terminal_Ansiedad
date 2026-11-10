@@ -35,7 +35,7 @@ void main() {
   final ahora = DateTime(2026, 11, 5, 18, 30);
 
   test('textos fijos y neutros', () {
-    expect(tituloRecordatorio, 'Monitor ESCOM');
+    expect(tituloRecordatorio, 'Mi Ritmo');
     expect(textoRecordatorio, 'Ya puedes responder tu cuestionario quincenal');
   });
 

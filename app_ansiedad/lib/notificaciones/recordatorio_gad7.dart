@@ -1,3 +1,4 @@
+import '../contenido/marca.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_10y.dart' as tzdata;
@@ -16,7 +17,7 @@ import 'notificaciones_locales.dart';
 /// receiver de arranque del plugin (AndroidManifest.xml).
 ///
 /// Texto fijo y neutro, como los push: nunca el puntaje ni la severidad.
-const tituloRecordatorio = 'Monitor ESCOM';
+const tituloRecordatorio = Marca.nombreApp;
 const textoRecordatorio = 'Ya puedes responder tu cuestionario quincenal';
 const horaRecordatorio = 10;
 const diasSegundoAviso = 3;

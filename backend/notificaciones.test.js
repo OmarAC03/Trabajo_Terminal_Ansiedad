@@ -42,7 +42,7 @@ function falsos({ tokens = [T1, T2], respuestas, errorEnvio, errorBase } = {}) {
 }
 
 test('regla de oro: textos fijos, neutros y sin datos', () => {
-  assert.equal(TITULO, 'Monitor ESCOM');
+  assert.equal(TITULO, 'Mi Ritmo');
   assert.deepEqual({ ...TEXTOS }, {
     mensaje: 'Tienes un mensaje nuevo de tu especialista',
     ejercicio: 'Tu especialista te asignó un ejercicio',

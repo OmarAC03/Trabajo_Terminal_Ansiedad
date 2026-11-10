@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../contenido/marca.dart';
 import 'app_colors.dart';
 
 /// Pantalla de espera del arranque (versión final, punto 7). El servidor
@@ -10,7 +11,7 @@ class PantallaCargando extends StatefulWidget {
   final Duration avisoTras;
   const PantallaCargando({super.key, this.avisoTras = const Duration(seconds: 8)});
 
-  static const String texto = 'Cargando, por favor espere';
+  static const String texto = '${Marca.nombreMascota} está preparando todo…';
   static const String textoEspera = 'El servidor está despertando; puede tardar hasta un minuto.';
 
   @override
@@ -55,7 +56,19 @@ class _PantallaCargandoState extends State<PantallaCargando> with SingleTickerPr
                   scale: _escala,
                   child: Image.asset('assets/mascota/mascota_respirando.png', width: 150, height: 150),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
+                const Text(
+                  Marca.nombreApp,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primarioOscuro),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  Marca.lema,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: AppColors.textoAyuda),
+                ),
+                const SizedBox(height: 20),
                 const Text(
                   PantallaCargando.texto,
                   textAlign: TextAlign.center,
