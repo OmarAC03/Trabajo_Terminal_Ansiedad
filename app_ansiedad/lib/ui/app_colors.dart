@@ -51,6 +51,15 @@ class AppColors {
   static const Color metricaSpo2 = Color(0xFF0891B2); // cian
   static const Color metricaHrv = Color(0xFF7C3AED); // violeta
 
+  // --- Acentos por sección (versión final) ---
+  // Nunca rojo ni ámbar. El texto va en la variante oscura (contraste AA);
+  // el acento claro solo en íconos, bordes y rellenos.
+  static const Color acentoMedicion = primario; // azul
+  static const Color acentoCuestionario = Color(0xFF7C3AED); // morado
+  static const Color cuestionarioFondo = Color(0xFFF5F3FF);
+  static const Color cuestionarioTexto = Color(0xFF4C1D95);
+  static const Color cuestionarioTextoSuave = Color(0xFF5B21B6);
+
   // --- Forma ---
   static const double radio = 12;
   static const List<BoxShadow> sombra = [

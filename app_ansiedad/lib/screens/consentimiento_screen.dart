@@ -57,7 +57,7 @@ class _PantallaConsentimiento extends StatelessWidget {
             // A (simplificado) con su enlace al integral (B), y su casilla.
             const TarjetaTexto(titulo: TextosPrivacidad.tituloAviso, bloques: TextosPrivacidad.avisoSimplificado),
             const EnlaceAvisoCompleto(),
-            _Casilla(
+            CasillaPrivacidad(
               texto: TextosPrivacidad.casillaAviso,
               valor: p.aceptaAviso,
               onChanged: p.enviando ? null : p.marcarAviso,
@@ -67,7 +67,7 @@ class _PantallaConsentimiento extends StatelessWidget {
             const TarjetaTexto(
                 titulo: TextosPrivacidad.tituloConsentimiento, bloques: TextosPrivacidad.consentimientoInformado),
             const SizedBox(height: 4),
-            _Casilla(
+            CasillaPrivacidad(
               texto: TextosPrivacidad.casillaConsentimiento,
               valor: p.aceptaConsentimiento,
               onChanged: p.enviando ? null : p.marcarConsentimiento,
@@ -94,21 +94,27 @@ class _PantallaConsentimiento extends StatelessWidget {
   }
 }
 
-class _Casilla extends StatelessWidget {
+/// Casilla del aviso o del consentimiento (puerta y registro). Empieza como
+/// la pase quien la usa: siempre sin marcar.
+class CasillaPrivacidad extends StatelessWidget {
   final String texto;
   final bool valor;
   final ValueChanged<bool>? onChanged;
-  const _Casilla({required this.texto, required this.valor, required this.onChanged});
+  const CasillaPrivacidad({super.key, required this.texto, required this.valor, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
-    return CheckboxListTile(
-      value: valor,
-      onChanged: onChanged == null ? null : (v) => onChanged!(v ?? false),
-      controlAffinity: ListTileControlAffinity.leading,
-      contentPadding: EdgeInsets.zero,
-      activeColor: AppColors.primario,
-      title: Text(texto, style: const TextStyle(fontSize: 14, color: AppColors.texto)),
+    // Material propio: dentro de una tarjeta blanca (registro) el toque se ve.
+    return Material(
+      type: MaterialType.transparency,
+      child: CheckboxListTile(
+        value: valor,
+        onChanged: onChanged == null ? null : (v) => onChanged!(v ?? false),
+        controlAffinity: ListTileControlAffinity.leading,
+        contentPadding: EdgeInsets.zero,
+        activeColor: AppColors.primario,
+        title: Text(texto, style: const TextStyle(fontSize: 14, color: AppColors.texto)),
+      ),
     );
   }
 }
@@ -181,6 +187,46 @@ class AvisoIntegralScreen extends StatelessWidget {
             TarjetaTexto(titulo: TextosPrivacidad.tituloAvisoIntegral, bloques: TextosPrivacidad.avisoIntegral),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Solo el consentimiento informado (C): enlace de la casilla del registro.
+class ConsentimientoInformadoScreen extends StatelessWidget {
+  const ConsentimientoInformadoScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.fondo,
+      appBar: appBarGradiente(TextosPrivacidad.tituloConsentimiento),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: const [
+            TarjetaTexto(
+                titulo: TextosPrivacidad.tituloConsentimiento, bloques: TextosPrivacidad.consentimientoInformado),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Enlace al consentimiento informado (C), bajo su casilla en el registro.
+class EnlaceConsentimiento extends StatelessWidget {
+  const EnlaceConsentimiento({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: () =>
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const ConsentimientoInformadoScreen())),
+        icon: const Icon(Icons.description_outlined, size: 18),
+        label: const Text(TextosPrivacidad.leerConsentimiento),
       ),
     );
   }

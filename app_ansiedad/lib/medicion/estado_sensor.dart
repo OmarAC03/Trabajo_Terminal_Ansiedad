@@ -77,3 +77,22 @@ String textoEstadoSensor(EstadoSensor e) => switch (e) {
       EstadoSensor.perdido => 'Se perdió la conexión con el sensor. Revisa que esté encendido y cerca.',
       EstadoSensor.error => 'No se pudo conectar con el sensor. Revisa que esté encendido y cerca del celular.',
     };
+
+/// Motivo corto bajo el botón de medir cuando no se puede medir (versión
+/// final). El detalle y "Reintentar" siguen en la tarjeta del estado. Solo
+/// habla de la conexión.
+String motivoNoListo(FuenteLecturas fuente, EstadoSensor e) {
+  if (fuente == FuenteLecturas.ninguna) return 'Elige una fuente arriba';
+  return switch (e) {
+    EstadoSensor.buscando || EstadoSensor.verificando => 'Conectando…',
+    EstadoSensor.sinPermisos => 'Activa el Bluetooth',
+    EstadoSensor.noVinculado => 'Vincula el sensor en Bluetooth',
+    EstadoSensor.noCompatible => 'El sensor necesita una actualización',
+    EstadoSensor.listo => 'Toca para medir',
+    EstadoSensor.desconectado ||
+    EstadoSensor.sinDatos ||
+    EstadoSensor.perdido ||
+    EstadoSensor.error =>
+      'Enciende el sensor',
+  };
+}

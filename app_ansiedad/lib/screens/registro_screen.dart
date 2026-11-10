@@ -25,8 +25,10 @@ class _RegistroScreenState extends State<RegistroScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
-  // Aceptación del aviso de privacidad y el consentimiento (Bloque 1, paso 2).
-  bool _aceptaPrivacidad = false;
+  // Aceptación del aviso de privacidad y del consentimiento (Bloque 1, paso 2):
+  // dos casillas separadas, las dos sin marcar y obligatorias.
+  bool _aceptaAviso = false;
+  bool _aceptaConsentimiento = false;
 
   void _mostrarError(String mensaje) {
     if (!mounted) return;
@@ -53,7 +55,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
     if (pass.length < 6) {
       return 'La contraseña debe tener al menos 6 caracteres';
     }
-    if (!_aceptaPrivacidad) {
+    if (!_aceptaAviso || !_aceptaConsentimiento) {
       return TextosPrivacidad.faltaAceptarRegistro;
     }
     return null;
@@ -192,26 +194,22 @@ class _RegistroScreenState extends State<RegistroScreen> {
               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
             ),
           ),
-          const SizedBox(height: 12),
-          CheckboxListTile(
-            value: _aceptaPrivacidad,
-            onChanged: _isLoading ? null : (v) => setState(() => _aceptaPrivacidad = v ?? false),
-            controlAffinity: ListTileControlAffinity.leading,
-            contentPadding: EdgeInsets.zero,
-            activeColor: AppColors.primario,
-            title: const Text(TextosPrivacidad.casillaRegistro, style: TextStyle(fontSize: 13.5, color: AppColors.texto)),
+          const SizedBox(height: 20),
+          // A completo, el enlace a B y las mismas casillas que la puerta.
+          if (TextosPrivacidad.esBorrador) ...[const MarcaBorrador(), const SizedBox(height: 12)],
+          const TarjetaTexto(titulo: TextosPrivacidad.tituloAviso, bloques: TextosPrivacidad.avisoSimplificado),
+          const EnlaceAvisoCompleto(),
+          CasillaPrivacidad(
+            texto: TextosPrivacidad.casillaAviso,
+            valor: _aceptaAviso,
+            onChanged: _isLoading ? null : (v) => setState(() => _aceptaAviso = v),
           ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const TextosPrivacidadScreen()),
-              ),
-              icon: const Icon(Icons.description_outlined, size: 18),
-              label: const Text(TextosPrivacidad.leerTextos),
-            ),
+          CasillaPrivacidad(
+            texto: TextosPrivacidad.casillaConsentimiento,
+            valor: _aceptaConsentimiento,
+            onChanged: _isLoading ? null : (v) => setState(() => _aceptaConsentimiento = v),
           ),
+          const EnlaceConsentimiento(),
           const SizedBox(height: 12),
           BotonPrimario(
             texto: 'Registrarme',

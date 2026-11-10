@@ -53,9 +53,9 @@ class TextosPrivacidad {
   static const String reintentar = 'Reintentar';
   static const String leerCompleto = 'Leer aviso completo';
 
-  // --- Registro ---
-  static const String casillaRegistro = 'Leí y acepto el aviso de privacidad y el consentimiento informado.';
-  static const String leerTextos = 'Leer aviso y consentimiento';
+  static const String leerConsentimiento = 'Leer el consentimiento informado';
+
+  // --- Registro (A, enlace a B y las mismas dos casillas que la puerta) ---
   static const String faltaAceptarRegistro = 'Para crear tu cuenta acepta el aviso de privacidad y el consentimiento.';
 
   // --- A. Aviso simplificado (registro y puerta) ---

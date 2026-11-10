@@ -213,10 +213,14 @@ class _MensajesViewState extends State<_MensajesView> {
         border: Border(top: BorderSide(color: AppColors.borde)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
             child: TextField(
               controller: _controladorTexto,
+              // Crece de 1 a 5 líneas y luego hace scroll por dentro.
+              minLines: 1,
+              maxLines: 5,
               textInputAction: TextInputAction.send,
               style: const TextStyle(color: AppColors.texto, fontSize: 15),
               decoration: InputDecoration(

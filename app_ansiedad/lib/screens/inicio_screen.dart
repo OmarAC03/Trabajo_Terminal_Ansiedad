@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../app_config.dart';
-import '../contenido/gad7_textos.dart';
 import '../contenido/textos_educativos.dart';
 import '../logger.dart';
 import '../medicion/aviso_sesiones.dart';
@@ -16,6 +15,8 @@ import '../providers/alerta_provider.dart';
 import '../providers/inicio_provider.dart';
 import '../repositories/perfil_repository.dart';
 import '../ui/app_colors.dart';
+import '../ui/boton_medir.dart';
+import '../ui/tarjeta_gad7.dart';
 import '../ui/fila_indicador.dart';
 import '../ui/formato_fecha.dart';
 import '../ui/progreso_calibracion.dart';
@@ -103,25 +104,25 @@ class _InicioView extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _BotonMedicion(
-                      habilitado: alerta.puedeMedir,
-                      onTap: () => _iniciarMedicion(context, yaHabiaMedidoHoy: calibracion?.medidoHoy ?? false),
-                    ),
-                    if (alerta.fuente == FuenteLecturas.ninguna) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        textoSinFuente(),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 12, color: AppColors.textoAyuda),
+                    // Botón circular al centro (versión final): gris y con el
+                    // motivo mientras no se puede medir.
+                    Center(
+                      child: BotonMedir(
+                        habilitado: alerta.puedeMedir,
+                        motivo: alerta.fuente == FuenteLecturas.ninguna
+                            ? textoSinFuente()
+                            : motivoNoListo(alerta.fuente, alerta.estadoSensor),
+                        detalle: alerta.puedeMedir ? 'Unos ${ConfigMedicion.objetivoValidoSeg ~/ 60} minutos en reposo' : '',
+                        onTap: () => _iniciarMedicion(context, yaHabiaMedidoHoy: calibracion?.medidoHoy ?? false),
                       ),
-                    ],
+                    ),
                     if (alerta.fuente == FuenteLecturas.sensor) ...[
                       const SizedBox(height: 12),
                       _EstadoSensor(alerta),
                     ],
                     if (mostrarTarjetaGad7(inicio.gad7)) ...[
                       const SizedBox(height: 16),
-                      _TarjetaGad7(onTap: () => _abrirGad7(context)),
+                      TarjetaGad7(onTap: () => _abrirGad7(context)),
                     ],
                     const SizedBox(height: 24),
                     if (mensaje != null) ...[
@@ -354,108 +355,8 @@ class _EstadoSensor extends StatelessWidget {
   }
 }
 
-// --- GAD-7 quincenal (Fase M5a) ---
-
-/// Invitación a responder el GAD-7. Solo aparece cuando le toca y tiene
-/// especialista (`mostrarTarjetaGad7`); no bloquea nada ni se pospone: si no
-/// responde, sigue aquí. Nunca habla del resultado.
-class _TarjetaGad7 extends StatelessWidget {
-  final VoidCallback onTap;
-  const _TarjetaGad7({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Tarjeta(
-      onTap: onTap,
-      colorBorde: AppColors.primario.withValues(alpha: 0.4),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(color: AppColors.primarioSuave, borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.assignment_outlined, color: AppColors.primario),
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  TextosGad7.tarjetaTitulo,
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.texto),
-                ),
-                SizedBox(height: 2),
-                Text(TextosGad7.tarjetaDetalle, style: TextStyle(fontSize: 12.5, color: AppColors.textoAyuda)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          TextButton(onPressed: onTap, child: const Text(TextosGad7.tarjetaBoton)),
-        ],
-      ),
-    );
-  }
-}
-
-// --- Botón principal ---
-
-class _BotonMedicion extends StatelessWidget {
-  final bool habilitado;
-  final VoidCallback onTap;
-  const _BotonMedicion({required this.habilitado, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    const minutos = ConfigMedicion.objetivoValidoSeg ~/ 60;
-    final radio = BorderRadius.circular(AppColors.radio + 4);
-    return Opacity(
-      opacity: habilitado ? 1 : 0.5,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: AppColors.gradienteEncabezado,
-          borderRadius: radio,
-          boxShadow: habilitado
-              ? [BoxShadow(color: AppColors.primario.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 4))]
-              : null,
-        ),
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            borderRadius: radio,
-            onTap: habilitado ? onTap : null,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              child: Row(
-                children: [
-                  Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 44),
-                  SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Iniciar medición',
-                          style: TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.bold),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Unos $minutos minutos en reposo',
-                          style: TextStyle(color: Colors.white70, fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.chevron_right_rounded, color: Colors.white),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
+// --- GAD-7 quincenal (Fase M5a): la tarjeta está en ui/tarjeta_gad7.dart ---
+// --- Botón principal: ui/boton_medir.dart ---
 
 // --- Primer uso ---
 
