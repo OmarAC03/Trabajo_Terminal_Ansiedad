@@ -1123,15 +1123,12 @@
   color: var(--color-primary);
 }
 
-/* Riti junto a "Mi Ritmo" en el menú lateral. */
+/* Riti junto a "Mi Ritmo" en el menú lateral: sobre el blanco no necesita fondo. */
 .ui-brand-mascota {
   display: grid;
   place-items: center;
   width: 40px;
   height: 40px;
-  padding: 3px;
-  border-radius: var(--radius-md);
-  background: var(--color-primary-soft, #eff6ff);
   flex-shrink: 0;
 }
 
@@ -1141,22 +1138,29 @@
   object-fit: contain;
 }
 
-/* Riti en el login (es azul: va sobre un cuadro blanco). */
+/* Riti en el login. Es azul como el panel: en vez de un cuadro blanco lleva
+   un halo de luz redondo que se desvanece hacia el azul, sin bordes. */
 .ui-auth-mascota {
   display: grid;
   place-items: center;
-  width: 64px;
-  height: 64px;
-  padding: 6px;
-  border-radius: 16px;
-  background: #fff;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.85) 42%,
+    rgba(255, 255, 255, 0.3) 60%,
+    rgba(255, 255, 255, 0) 71%
+  );
   flex-shrink: 0;
 }
 
 .ui-auth-mascota img {
-  width: 100%;
-  height: 100%;
+  width: 78%;
+  height: 78%;
   object-fit: contain;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.18));
 }
 
 .ui-auth-accent {
@@ -1286,9 +1290,8 @@
   }
 
   .ui-auth-mascota {
-    width: clamp(64px, 6vw, 92px);
-    height: clamp(64px, 6vw, 92px);
-    border-radius: 20px;
+    width: clamp(76px, 7vw, 108px);
+    height: clamp(76px, 7vw, 108px);
   }
 
   .ui-auth-lema {

@@ -104,15 +104,18 @@ class EstructuraAcceso extends StatelessWidget {
                       )
                     : const SizedBox(height: 48),
               ),
-              // Riti saludando. Es azul: va sobre un cuadro blanco para que no
-              // se pierda en el gradiente (como en Inicio).
+              // Riti saludando. Es azul como la banda: en vez de un cuadro
+              // blanco lleva un halo de luz redondo que se desvanece, sin bordes.
               Container(
-                width: 96,
-                height: 96,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
+                width: 116,
+                height: 116,
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [Color(0xF2FFFFFF), Color(0xD9FFFFFF), Color(0x4DFFFFFF), Color(0x00FFFFFF)],
+                    stops: [0, 0.6, 0.85, 1],
+                  ),
                 ),
                 child: Image.asset(
                   EstructuraAcceso.mascota,
