@@ -1,5 +1,5 @@
-import { NOMBRE_APP } from '../marca';
-import { Activity } from 'lucide-react';
+import { NOMBRE_APP, NOMBRE_MASCOTA } from '../marca';
+import mascota from './mascota_saludando.png';
 import { Avatar } from './components';
 import './ui.css';
 
@@ -14,7 +14,7 @@ function Layout({ secciones, activa, onNavegar, usuarioNombre, usuarioRol, child
     <div className="ui-shell">
       <aside className="ui-sidebar">
         <div className="ui-brand">
-          <span className="ui-brand-logo"><Activity size={18} /></span>
+          <span className="ui-brand-mascota"><img src={mascota} alt={NOMBRE_MASCOTA} /></span>
           <span>{NOMBRE_APP}</span>
         </div>
         <nav className="ui-nav" aria-label="Navegación principal">

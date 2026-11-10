@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { render } from '@testing-library/react';
 import AuthLayout from './ui/AuthLayout';
+import Layout from './ui/Layout';
 import { NOMBRE_APP, LEMA, NOMBRE_MASCOTA, FRASE_MASCOTA } from './marca';
 
 const PROHIBIDOS = ['ansiedad', 'Portal Clínico TT', 'Monitor ESCOM', 'Trabajo Terminal'];
@@ -38,6 +39,28 @@ describe('marca del portal', () => {
     expect(container.querySelector(`img[alt="${NOMBRE_MASCOTA}"]`)).not.toBeNull();
     for (const p of PROHIBIDOS) {
       expect(container.textContent.toLowerCase()).not.toContain(p.toLowerCase());
+    }
+  });
+
+  test('el menú lateral muestra a Riti junto a "Mi Ritmo" (sin el ícono de pulso)', () => {
+    const { container, getByText } = render(
+      <Layout secciones={[]} activa="" onNavegar={() => {}} usuarioNombre="PRUEBA" usuarioRol="especialista">
+        <p>contenido</p>
+      </Layout>
+    );
+    expect(getByText(NOMBRE_APP)).toBeInTheDocument();
+    const marca = container.querySelector('.ui-brand');
+    expect(marca.querySelector(`img[alt="${NOMBRE_MASCOTA}"]`)).not.toBeNull();
+    expect(marca.querySelector('svg')).toBeNull();
+  });
+
+  test('el ícono de la pestaña es el de la app, no el de React', () => {
+    const html = leerPublico('index.html');
+    expect(html).toContain('href="%PUBLIC_URL%/favicon.png"');
+    const iconos = JSON.parse(leerPublico('manifest.json')).icons.map((i) => i.src);
+    expect(iconos).toEqual(['favicon.png', 'logo192.png']);
+    for (const archivo of iconos) {
+      expect(fs.existsSync(path.join(__dirname, '..', 'public', archivo))).toBe(true);
     }
   });
 });
