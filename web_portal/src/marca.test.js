@@ -34,6 +34,8 @@ describe('marca del portal', () => {
     );
     expect(getByText(NOMBRE_APP)).toBeInTheDocument();
     expect(getByText(LEMA)).toBeInTheDocument();
+    // Riti en lugar del dibujo de la señal.
+    expect(container.querySelector(`img[alt="${NOMBRE_MASCOTA}"]`)).not.toBeNull();
     for (const p of PROHIBIDOS) {
       expect(container.textContent.toLowerCase()).not.toContain(p.toLowerCase());
     }

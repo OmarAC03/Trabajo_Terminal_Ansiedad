@@ -55,18 +55,26 @@ class _SeccionAcercaAppState extends State<SeccionAcercaApp> {
       _Conexion.sinConexion => ('Sin conexión', AppColors.guia, Icons.cloud_off_outlined),
     };
     return _Seccion(titulo: 'Acerca de la app', filas: [
-      const Padding(
-        padding: EdgeInsets.fromLTRB(16, 14, 16, 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+        child: Row(
           children: [
-            Text(Marca.nombreApp,
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.texto)),
-            SizedBox(height: 2),
-            Text(Marca.lema, style: TextStyle(fontSize: 13, color: AppColors.textoAyuda)),
-            SizedBox(height: 6),
-            Text('${Marca.nombreMascota}: «${Marca.fraseMascota}»',
-                style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: AppColors.primarioOscuro)),
+            const IconoApp(),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(Marca.nombreApp,
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.texto)),
+                  SizedBox(height: 2),
+                  Text(Marca.lema, style: TextStyle(fontSize: 13, color: AppColors.textoAyuda)),
+                  SizedBox(height: 6),
+                  Text('${Marca.nombreMascota}: «${Marca.fraseMascota}»',
+                      style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: AppColors.primarioOscuro)),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -147,6 +155,31 @@ class _SeccionAcercaProyectoState extends State<SeccionAcercaProyecto> {
         ),
       ),
     ]);
+  }
+}
+
+/// El ícono de la app tal como se ve en el celular: Riti feliz sobre el
+/// fondo azul claro del ícono adaptativo (pubspec.yaml, flutter_launcher_icons).
+class IconoApp extends StatelessWidget {
+  final double tamano;
+  const IconoApp({super.key, this.tamano = 64});
+
+  static const String ruta = 'assets/mascota/avatar_feliz.png';
+  static const Color fondo = Color(0xFFEAF3FE);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: tamano,
+      height: tamano,
+      padding: EdgeInsets.all(tamano * 0.1),
+      decoration: BoxDecoration(
+        color: fondo,
+        borderRadius: BorderRadius.circular(tamano * 0.26),
+        border: Border.all(color: AppColors.borde),
+      ),
+      child: Image.asset(ruta, fit: BoxFit.contain, semanticLabel: 'Ícono de ${Marca.nombreApp}'),
+    );
   }
 }
 

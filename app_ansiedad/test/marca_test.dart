@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:app_ansiedad/contenido/acerca_textos.dart';
 import 'package:app_ansiedad/contenido/marca.dart';
 import 'package:app_ansiedad/notificaciones/recordatorio_gad7.dart';
+import 'package:app_ansiedad/screens/acerca_widgets.dart';
 import 'package:app_ansiedad/ui/estructura_acceso.dart';
 import 'package:app_ansiedad/ui/pantalla_cargando.dart';
 import 'package:flutter/material.dart';
@@ -57,6 +58,19 @@ void main() {
     for (final p in _prohibidos) {
       expect(todo.toLowerCase(), isNot(contains(p.toLowerCase())), reason: p);
     }
+    // Riti en lugar del dibujo de la señal.
+    expect(find.image(const AssetImage(EstructuraAcceso.mascota)), findsOneWidget);
+    expect(find.byIcon(Icons.monitor_heart), findsNothing);
+  });
+
+  testWidgets('Acerca de la app muestra el ícono de la app junto al nombre', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: SingleChildScrollView(child: SeccionAcercaApp(comprobar: () async => true))),
+    ));
+    await tester.pump();
+    expect(find.byType(IconoApp), findsOneWidget);
+    expect(find.image(const AssetImage(IconoApp.ruta)), findsOneWidget);
+    expect(find.text(Marca.nombreApp), findsOneWidget);
   });
 
   test('ningún texto del login ni del registro dice "ansiedad"', () {

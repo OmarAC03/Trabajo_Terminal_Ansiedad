@@ -27,6 +27,9 @@ class EstructuraAcceso extends StatelessWidget {
     this.conRegreso = false,
   });
 
+  /// Riti en la banda de marca del login y el registro.
+  static const String mascota = 'assets/mascota/mascota_saludando.png';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -101,14 +104,21 @@ class EstructuraAcceso extends StatelessWidget {
                       )
                     : const SizedBox(height: 48),
               ),
+              // Riti saludando. Es azul: va sobre un cuadro blanco para que no
+              // se pierda en el gradiente (como en Inicio).
               Container(
-                width: 64,
-                height: 64,
+                width: 96,
+                height: 96,
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(18),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
                 ),
-                child: const Icon(Icons.monitor_heart, color: Colors.white, size: 34),
+                child: Image.asset(
+                  EstructuraAcceso.mascota,
+                  fit: BoxFit.contain,
+                  semanticLabel: Marca.nombreMascota,
+                ),
               ),
               const SizedBox(height: 14),
               const Text(
