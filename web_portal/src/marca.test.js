@@ -52,6 +52,7 @@ describe('marca del portal', () => {
     const marca = container.querySelector('.ui-brand');
     expect(marca.querySelector(`img[alt="${NOMBRE_MASCOTA}"]`)).not.toBeNull();
     expect(marca.querySelector('svg')).toBeNull();
+    expect(marca.querySelector('img').getAttribute('src')).toBe(AVATARES.login); // Riti meditando
   });
 
   test('el ícono de la pestaña es el de la app, no el de React', () => {

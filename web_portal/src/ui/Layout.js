@@ -1,5 +1,5 @@
 import { NOMBRE_APP, NOMBRE_MASCOTA } from '../marca';
-import mascota from './mascota_saludando.png';
+import mascota from './avatar_meditando.png';
 import { Avatar } from './components';
 import './ui.css';
 
