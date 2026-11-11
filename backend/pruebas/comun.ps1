@@ -3,7 +3,9 @@
 #   . "$PSScriptRoot\comun.ps1"
 # Los tokens se obtienen solos con correo + contrasena (no se guardan).
 
-$Base = 'http://localhost:3000'
+# Por defecto el backend local; contra produccion:
+#   $env:TT_BASE_URL = 'https://tt-ansiedad-backend.onrender.com'
+$Base = if ($env:TT_BASE_URL) { $env:TT_BASE_URL.TrimEnd('/') } else { 'http://localhost:3000' }
 $FirebaseKey = 'AIzaSyBT8DdafzQLg89kmcHQ-J5A3q1Ak6fQO3o'  # la misma API key publica del portal
 
 # Cuerpo de la respuesta de un error HTTP (se le pasa el $_ del catch). En

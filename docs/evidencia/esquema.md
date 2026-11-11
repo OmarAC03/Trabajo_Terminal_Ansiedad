@@ -6,8 +6,8 @@ fuente para la tesis y no se le agregó ninguna columna que no saliera de las
 consultas.
 
 - **Motor:** PostgreSQL 17.6 (aarch64, administrado por Supabase).
-- **Esquema `public`:** 14 tablas, 114 columnas, 32 índices, 2 triggers de
-  fila visibles en C4 (ver la nota sobre TRUNCATE), 2 funciones propias.
+- **Esquema `public`:** 14 tablas, 114 columnas, 32 índices, 3 triggers (2 en
+  `bitacora`, 1 en `notas_clinicas_versiones`), 2 funciones propias.
 - **RLS:** activada en las 14 tablas, sin políticas y sin permisos para los roles
   `anon` y `authenticated` (DDL de la Fase S, ejecutado y verificado el 11 nov 2026).
 
@@ -362,7 +362,8 @@ acciones de administración. Solo inserción.
 - CHECK `bitacora_detalle_check`: `detalle` es un objeto JSON.
 - Índices: `idx_bitacora_fecha (fecha DESC)`, `idx_bitacora_actor (actor_id, fecha DESC)`,
   `idx_bitacora_objetivo (objetivo_id, fecha DESC)`, `idx_bitacora_accion (accion, fecha DESC)`.
-- Trigger `trg_bitacora_sin_update_delete` (BEFORE UPDATE y BEFORE DELETE).
+- Triggers `trg_bitacora_sin_update_delete` (BEFORE UPDATE y DELETE) y
+  `trg_bitacora_sin_truncate` (BEFORE TRUNCATE): solo inserción.
 
 ## Índices
 
@@ -390,7 +391,8 @@ acciones de administración. Solo inserción.
 
 | Trigger | Tabla | Momento | Evento | Función |
 |---|---|---|---|---|
-| `trg_bitacora_sin_update_delete` | `bitacora` | BEFORE | UPDATE, DELETE | `bitacora_solo_insertar()` |
+| `trg_bitacora_sin_update_delete` | `bitacora` | BEFORE (por fila) | UPDATE, DELETE | `bitacora_solo_insertar()` |
+| `trg_bitacora_sin_truncate` | `bitacora` | BEFORE (por sentencia) | TRUNCATE | `bitacora_solo_insertar()` |
 | `trg_notas_versiones_inmutables` | `notas_clinicas_versiones` | BEFORE | UPDATE | `notas_versiones_inmutables()` |
 
 Las dos funciones son PL/pgSQL, con `SET search_path TO 'pg_catalog'`, y solo
@@ -406,11 +408,17 @@ CREATE OR REPLACE FUNCTION public.notas_versiones_inmutables() RETURNS trigger
 AS $function$ BEGIN RAISE EXCEPTION 'notas_clinicas_versiones no admite UPDATE'; END $function$;
 ```
 
-**TRUNCATE, por confirmar.** `CONTEXTO_PROYECTO.md` y
-`docs/tesis/02_inventario_implementacion.md` dicen que `bitacora` también tiene
-`trg_bitacora_sin_truncate`. C4 no lo muestra, pero tampoco podría:
-`information_schema.triggers` solo lista triggers de INSERT, UPDATE y DELETE.
-Se confirma con la consulta C7 (al final).
+**TRUNCATE.** `bitacora` tiene además `trg_bitacora_sin_truncate`
+(BEFORE TRUNCATE, FOR EACH STATEMENT, misma función). C4 no lo muestra porque
+`information_schema.triggers` solo lista triggers de INSERT, UPDATE y DELETE; lo
+confirma la consulta C7 (al final):
+
+| Trigger (C7) | Definición |
+|---|---|
+| `trg_bitacora_sin_truncate` | `BEFORE TRUNCATE ON public.bitacora FOR EACH STATEMENT EXECUTE FUNCTION bitacora_solo_insertar()` |
+| `trg_bitacora_sin_update_delete` | `BEFORE DELETE OR UPDATE ON public.bitacora FOR EACH ROW EXECUTE FUNCTION bitacora_solo_insertar()` |
+
+Con esto, `bitacora` rechaza UPDATE, DELETE y TRUNCATE.
 
 ## Seguridad a nivel de fila (RLS)
 
@@ -498,7 +506,7 @@ ORDER BY 1;
 ```
 
 `information_schema.triggers` no lista los triggers de `TRUNCATE`. C7 los lee de
-`pg_trigger` (pendiente de correr):
+`pg_trigger`:
 
 ```sql
 -- C7. Todos los triggers propios de bitacora, incluidos los de TRUNCATE
