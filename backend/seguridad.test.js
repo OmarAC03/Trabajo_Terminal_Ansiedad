@@ -32,9 +32,9 @@ test('Socket.io rechaza el handshake de un origen no permitido', async () => {
   assert.equal(await pedir(undefined), true);
 });
 
-test('valores de los límites: 1000/15 min por IP, 300/15 min por cuenta, 10/h estricto', () => {
+test('valores de los límites: 1000/15 min por IP, 600/15 min por cuenta, 10/h estricto', () => {
   assert.deepEqual(LIMITES.ip, { ventanaMs: 900000, maximo: 1000 });
-  assert.deepEqual(LIMITES.usuario, { ventanaMs: 900000, maximo: 300 });
+  assert.deepEqual(LIMITES.usuario, { ventanaMs: 900000, maximo: 600 });
   assert.deepEqual(LIMITES.estricto, { ventanaMs: 3600000, maximo: 10 });
   assert.deepEqual(RUTAS_ESTRICTAS.map(([m, r]) => `${m} ${r}`),
     ['POST /api/usuarios', 'POST /api/especialistas', 'POST /api/consentimiento', 'POST /api/gad7']);

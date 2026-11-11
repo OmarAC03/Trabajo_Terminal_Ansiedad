@@ -18,7 +18,7 @@ Se aplica en este orden a toda petición:
 | 3 | `limites.porIp` en `/api` | `seguridad.js` | 1000 peticiones / 15 min por IP. |
 | 4 | `express.json()` | Express | Lee el cuerpo JSON. |
 | 5 | `requiereAuth(pool)` en `/api` | `auth.js` | Exige `Authorization: Bearer <token de Firebase>`; adjunta `req.uid`, `req.rol` y `req.consentimientoVigente`; rechaza cuentas suspendidas o eliminadas (403). **No aplica a `GET /api/salud`.** |
-| 6 | `limites.porUsuario` en `/api` | `seguridad.js` | 300 peticiones / 15 min por cuenta. |
+| 6 | `limites.porUsuario` en `/api` | `seguridad.js` | 600 peticiones / 15 min por cuenta. |
 | 7 | `limites.estricto` | `seguridad.js` | 10 peticiones / hora por cuenta, solo en las 4 rutas marcadas con **E**. |
 | 8 | `requiereAdmin` en `/api/admin` | `auth.js` | 403 a cualquier rol que no sea `admin`. |
 | — | Manejador de errores | `server.js` | Responde `{ error, codigo }` con el código HTTP del error (400, 403, 404, 409, 429, 500). |

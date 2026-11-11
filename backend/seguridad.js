@@ -51,7 +51,7 @@ const LIMITES = Object.freeze({
   // pueden salir por la misma IP de la red de la escuela.
   ip: { ventanaMs: 15 * 60 * 1000, maximo: 1000 },
   // Por cuenta (uid del token), para todo /api.
-  usuario: { ventanaMs: 15 * 60 * 1000, maximo: 300 },
+  usuario: { ventanaMs: 15 * 60 * 1000, maximo: 600 },
   // Por cuenta, en registro, consentimiento y GAD-7.
   estricto: { ventanaMs: 60 * 60 * 1000, maximo: 10 },
 });
