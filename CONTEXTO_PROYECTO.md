@@ -71,10 +71,11 @@ Las 5 pestañas del `main_layout`: **Inicio (Alerta)**, **Historial**, **Mensaje
 - `GET /api/lecturas/:pacienteId` — lecturas de un paciente (con `?limite=`).
 - `GET /api/lecturas/:pacienteId/resumen?periodo=semana|mes` — agregación por día (GROUP BY), devuelve periodo actual + anterior para comparar.
 - `POST /api/usuarios` — registra usuario tras crear cuenta en Firebase.
-- `GET /api/usuarios/:id` — trae perfil (nombre, email, rol, codigo_vinculacion). **Solo el propio perfil** (403 si `:id` ≠ uid del token) desde la Fase 2e.
+- `GET /api/usuarios/:id` — trae perfil (nombre, email, rol, codigo_vinculacion y, desde la versión final, fecha_registro). **Solo el propio perfil** (403 si `:id` ≠ uid del token) desde la Fase 2e.
 - `PUT /api/usuarios/:id` — edita el nombre (devuelve también `codigo_vinculacion`). **Solo el propio perfil** desde la Fase 2e.
 - `GET /api/pacientes` — lista de usuarios con `rol='paciente'` (nombre, email, última lectura si tiene: `ultimo_estado`, `ultima_lectura` y, desde la Fase A, `ultimo_bpm`/`ultimo_spo2`/`ultimo_hrv`); requiere `rol === 'especialista'`. Nuevo en Portal Web Fase 1.
 - `GET /api/mensajes/:pacienteId` — historial del chat (Fase 2b).
+- `GET /api/especialista/conversaciones` · `/exportaciones` · `/resumen` — bandeja de Mensajes, historial de exportaciones y resumen del perfil del portal (versión final, Fase 2; `backend/cuenta_especialista.js`). Solo `rol === 'especialista'`, siempre filtrado por su uid; sin DDL.
 - `POST /api/ejercicios` / `GET /api/ejercicios/:pacienteId` — ejercicios asignados (Fase 2c).
 - `GET /api/pendientes` / `POST /api/pendientes/:seccion/visto` — badges de Mensajes y Ejercicios en la app (Fase 2c).
 - `GET /api/admin/usuarios` — todas las cuentas (rol, estado, vinculación; sin datos clínicos).
@@ -289,6 +290,14 @@ Referencia: `MARCO_ALCANCE_Y_LENGUAJE.md`. El sistema monitorea parámetros fisi
 - **App:** pantalla de arranque con la mascota, Acerca de sin datos técnicos (+ Acerca del proyecto), separadores por día en Mensajes (hora de México), avatares de la mascota (11, sin `preocupado`), paisaje en Ejercicios.
 - **Seguridad (Fase S):** `GET /api/salud` pública; CORS solo `https://monitor-ansiedad-escom.onrender.com` (+ `http://localhost:3000` si `NODE_ENV` ≠ `production`) en HTTP y Socket.io (`backend/seguridad.js`); express-rate-limit con `trust proxy` (1000/15 min por IP, 300/15 min por cuenta, 10/h por cuenta en registro, consentimiento y GAD-7; el contador vive en memoria y se reinicia al reiniciar el backend). `GET /api/lecturas` ya solo devuelve las de los pacientes vinculados (antes, todas a cualquier especialista). RLS en todas las tablas y sin privilegios para `anon`/`authenticated`: DDL propuesto por Omar y revisado contra el código (solo `DATABASE_URL` con el rol `postgres`, que es dueño y tiene BYPASSRLS; nadie usa supabase-js ni la llave anon). Lo ejecuta Omar.
 - **Prueba de aislamiento:** `backend/pruebas/prueba_aislamiento.ps1` (+ `aislamiento_socket.js`, socket.io-client solo en devDependencies) con las cuentas PRUEBA B y F de `semilla_aislamiento.js` (@example.com).
+- **Portal, Fase 2 (11 nov 2026):**
+  - **Mensajes** (`Mensajes.js`, lógica en `chat.js`): bandeja con todas las conversaciones y el chat a la derecha. «Pendiente de responder» = el último mensaje es del paciente (D1, opción b, sin DDL); deja de estarlo cuando el especialista responde, no al abrirla. La pastilla del menú cuenta las pendientes y se actualiza en el polling de 15 s (`GET /api/especialista/conversaciones`, que no devuelve el texto de ningún mensaje: el texto se lee al abrir la conversación, con su registro de acceso).
+  - **Chat** (`ChatPaciente.js`, también en el detalle del paciente): separadores por día («Hoy», «Ayer», «lunes 9 de noviembre») y hora en hora de México; caja `textarea` de 1 a 5 líneas que luego hace scroll; Enter envía, Shift+Enter salta de línea, no envía mientras se compone un acento.
+  - **Reportes** (`Reportes.js`, `exportaciones.js`): elegir paciente → el mismo `ExportarReporte`; historial de las últimas 100 exportaciones propias leído de la bitácora (`GET /api/especialista/exportaciones`); un paciente que ya no está vinculado aparece como «(ya no vinculado)», sin nombre.
+  - **Acerca del proyecto** (`AcercaProyecto.js`, `acerca.js`): el mismo texto que la app, con los escudos del IPN y la ESCOM; `acerca.test.js` lee `acerca_textos.dart` y falla si dejan de coincidir.
+  - **Perfil completo** (`perfil.js`): rol, fecha de alta e institución en «Datos de la cuenta» (también el admin); tarjeta «Tu actividad» (`GET /api/especialista/resumen`): pacientes vinculados, mensajes enviados, notas y reportes exportados este mes (mes calendario de México). No hay «último acceso»: la base no lo guarda.
+  - Login con Riti y «Mi Ritmo»: ya estaba desde el cambio de nombre.
+  - **Ojo en Windows:** el sistema de archivos no distingue mayúsculas, así que un componente y su módulo de lógica no pueden llamarse igual (`Mensajes.js` / `mensajes.js`). Por eso la lógica se llama `chat.js` y `exportaciones.js`.
 
 ## 5. Deuda técnica / pendientes conocidos
 

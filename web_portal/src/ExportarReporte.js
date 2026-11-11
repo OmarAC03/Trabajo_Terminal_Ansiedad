@@ -22,8 +22,9 @@ function descargar(texto, nombre) {
 // Exportar el reporte del paciente (Bloque 2, paso 4: WEB-RF-29 /
 // RNF-WEB-08): CSV o impresión/PDF, con o sin identificación. Cada
 // exportación queda en la bitácora (la registra el backend antes de
-// responder).
-function ExportarReporte({ paciente }) {
+// responder). `onExportado` avisa a la sección Reportes para que recargue el
+// historial.
+function ExportarReporte({ paciente, onExportado }) {
   const [rango, setRango] = useState(() => rangoPorDefecto());
   const [seudonimizado, setSeudonimizado] = useState(false);
   const [cargando, setCargando] = useState(null); // 'csv' | 'pdf' | null
@@ -57,6 +58,7 @@ function ExportarReporte({ paciente }) {
       });
       if (formato === 'csv') descargar(csvDesdeReporte(res.data), nombreArchivo(res.data, 'csv'));
       else setParaImprimir(res.data);
+      if (onExportado) onExportado();
     } catch (e) {
       console.error('Error al exportar el reporte:', e);
       setError(

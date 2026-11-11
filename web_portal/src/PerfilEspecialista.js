@@ -1,13 +1,14 @@
 import { NOMBRE_APP, LEMA } from './marca';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import {
-  UserRound, KeyRound, Lock, Pencil, Copy, Check, Save, X, CheckCircle2, CircleAlert, Info,
+  UserRound, KeyRound, Lock, Pencil, Copy, Check, Save, X, CheckCircle2, CircleAlert, Info, Activity,
 } from 'lucide-react';
 import { auth } from './firebase';
 import { PageHeader, Card, Button, Badge, Avatar, Field, Alert, Disclaimer } from './ui/components';
 import { API_BASE } from './config';
+import { INSTITUCION, resumenUrl, textoFechaAlta, filasActividad } from './perfil';
 
 const USUARIOS_URL = `${API_BASE}/api/usuarios`;
 const MIN_PASSWORD = 6; // mínimo que exige Firebase Auth
@@ -58,7 +59,10 @@ function PerfilEspecialista({ perfil, onPerfilActualizado, esAdmin = false }) {
           <DatosCuenta perfil={perfil} onPerfilActualizado={onPerfilActualizado} esAdmin={esAdmin} />
           {!esAdmin && <CodigoCard codigo={perfil.codigo_vinculacion} />}
         </div>
-        <CambiarPassword />
+        <div className="ui-stack">
+          {!esAdmin && <ActividadCard />}
+          <CambiarPassword />
+        </div>
       </div>
       <div style={{ marginTop: 20 }}>
         <Disclaimer icon={Info}>
@@ -147,11 +151,56 @@ function DatosCuenta({ perfil, onPerfilActualizado, esAdmin }) {
           </div>
         </form>
       ) : (
-        <Field id="perfil-email" label="Correo electrónico" value={perfil.email || ''} disabled readOnly
-          help="El correo no se puede cambiar desde el portal." />
+        <>
+          <Field id="perfil-email" label="Correo electrónico" value={perfil.email || ''} disabled readOnly
+            help="El correo no se puede cambiar desde el portal." />
+          <dl className="ui-profile-datos">
+            <div><dt>Rol</dt><dd>{esAdmin ? 'Administrador' : 'Especialista'}</dd></div>
+            <div><dt>Fecha de alta</dt><dd>{textoFechaAlta(perfil.fecha_registro)}</dd></div>
+            <div><dt>Institución</dt><dd>{INSTITUCION}</dd></div>
+          </dl>
+        </>
       )}
 
       {aviso && <Alert tone={aviso.tone} icon={aviso.tone === 'altos' ? CircleAlert : CheckCircle2}>{aviso.texto}</Alert>}
+    </Card>
+  );
+}
+
+// Actividad propia del especialista (GET /api/especialista/resumen): pacientes
+// vinculados, mensajes enviados, notas y exportaciones del mes.
+function ActividadCard() {
+  const [resumen, setResumen] = useState(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const token = await auth.currentUser.getIdToken();
+        const res = await axios.get(resumenUrl, { headers: { Authorization: `Bearer ${token}` } });
+        if (!cancelado) setResumen(res.data);
+      } catch (e) {
+        console.error('Error al cargar la actividad del perfil:', e);
+        if (!cancelado) setError(true);
+      }
+    })();
+    return () => { cancelado = true; };
+  }, []);
+
+  return (
+    <Card title="Tu actividad" icon={Activity} subtitle="Conteos de tu cuenta en el portal">
+      {error ? (
+        <p className="ui-muted" style={{ margin: 0 }}>No se pudo cargar tu actividad. Vuelve a abrir tu perfil más tarde.</p>
+      ) : !resumen ? (
+        <div className="ui-empty">Cargando…</div>
+      ) : (
+        <dl className="ui-profile-kpis">
+          {filasActividad(resumen).map((f) => (
+            <div key={f.clave}><dt>{f.etiqueta}</dt><dd className="ui-num">{f.valor}</dd></div>
+          ))}
+        </dl>
+      )}
     </Card>
   );
 }

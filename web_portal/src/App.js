@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
-import { LogOut, Users, UserRound, LayoutDashboard } from 'lucide-react';
+import { LogOut, Users, UserRound, LayoutDashboard, MessageCircle, FileText, Info } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import Login from './Login';
@@ -10,10 +10,14 @@ import PacientesList from './PacientesList';
 import PacienteDetalle from './PacienteDetalle';
 import PerfilEspecialista from './PerfilEspecialista';
 import Dashboard from './Dashboard';
+import Mensajes from './Mensajes';
+import Reportes from './Reportes';
+import AcercaProyecto from './AcercaProyecto';
 import AdminApp from './AdminApp';
 import Layout from './ui/Layout';
 import { API_BASE } from './config';
 import { codigoBloqueo, guardarAvisoCierre, MENSAJES_BLOQUEO } from './cuentas';
+import { contarPendientes, conversacionesUrl } from './chat';
 
 const API_URL = `${API_BASE}/api/pacientes`;
 const USUARIOS_URL = `${API_BASE}/api/usuarios`;
@@ -26,8 +30,14 @@ function App() {
   const [errorAcceso, setErrorAcceso] = useState('');
   // Perfil propio (nombre, email, codigo_vinculacion) de GET /api/usuarios/:uid.
   const [perfil, setPerfil] = useState(null);
-  // Sección elegida en el sidebar: 'dashboard' | 'pacientes' | 'perfil'.
+  // Sección elegida en el sidebar: 'dashboard' | 'pacientes' | 'mensajes' |
+  // 'reportes' | 'perfil' | 'acerca'.
   const [seccion, setSeccion] = useState('dashboard');
+  // Bandeja de Mensajes (GET /api/especialista/conversaciones), en el mismo
+  // polling: así la pastilla del menú se actualiza sola.
+  const [conversaciones, setConversaciones] = useState(null);
+  const [errorConversaciones, setErrorConversaciones] = useState('');
+  const bandejaCargada = useRef(false);
   // 'login' | 'registro' | 'recuperar'. Mientras es 'registro' no se carga el
   // dashboard: Firebase abre sesión al crear la cuenta, pero la fila en
   // `usuarios` aún no existe hasta que el backend termina el registro.
@@ -68,6 +78,8 @@ function App() {
           setSeccion('dashboard');
           setPerfil(null);
           setPacientes([]);
+          setConversaciones(null);
+          bandejaCargada.current = false;
           setErrorAcceso('');
           signOut(auth);
         }
@@ -119,10 +131,12 @@ function App() {
       if (rolCuenta === 'admin') return;
     }
 
-    const [pacientesResultado, perfilResultado] = await Promise.allSettled([
+    const [pacientesResultado, perfilResultado, conversacionesResultado] = await Promise.allSettled([
       axios.get(API_URL, { headers: { Authorization: `Bearer ${token}` } }),
       axios.get(`${USUARIOS_URL}/${auth.currentUser.uid}`, { headers: { Authorization: `Bearer ${token}` } }),
+      axios.get(conversacionesUrl, { headers: { Authorization: `Bearer ${token}` } }),
     ]);
+    procesarConversaciones(conversacionesResultado);
 
     if (pacientesResultado.status === 'fulfilled') {
       setPacientes(pacientesResultado.value.data);
@@ -142,6 +156,30 @@ function App() {
     }
 
     setLoading(false);
+  };
+
+  function procesarConversaciones(resultado) {
+    if (resultado.status === 'fulfilled') {
+      bandejaCargada.current = true;
+      setConversaciones(resultado.value.data);
+      setErrorConversaciones('');
+    } else {
+      console.error('Error al obtener las conversaciones:', resultado.reason);
+      // Sin red se conserva la última bandeja; el aviso solo si nunca cargó.
+      if (!bandejaCargada.current) setErrorConversaciones('No se pudieron cargar las conversaciones. Se reintenta solo.');
+    }
+  }
+
+  // Solo la bandeja (al enviar o recibir un mensaje en la sección Mensajes).
+  const recargarConversaciones = async () => {
+    if (!auth.currentUser || rolRef.current !== 'especialista') return;
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const res = await axios.get(conversacionesUrl, { headers: { Authorization: `Bearer ${token}` } });
+      procesarConversaciones({ status: 'fulfilled', value: res });
+    } catch (error) {
+      procesarConversaciones({ status: 'rejected', reason: error });
+    }
   };
 
   useEffect(() => {
@@ -180,6 +218,8 @@ function App() {
     setSeccion('dashboard');
     setPerfil(null);
     setPacientes([]);
+    setConversaciones(null);
+    bandejaCargada.current = false;
     setErrorAcceso('');
     signOut(auth);
   };
@@ -204,21 +244,30 @@ function App() {
       items: [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'pacientes', label: 'Pacientes', icon: Users },
+        { id: 'mensajes', label: 'Mensajes', icon: MessageCircle, contador: contarPendientes(conversaciones) },
+        { id: 'reportes', label: 'Reportes', icon: FileText },
       ],
     },
     {
       titulo: 'Cuenta',
       items: [
         { id: 'perfil', label: 'Mi perfil', icon: UserRound },
+        { id: 'acerca', label: 'Acerca del proyecto', icon: Info },
         { id: 'salir', label: 'Salir', icon: LogOut, onClick: cerrarSesion },
       ],
     },
   ];
 
   const navegar = (id) => {
-    // "Dashboard" y "Pacientes" en el sidebar siempre cierran el detalle.
-    if (id === 'dashboard' || id === 'pacientes') setPacienteSeleccionadoId(null);
+    // Cualquier sección del sidebar cierra el detalle del paciente.
+    setPacienteSeleccionadoId(null);
     setSeccion(id);
+  };
+
+  // Desde la bandeja de Mensajes: abre el detalle del paciente.
+  const abrirPaciente = (id) => {
+    setSeccion('pacientes');
+    setPacienteSeleccionadoId(id);
   };
 
   return (
@@ -231,6 +280,18 @@ function App() {
     >
       {seccion === 'perfil' ? (
         <PerfilEspecialista perfil={perfil} onPerfilActualizado={setPerfil} />
+      ) : seccion === 'acerca' ? (
+        <AcercaProyecto />
+      ) : seccion === 'mensajes' ? (
+        <Mensajes
+          conversaciones={conversaciones}
+          cargando={conversaciones === null && !errorConversaciones}
+          error={errorConversaciones}
+          onActualizar={recargarConversaciones}
+          onAbrirPaciente={abrirPaciente}
+        />
+      ) : seccion === 'reportes' ? (
+        <Reportes pacientes={pacientes} />
       ) : pacienteSeleccionado ? (
         // Se abre desde el Dashboard o desde Pacientes; "Volver" regresa a esa
         // sección. Trae su propio disclaimer de alcance (sección 3 del marco).

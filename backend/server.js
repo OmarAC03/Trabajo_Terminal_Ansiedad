@@ -13,6 +13,7 @@ const { origenesPermitidos, opcionesCors, opcionesSocket, crearLimites, RUTAS_ES
 const { inicializarFirebaseAdmin, requiereAuth, requiereAuthSocket, requiereAdmin } = require('./auth');
 const { crearAdminRouter } = require('./admin');
 const { crearEspecialistaRouter } = require('./especialista');
+const { crearCuentaEspecialistaRouter } = require('./cuenta_especialista');
 const { CONFIG_LINEA_BASE } = require('./linea_base');
 const { evaluarFilas, calibracionPara } = require('./linea_base_vista');
 const { CONFIG_GAD7, itemsDeFila, puntaje: puntajeGad7, severidad: severidadGad7, valorar: valorarGad7, estadoGad7 } = require('./gad7');
@@ -236,6 +237,10 @@ async function especialistaDePaciente(pacienteId) {
 app.use('/api/pacientes', crearEspecialistaRouter(pool, {
   esPacienteVinculado, registrarAcceso, evaluarSesiones: conEvaluacion,
 }));
+
+// Secciones propias del especialista en el portal (versión final, Fase 2):
+// bandeja de Mensajes, historial de exportaciones y resumen del perfil.
+app.use('/api/especialista', crearCuentaEspecialistaRouter(pool));
 
 // --- HISTORIAL DE UN PACIENTE ESPECÍFICO (registros recientes, sin exponer a otros pacientes) ---
 // Usado por la app móvil. GET /api/lecturas/:pacienteId?limite=50
@@ -1117,7 +1122,7 @@ function autorizarPerfilPropio(req, id, mensaje) {
 app.get('/api/usuarios/:id', async (req, res) => {
   const { id } = req.params;
   autorizarPerfilPropio(req, id, 'No autorizado para ver este perfil.');
-  const result = await pool.query('SELECT id, nombre, email, rol, codigo_vinculacion FROM usuarios WHERE id = $1', [id]);
+  const result = await pool.query('SELECT id, nombre, email, rol, codigo_vinculacion, fecha_registro FROM usuarios WHERE id = $1', [id]);
 
   if (result.rows.length === 0) {
     return res.status(404).json({ error: 'Usuario no encontrado' });
@@ -1255,7 +1260,7 @@ app.put('/api/usuarios/:id', async (req, res) => {
   const nombre = validarNombre(req.body);
 
   const result = await pool.query(
-    'UPDATE usuarios SET nombre = $1 WHERE id = $2 RETURNING id, nombre, email, rol, codigo_vinculacion',
+    'UPDATE usuarios SET nombre = $1 WHERE id = $2 RETURNING id, nombre, email, rol, codigo_vinculacion, fecha_registro',
     [nombre, id]
   );
 

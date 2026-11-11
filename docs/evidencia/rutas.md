@@ -2,8 +2,10 @@
 
 Leído de `backend/server.js`, `backend/especialista.js`, `backend/admin.js`,
 `backend/auth.js` y `backend/seguridad.js` el 11 de noviembre de 2026 (commit `1e4e2e0`).
-**46 rutas REST** (31 en `server.js`, 8 en el router del especialista y 7 en el router
-de administración) y **2 eventos de Socket.io** propios.
+**49 rutas REST** (31 en `server.js`, 8 en el router del especialista, 3 en el router
+de la cuenta del especialista y 7 en el router de administración) y **2 eventos de
+Socket.io** propios. Actualizado con la Fase 2 del portal (router
+`cuenta_especialista.js`).
 
 ## Cadena de middleware
 
@@ -85,6 +87,17 @@ quedan en la bitácora en la misma transacción.
 | POST | `/api/pacientes/:pacienteId/marcadores` | Crea un marcador |
 | DELETE | `/api/pacientes/:pacienteId/marcadores/:marcadorId` | Borra un marcador |
 | GET | `/api/pacientes/:pacienteId/reporte` | Reporte para exportar (`Cache-Control: no-store`) |
+
+## Router de la cuenta del especialista (`cuenta_especialista.js`, montado en `/api/especialista`)
+
+Todas exigen el rol `especialista` (403 a pacientes y admins) y filtran por el uid
+del token: nadie ve la bandeja, las exportaciones ni el resumen de otro.
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| GET | `/api/especialista/conversaciones` | Bandeja de Mensajes: por paciente vinculado, fecha del último mensaje, quién lo escribió y cuántos mensajes del paciente siguen sin respuesta. No devuelve el texto de ningún mensaje. |
+| GET | `/api/especialista/exportaciones` | Últimas 100 exportaciones propias, leídas de la bitácora; sin nombre si el paciente ya no está vinculado (`Cache-Control: no-store`). |
+| GET | `/api/especialista/resumen` | Fecha de alta y conteos propios: pacientes vinculados, mensajes enviados, notas y exportaciones del mes. |
 
 ## Router de administración (`admin.js`, montado en `/api/admin`)
 
