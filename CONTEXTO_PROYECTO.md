@@ -299,6 +299,20 @@ Referencia: `MARCO_ALCANCE_Y_LENGUAJE.md`. El sistema monitorea parámetros fisi
   - Login con Riti y «Mi Ritmo»: ya estaba desde el cambio de nombre.
   - **Ojo en Windows:** el sistema de archivos no distingue mayúsculas, así que un componente y su módulo de lógica no pueden llamarse igual (`Mensajes.js` / `mensajes.js`). Por eso la lógica se llama `chat.js` y `exportaciones.js`.
 
+## 4septies. Producción y firmware v2 del sensor (11–13 nov 2026)
+
+- **En producción (Render, `main` = `ec4c09f`, desplegado el 11 nov 2026, 11:26 backend / 11:32 portal):** Fase 2 del portal (Mensajes, Reportes, Acerca del proyecto, perfil completo) y límite por cuenta de **600 peticiones / 15 min** (`backend/seguridad.js`; IP 1000/15 min y estricto 10/h sin cambio).
+- **Validación del sensor (11–12 nov, con Luis):** `docs/validacion/` (`VALIDACION_SENSOR_RESUMEN.md`, `BITACORA_VALIDACION.md`, `Validacion_Sensor_MiRitmo.xlsx`, `calibracion.csv`). Firmware en `firmware/` (`TT_Sensor_MiRitmo_v2/`, respaldo `v1/`, `captura.py`, `analiza_crudo.py`, `pruebas_host/`, `LEEME.md`); sin binarios.
+- **Qué cambió en la v2** (mismo JSON que la v1, la app no cambia): lectura completa del FIFO a 100 Hz con tiempo por contador de muestras (la v1 procesaba 50 de 100 y mezclaba rojo/IR de muestras distintas); pasa-banda Butterworth 0.5–5 Hz; detector de pico con umbral adaptativo, refractario de 300 ms e interpolación parabólica (sustituye `checkForBeat()` de SparkFun, que truncaba a 16 bits y descartaba latidos fuertes); FC = mediana de 5 RR; SpO2 por cociente de cocientes con la curva de Maxim y `CORRECCION_SPO2 = 4` (se resta). La v1 inflaba el RMSSD 1.5–2.5×.
+- **Configuración por kit:** kit 1 `INVERTIR_CANALES 0` (`TT_SENSOR_CLASICO 1`); kit 2 `INVERTIR_CANALES 1` (sus LED rojo e IR vienen intercambiados). `MODO_CRUDO 0` en uso normal; `1` solo para capturar señal con `captura.py`.
+- **Resultados:** 965/972 latidos (99.3 %) frente a la referencia fuera de línea; FC frente al oxímetro EAM 1.7 lpm (sesgo −0.4, LoA −4.8 a +3.9, n = 23); RMSSD −1.5 ms (−5.6 %, r = 0.99) frente a la referencia; SpO2 con sesgo +4.2 → corrección −4, SpO2 corregida EAM 0.9 (LoA ±2.6, dejando uno fuera); calidad de sesión v1 53–84 % → v2 92–100 %.
+- **Límites:** la referencia es un oxímetro comercial, sin ECG; SpO2 validada solo entre 92 y 96 %; pocas personas con mediciones repetidas. La SpO2 sigue como dato de apoyo: no entra a la línea base ni a las bandas.
+- **Pendientes (sección 4 del resumen):**
+  - **Servidor: fecha de corte de la línea base** (pospuesto hasta después del viernes 14 nov). Las sesiones de origen sensor anteriores a la v2 no deben entrar a la base ni recibir banda (la v1 inflaba la HRV; producen "Altos" falsos, p. ej. 17:48 y 18:00 del 11/11). El corte será justo antes de la primera sesión con la v2 (~17:40 del 11/11; Luis confirma la hora). Plan ya revisado: `m3-v1` → `m3-v2`, motivo `firmware_anterior`, sin borrar nada ni DDL; ajustar `semaforo.js` / `SesionDetalle.js` y la fila de sensor de `semilla_m3.js`.
+  - **App v1.1:** valorar mostrar la SpO2 al estudiante (sigue como indicador de apoyo).
+  - **Pruebas 2 y 3** (repetibilidad y sentadillas) con una cuenta PRUEBA, para cerrar la sección 6.6.4.
+  - **Documento:** 5.3.2 y 6.6.1–6.6.3 redactadas en la v6; falta la 6.6.4.
+
 ## 5. Deuda técnica / pendientes conocidos
 
 - **Seguridad (Inc. 6a, ✅ CERRADO):** `GET /api/lecturas` y el resto de endpoints ya exigen token Firebase y el portal web ya exige login — verificado end-to-end (ver sección 4). El pendiente menor de confirmar el rol especialista quedó cerrado al verificar la Fase D del sistema de vinculación (sección 4ter).

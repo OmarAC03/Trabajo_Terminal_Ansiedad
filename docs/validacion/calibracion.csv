@@ -1,0 +1,9 @@
+id,archivo,persona,kit,oxi_spo2_30,oxi_fc_30,oxi_spo2_60,oxi_fc_60
+1,cal_01_P3_k2.txt,P3,2,94,71,93,76
+2,cal_02_P4_k2.txt,P4,2,95,75,94,76
+3,cal_03_P3_k2.txt,P3,2,94,73,94,74
+4,cal_04_P4_k2.txt,P4,2,94,73,94,77
+5,cal_05_P4_k2.txt,P4,2,96,72,95,68
+6,cal_06_P5_k2.txt,P5,2,95,70,96,71
+7,cal_07_P5_k2.txt,P5,2,94,78,94,73
+8,cal_08_P5_k2.txt,P5,2,93,78,93,79
