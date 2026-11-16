@@ -38,6 +38,15 @@
   --color-sin-datos: #94a3b8;
   --color-sin-datos-soft: #f1f5f9;
 
+  /* Caras de la EVA (autorreporte del paciente): de neutro a ámbar apagado,
+     sin rojo y más tierra que --color-elevados, para que no se lean como
+     bandas del semáforo. La cara siempre va con el número. */
+  --color-eva-tranquila: #64748b;
+  --color-eva-leve: #7d7869;
+  --color-eva-moderada: #957a45;
+  --color-eva-alta: #a87a2c;
+  --color-eva-muy-alta: #b4731a;
+
   /* Acentos por TIPO de dato (grupo, métrica, identidad del paciente), nunca
      por estado: color que organiza, no que juzga. Sin verde/ámbar/rojo, que
      son del semáforo (vuelve con M3 y la línea base). */

@@ -2144,3 +2144,29 @@
   font-size: var(--text-sm);
   color: var(--color-text-secondary);
 }
+
+/* --- EVA: cara + número y contexto (ícono + texto) --- */
+.eva-valor {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.eva-valor .ui-unit { margin-left: 1px; }
+.eva-valor-grande .ui-num { font-size: var(--text-kpi); font-weight: 700; }
+.eva-valor-grande .ui-unit { font-size: var(--text-md); }
+.eva-cara { flex: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.eva-cara-fondo { fill: currentColor; fill-opacity: 0.12; }
+.eva-tranquila { color: var(--color-eva-tranquila); }
+.eva-leve { color: var(--color-eva-leve); }
+.eva-moderada { color: var(--color-eva-moderada); }
+.eva-alta { color: var(--color-eva-alta); }
+.eva-muy_alta { color: var(--color-eva-muy-alta); }
+.eva-contexto {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+.eva-contexto svg { flex: none; color: var(--color-text-muted); }

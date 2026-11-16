@@ -1,7 +1,7 @@
 import {
   normalizarSesion, resumenSesiones, datosTendencia, serieConCortes, huecosDeSerie,
   porcentajeCalidad, minSeg, duracionTexto, fechaHora, ticksEje,
-  evaSobre10, textoContextoEva, demoraEva,
+  evaSobre10, textoContextoEva, demoraEva, nivelEva, etiquetaAccesibleEva,
   origenesPresentes, origenMasReciente, textoOrigen, dominioConBanda,
 } from './sesiones';
 
@@ -206,5 +206,24 @@ describe('línea base en la tendencia (M3)', () => {
     expect(dominioConBanda([40, 45, null], { min: 41.8, max: 51 })).toEqual([35, 56]);
     expect(dominioConBanda([40, 45], null)).toEqual([35, 50]);
     expect(dominioConBanda([2], null)).toEqual([0, 7]);
+  });
+});
+
+describe('Cara de la EVA (escala sobre 10)', () => {
+  test('cortes en 2, 4, 6 y 8: el borde pertenece al nivel de arriba', () => {
+    const casos = [[0, 'tranquila'], [19, 'tranquila'], [20, 'leve'], [39, 'leve'], [40, 'moderada'],
+      [59, 'moderada'], [60, 'alta'], [79, 'alta'], [80, 'muy_alta'], [100, 'muy_alta']];
+    for (const [valor, nivel] of casos) expect(nivelEva(valor)).toBe(nivel);
+  });
+  test('llega como texto desde el backend, se acota a 0–100; omitida → null', () => {
+    expect(nivelEva('74')).toBe('alta');
+    expect(nivelEva(150)).toBe('muy_alta');
+    expect(nivelEva(-5)).toBe('tranquila');
+    expect(nivelEva(null)).toBeNull();
+    expect(nivelEva(undefined)).toBeNull();
+  });
+  test('etiqueta accesible: valor sobre 10, sin etiqueta clínica', () => {
+    expect(etiquetaAccesibleEva(74)).toBe('Ansiedad autorreportada por el paciente: 7.4 de 10');
+    expect(etiquetaAccesibleEva(74)).not.toMatch(/alta|leve|moderada|tranquila|grave/i);
   });
 });

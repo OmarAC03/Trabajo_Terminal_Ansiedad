@@ -1,7 +1,7 @@
 import {
-  fechaLocal, textoEstadoReporte, textoEtapaReporte, textoSeveridad, textoTipo, textoContextoEva, textoOrigen,
+  fechaLocal, textoEstadoReporte, textoEtapaReporte, textoSeveridad, textoTipo, textoOrigen,
 } from './reporte';
-import { evaSobre10 } from './sesiones';
+import { ValorEva, ContextoEva } from './EvaVisual';
 import { textoDia } from './notas';
 
 const redondo = (v, decimales = 0) => (v == null ? '—' : Number(v).toFixed(decimales));
@@ -42,7 +42,7 @@ function ReporteImpresion({ reporte: r }) {
             <thead>
               <tr>
                 <th>Fecha</th><th>Origen</th><th>HRV (ms)</th><th>FC (lpm)</th><th>SpO2 (%)</th>
-                <th>Calidad</th><th>EVA /10</th>{conTexto && <th>Contexto EVA</th>}<th>Estado</th><th>Base</th>
+                <th>Calidad</th><th>EVA</th>{conTexto && <th>Contexto EVA</th>}<th>Estado</th><th>Base</th>
               </tr>
             </thead>
             <tbody>
@@ -54,8 +54,8 @@ function ReporteImpresion({ reporte: r }) {
                   <td>{redondo(s.bpm_promedio)} ({redondo(s.bpm_min)}–{redondo(s.bpm_max)})</td>
                   <td>{redondo(s.spo2_promedio)}</td>
                   <td>{s.indice_calidad == null ? '—' : `${Math.round(s.indice_calidad * 100)}%`}</td>
-                  <td>{evaSobre10(s.eva_valor)}</td>
-                  {conTexto && <td>{s.eva_valor == null ? '—' : textoContextoEva(s.eva_contexto)}</td>}
+                  <td><ValorEva valor={s.eva_valor} /></td>
+                  {conTexto && <td>{s.eva_valor != null && <ContextoEva clave={s.eva_contexto} />}</td>}
                   <td>{textoEstadoReporte(s)}</td>
                   <td>{textoEtapaReporte(s)}</td>
                 </tr>

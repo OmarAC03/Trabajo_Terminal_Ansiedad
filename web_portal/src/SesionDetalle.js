@@ -12,8 +12,9 @@ import { BadgeEstado } from './PacientesComun';
 import {
   SESIONES_URL, normalizarSesion, serieConCortes, huecosDeSerie, ticksEje, dominioConBanda,
   porcentajeCalidad, duracionTexto, fechaHora, minSeg,
-  evaSobre10, textoContextoEva, demoraEva,
+  demoraEva,
 } from './sesiones';
+import { ValorEva, ContextoEva } from './EvaVisual';
 import { textoEtapa } from './semaforo';
 
 // Regla de seguridad de DESARROLLO_FUNDAMENTADO.md §2.3 (la misma que la app).
@@ -191,12 +192,9 @@ function ReporteSubjetivo({ sesion: s }) {
         <div className="ui-muted">El paciente no respondió la EVA en esta sesión.</div>
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+          <ValorEva valor={s.eva_valor} grande />
           <div>
-            <span className="ui-num" style={{ fontSize: 'var(--text-kpi)', fontWeight: 700 }}>{evaSobre10(s.eva_valor)}</span>
-            <span className="ui-unit" style={{ fontSize: 'var(--text-md)' }}>/ 10</span>
-          </div>
-          <div>
-            <div>{textoContextoEva(s.eva_contexto)}</div>
+            <ContextoEva clave={s.eva_contexto} />
             <div className="ui-muted" style={{ fontSize: 'var(--text-sm)' }}>{demoraEva(s)}</div>
           </div>
         </div>

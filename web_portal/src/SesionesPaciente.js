@@ -10,8 +10,9 @@ import { haceTiempo, BadgeEstado } from './PacientesComun';
 import {
   SESIONES_URL, LINEA_BASE_URL, normalizarSesion, resumenSesiones, datosTendencia,
   origenesPresentes, origenMasReciente, textoOrigen,
-  porcentajeCalidad, duracionTexto, fechaHora, evaSobre10,
+  porcentajeCalidad, duracionTexto, fechaHora,
 } from './sesiones';
+import { ValorEva, ContextoEva } from './EvaVisual';
 import { colorEstado, textoEstado, textoSinEstado, textoEtapa, textoCalibracion } from './semaforo';
 import SesionDetalle from './SesionDetalle';
 import MarcadoresPanel from './MarcadoresPanel';
@@ -355,6 +356,7 @@ function TablaSesiones({ sesiones, onSeleccionar }) {
               <th>FC</th>
               <th>SpO2</th>
               <th>EVA</th>
+              <th>Contexto</th>
               <th>Calidad de señal</th>
               <th>Origen</th>
             </tr>
@@ -376,12 +378,10 @@ function TablaSesiones({ sesiones, onSeleccionar }) {
                 <td><span className="ui-num">{Math.round(s.hrv_rmssd)}</span><span className="ui-unit">ms</span></td>
                 <td><span className="ui-num">{Math.round(s.bpm_promedio)}</span><span className="ui-unit">lpm</span></td>
                 <td><span className="ui-num">{Math.round(s.spo2_promedio)}</span><span className="ui-unit">%</span></td>
-                {/* EVA: lo que reportó el paciente, sin color ni semáforo; "—" si la omitió. */}
-                <td>
-                  {s.eva_valor == null
-                    ? <span className="ui-muted">—</span>
-                    : <><span className="ui-num">{evaSobre10(s.eva_valor)}</span><span className="ui-unit">/10</span></>}
-                </td>
+                {/* EVA: lo que reportó el paciente (cara de neutro a ámbar, nunca el
+                    semáforo); "—" si la omitió. El contexto, ícono + texto o nada. */}
+                <td><ValorEva valor={s.eva_valor} /></td>
+                <td>{s.eva_valor != null && <ContextoEva clave={s.eva_contexto} />}</td>
                 <td><span className="ui-num">{porcentajeCalidad(s.indice_calidad)}</span><span className="ui-unit">%</span></td>
                 <td>{s.origen === 'simulacion' ? <Badge tone="neutral">Simulación</Badge> : <span className="ui-muted">Sensor</span>}</td>
               </tr>

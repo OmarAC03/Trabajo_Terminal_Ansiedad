@@ -188,6 +188,23 @@ const CONTEXTOS_EVA = {
   otro: 'Otro',
 };
 
+/**
+ * Cara de la EVA según el valor (0–100, se lee sobre 10): 0–<2, 2–<4, 4–<6,
+ * 6–<8 y 8–10. Solo elige el dibujo y el tono (de neutro a ámbar, nunca rojo,
+ * para no confundirse con las bandas del estado); en pantalla no se escribe
+ * ninguna etiqueta. null (omitida) → null.
+ */
+export const NIVELES_EVA = ['tranquila', 'leve', 'moderada', 'alta', 'muy_alta'];
+export function nivelEva(valor) {
+  if (valor == null || Number.isNaN(Number(valor))) return null;
+  const v = Math.min(100, Math.max(0, Number(valor)));
+  return NIVELES_EVA[Math.min(4, Math.floor(v / 20))];
+}
+
+/** Lo que se lee en el tooltip y en el aria-label: "… 7.4 de 10". */
+export const TITULO_EVA = 'Ansiedad autorreportada por el paciente';
+export const etiquetaAccesibleEva = (valor) => `${TITULO_EVA}: ${evaSobre10(valor)} de 10`;
+
 /** 'antes_examen' → "Antes de un examen"; null → "Sin contexto" */
 export const textoContextoEva = (clave) => (clave == null ? 'Sin contexto' : CONTEXTOS_EVA[clave] ?? clave);
 
