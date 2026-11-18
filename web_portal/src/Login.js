@@ -51,6 +51,17 @@ function Login({ onIrARegistro, onOlvidePassword }) {
         <>
           ¿Eres especialista y no tienes cuenta?{' '}
           <Button variant="link" onClick={onIrARegistro}>Regístrate</Button>
+          {/* Archivo estático de public/manuales: abre sin sesión. */}
+          <div style={{ marginTop: 12 }}>
+            <a
+              className="ui-btn ui-btn-link"
+              href="/manuales/Manual_Especialista_MiRitmo.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Manual del especialista (PDF)
+            </a>
+          </div>
         </>
       }
     >
