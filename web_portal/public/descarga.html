@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="Descarga Mi Ritmo, la aplicación para el estudiante." />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/logo192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <title>Descargar Mi Ritmo</title>
+    <!--
+      Página pública de descarga de la app (para el QR de la presentación).
+      Es HTML estático, aparte de la app React: no carga Firebase ni pide
+      sesión, y no cambia nada del resto del portal. Render la sirve en
+      /descarga (busca descarga.html, igual que sirve /index con index.html).
+      Los colores son los de src/ui/tokens.css.
+    -->
+    <style>
+      :root {
+        --color-bg: #f8fafc;
+        --color-surface: #ffffff;
+        --color-border: #e2e8f0;
+        --color-text: #1e293b;
+        --color-text-secondary: #475569;
+        --color-primary: #2563eb;
+        --color-primary-hover: #1d4ed8;
+        --color-primary-soft: #eff6ff;
+        --color-primary-border: #dbeafe;
+        --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--color-bg);
+        color: var(--color-text);
+        font-family: var(--font-sans);
+        line-height: 1.5;
+      }
+      header {
+        background: var(--color-primary);
+        color: #fff;
+        padding: 40px 16px 72px;
+        text-align: center;
+      }
+      .mascota {
+        width: 96px;
+        height: 96px;
+        border-radius: 50%;
+        background: #fff;
+        display: block;
+        margin: 0 auto 16px;
+      }
+      h1 { margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.02em; }
+      .lema { margin: 4px 0 0; font-size: 16px; opacity: 0.9; }
+      main {
+        max-width: 480px;
+        margin: -48px auto 40px;
+        padding: 0 16px;
+      }
+      .tarjeta {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 16px;
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+        padding: 24px;
+      }
+      .boton {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+        min-height: 60px;
+        padding: 14px 20px;
+        border-radius: 12px;
+        background: var(--color-primary);
+        color: #fff;
+        font-size: 18px;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .boton { white-space: nowrap; }
+      .boton svg { flex-shrink: 0; }
+      @media (max-width: 380px) {
+        .tarjeta { padding: 20px; }
+        .boton { padding: 14px 12px; font-size: 17px; }
+      }
+      .boton:hover { background: var(--color-primary-hover); }
+      .boton:focus-visible { outline: 3px solid var(--color-primary-border); outline-offset: 3px; }
+      .nota {
+        margin: 12px 0 0;
+        text-align: center;
+        font-size: 14px;
+        color: var(--color-text-secondary);
+      }
+      h2 { margin: 28px 0 12px; font-size: 16px; font-weight: 700; }
+      ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+      li { display: flex; align-items: flex-start; gap: 12px; font-size: 15px; }
+      .num {
+        flex-shrink: 0;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--color-primary-soft);
+        border: 1px solid var(--color-primary-border);
+        color: var(--color-primary);
+        font-weight: 700;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      li span:last-child { padding-top: 3px; }
+      footer { text-align: center; font-size: 13px; color: var(--color-text-secondary); padding: 0 16px 32px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img class="mascota" src="/logo192.png" alt="Riti, la mascota de Mi Ritmo" width="96" height="96" />
+      <h1>Mi Ritmo</h1>
+      <p class="lema">Aplicación para el estudiante</p>
+    </header>
+
+    <main>
+      <div class="tarjeta">
+        <a class="boton" href="/descargas/MiRitmo.apk" download="MiRitmo.apk">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg>
+          Descargar para Android
+        </a>
+        <p class="nota">Por ahora solo Android.</p>
+
+        <h2>Cómo instalarla</h2>
+        <ol>
+          <li><span class="num">1</span><span>Toca <strong>Descargar para Android</strong>.</span></li>
+          <li><span class="num">2</span><span>Abre el archivo <strong>MiRitmo.apk</strong> que se descargó.</span></li>
+          <li><span class="num">3</span><span>Si el teléfono lo pide, permite instalar aplicaciones de esta fuente.</span></li>
+          <li><span class="num">4</span><span>Abre <strong>Mi Ritmo</strong>.</span></li>
+        </ol>
+      </div>
+    </main>
+
+    <footer>Mi Ritmo · Tu ritmo, acompañado.</footer>
+  </body>
+</html>
